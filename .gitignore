@@ -1,0 +1,7 @@
+/target
+skills/
+mifutbol.db
+datos/
+target/capturas/
+*.db-wal
+*.db-shm

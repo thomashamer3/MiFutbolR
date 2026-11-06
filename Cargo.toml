@@ -1,0 +1,41 @@
+[package]
+name = "mifutbol-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Gestión futbolística personal en TUI (Rust + rusqlite + ratatui)"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+crossterm = "0.29"
+directories = "6"
+rand = "0.8"
+ratatui = "0.30"
+rusqlite = { version = "0.41", features = ["bundled", "backup"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+unicode-width = "0.2"
+
+[dev-dependencies]
+criterion = "0.5"
+pretty_assertions = "1"
+tempfile = "3"
+
+[[bench]]
+name = "queries"
+harness = false
+
+# Perfil de desarrollo: compila más rápido las dependencias sin sacrificar
+# demasiado la velocidad de ejecución (Performance.md §1).
+[profile.dev]
+opt-level = 1
+
+# Perfil de producción: binario pequeño, rápido y sin símbolos (Performance.md §1).
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
