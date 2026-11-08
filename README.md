@@ -1,6 +1,6 @@
-# MiFutbolRS · v0.1
+# MiFutbolR · v0.1
 
-![MiFutbolRS](assets/banner.png)
+![MiFutbolR](assets/banner.png)
 
 Gestión futbolística personal en terminal (Rust 2024 + rusqlite + ratatui).
 Implementa la especificación de `skills/ESPECIFICACION_PROYECTO_RUST_TUI.md`
