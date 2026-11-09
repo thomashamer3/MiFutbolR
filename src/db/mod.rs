@@ -3,19 +3,35 @@
 //! La UI nunca ejecuta SQL directamente (§4.1): los repositorios viven aquí y
 //! los servicios orquestan transacciones.
 
+pub mod amigo_repo;
 pub mod botin_repo;
+pub mod busqueda_repo;
+pub mod calendario_repo;
 pub mod camiseta_repo;
 pub mod cancha_repo;
 pub mod carrera_repo;
+pub mod comparador_repo;
 pub mod equipo_repo;
 pub mod error;
 pub mod estadisticas_repo;
 pub mod financiamiento_repo;
 pub mod helpers;
+pub mod inicio_repo;
 pub mod lesion_repo;
+pub mod logros_repo;
+pub mod media_repo;
+pub mod notificacion_repo;
 pub mod partido_repo;
+pub mod progresion_repo;
+pub mod quimica_repo;
+pub mod recordatorio_repo;
+pub mod records_repo;
 pub mod resumen_repo;
 pub mod settings_repo;
+pub mod temporada_repo;
+pub mod tienda_repo;
+pub mod torneo_repo;
+pub mod ultimos_repo;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -32,6 +48,12 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_init.sql"),
     include_str!("../../migrations/002_indexes.sql"),
     include_str!("../../migrations/003_seed.sql"),
+    include_str!("../../migrations/004_ola0.sql"),
+    include_str!("../../migrations/005_undo.sql"),
+    include_str!("../../migrations/006_ola1.sql"),
+    include_str!("../../migrations/007_ola1_temporadas.sql"),
+    include_str!("../../migrations/008_ola2.sql"),
+    include_str!("../../migrations/009_ola2_recordatorios.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

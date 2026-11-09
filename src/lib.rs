@@ -6,15 +6,24 @@
 
 pub mod app;
 mod app_ajustes;
+mod app_amigos;
 mod app_botines;
 mod app_canchas;
 mod app_carrera;
+mod app_comparador;
 mod app_equipos;
 mod app_estadisticas;
 mod app_financiamiento;
+mod app_inicio;
 mod app_lesiones;
+mod app_media;
 mod app_partidos;
+mod app_progresion;
+mod app_recordatorios;
 mod app_resumen;
+mod app_temporadas;
+mod app_tiendas;
+mod app_torneos;
 pub mod config;
 pub mod db;
 pub mod domain;

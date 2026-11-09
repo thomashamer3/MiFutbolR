@@ -5,7 +5,8 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Bar, BarChart, Block, Cell, HighlightSpacing, LineGauge, Paragraph, Row, Table, Wrap,
+    Bar, BarChart, Block, BorderType, Cell, HighlightSpacing, LineGauge, Paragraph, Row, Table,
+    Wrap,
 };
 
 use crate::app::App;
@@ -21,6 +22,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .areas(area);
 
     let bloque = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(" Resumen financiero ")
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));
@@ -153,6 +155,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 .label_style(Style::default().fg(colors.muted))
                 .block(
                     Block::bordered()
+                        .border_type(BorderType::Rounded)
                         .title(" Gastos por categoría ")
                         .border_style(Style::default().fg(colors.border)),
                 );
@@ -166,6 +169,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     };
 
     let bloque_tabla = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(" Movimientos ")
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));
@@ -234,6 +238,12 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.transacciones_table);
+    app.table_hits = crate::ui::widgets::hit::table_hits(
+        tabla_area,
+        app.transacciones_table.offset(),
+        app.transacciones.len(),
+    );
+    app.table_hit_target = Some(crate::app::TableHitTarget::Financiamiento);
 
     if let Some(panel) = preview_area {
         let seleccionada = app

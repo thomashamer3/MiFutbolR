@@ -453,6 +453,18 @@ pub enum RachaTipo {
     Neutral,
 }
 
+impl RachaTipo {
+    /// Etiqueta para la UI.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Positiva => "Racha positiva",
+            Self::Negativa => "Racha negativa",
+            Self::Neutral => "Sin racha",
+        }
+    }
+}
+
 /// Forma física deseada por el usuario para el próximo partido.
 #[derive(Debug, Clone)]
 pub struct Camiseta {
@@ -967,6 +979,8 @@ pub struct CamisetaRow {
     pub empates: i64,
     /// Derrotas.
     pub derrotas: i64,
+    /// Ruta de la imagen.
+    pub imagen_ruta: String,
 }
 
 /// Filtro del listado de camisetas.
@@ -1087,6 +1101,8 @@ pub struct CanchaRow {
     pub derrotas: i64,
     /// Rendimiento general promedio.
     pub rendimiento_promedio: f64,
+    /// Ruta de la imagen.
+    pub imagen_ruta: String,
 }
 
 /// Filtro del listado de canchas.
@@ -1269,6 +1285,8 @@ pub struct EquipoRow {
     pub jugadores_count: i64,
     /// ¿Activo?
     pub activa: bool,
+    /// Ruta de la imagen.
+    pub imagen_ruta: String,
 }
 
 /// Filtro del listado de equipos.
@@ -1515,6 +1533,8 @@ pub enum EstadisticaKind {
     Canchas,
     /// Goles y asistencias.
     Goles,
+    /// Meta-análisis.
+    Meta,
 }
 
 impl EstadisticaKind {
@@ -1526,6 +1546,7 @@ impl EstadisticaKind {
         Self::Rendimiento,
         Self::Canchas,
         Self::Goles,
+        Self::Meta,
     ];
 
     /// Etiqueta.
@@ -1538,6 +1559,7 @@ impl EstadisticaKind {
             Self::Rendimiento => "Rendimiento",
             Self::Canchas => "Canchas",
             Self::Goles => "Goles y asistencias",
+            Self::Meta => "Meta-análisis",
         }
     }
 
@@ -1551,6 +1573,7 @@ impl EstadisticaKind {
             Self::Rendimiento => "Clima, día, franja, cansancio, ánimo, intensidad y tendencia.",
             Self::Canchas => "Uso, goles y rendimiento por cancha, tipo y localidad.",
             Self::Goles => "Promedios, eficiencia, efectividad y partidos atípicos.",
+            Self::Meta => "Consistencia, outliers, contexto, impacto y eficiencia.",
         }
     }
 }
@@ -1671,8 +1694,51 @@ pub struct CanchasStats {
     pub ranking: Vec<CanchaStats>,
     /// Techadas vs descubiertas.
     pub por_techada: Vec<PromedioGrupo>,
+    /// Por tipo de cancha.
+    pub por_tipo: Vec<PromedioGrupo>,
+    /// Por superficie.
+    pub por_superficie: Vec<PromedioGrupo>,
+    /// Por franja horaria.
+    pub por_franja: Vec<PromedioGrupo>,
     /// Por localidad.
     pub por_localidad: Vec<PromedioGrupo>,
+}
+
+/// Métricas de meta-análisis (IMP-15).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MetaStats {
+    /// Partidos analizados.
+    pub partidos: i64,
+    /// Promedio de rendimiento.
+    pub promedio: f64,
+    /// Desvío estándar.
+    pub desvio: f64,
+    /// Coeficiente de variación (%).
+    pub cv: f64,
+    /// Mínimo.
+    pub minimo: i64,
+    /// Máximo.
+    pub maximo: i64,
+    /// Cantidad de partidos atípicos (|z| > 2).
+    pub outliers: i64,
+    /// Rendimiento con cansancio alto.
+    pub cansancio_alto: f64,
+    /// Rendimiento con cansancio bajo.
+    pub cansancio_bajo: f64,
+    /// Rendimiento con ánimo alto.
+    pub animo_alto: f64,
+    /// Rendimiento con ánimo bajo.
+    pub animo_bajo: f64,
+    /// Goles por partido.
+    pub goles_por_partido: f64,
+    /// Asistencias por partido.
+    pub asistencias_por_partido: f64,
+    /// Mejor contexto (cancha, promedio).
+    pub mejor_contexto: Option<(String, f64)>,
+    /// Peor contexto (cancha, promedio).
+    pub peor_contexto: Option<(String, f64)>,
+    /// Últimos rendimientos.
+    pub tendencia: Vec<f64>,
 }
 
 /// Métricas de goles y asistencias (§14.5).
@@ -1719,6 +1785,8 @@ pub struct Estadisticas {
     pub canchas: CanchasStats,
     /// Goles.
     pub goles: GolesStats,
+    /// Meta-análisis.
+    pub meta: MetaStats,
 }
 
 /// Filtro del listado de transacciones.

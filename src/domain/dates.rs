@@ -74,6 +74,38 @@ pub fn to_iso_datetime(datetime: NaiveDateTime) -> String {
     datetime.format(ISO_DATETIME).to_string()
 }
 
+/// Describe el tiempo transcurrido entre dos fechas.
+#[must_use]
+pub fn tiempo_transcurrido(desde: NaiveDateTime, ahora: NaiveDateTime) -> String {
+    let segundos = (ahora - desde).num_seconds().max(0);
+    if segundos < 60 {
+        return "hace instantes".to_string();
+    }
+    let minutos = segundos / 60;
+    if minutos < 60 {
+        return format!("hace {minutos} min");
+    }
+    let horas = minutos / 60;
+    if horas < 24 {
+        return format!("hace {horas} h");
+    }
+    let dias = horas / 24;
+    let anios = dias / 365;
+    let meses = (dias % 365) / 30;
+    let dias_restantes = dias % 30;
+    let mut partes = Vec::new();
+    if anios > 0 {
+        partes.push(format!("{anios} a"));
+    }
+    if meses > 0 {
+        partes.push(format!("{meses} m"));
+    }
+    if dias_restantes > 0 || partes.is_empty() {
+        partes.push(format!("{dias_restantes} d"));
+    }
+    format!("hace {}", partes.join(" "))
+}
+
 /// Formato de fecha para la UI: `DD/MM/YYYY`.
 #[must_use]
 pub fn display_date(date: NaiveDate) -> String {
@@ -200,5 +232,29 @@ mod tests {
         assert_eq!(franja_code(at(20)), 5);
         assert_eq!(franja_code(at(21)), 6);
         assert_eq!(franja_code(at(23)), 6);
+    }
+}
+
+#[cfg(test)]
+mod tiempo_tests {
+    use super::*;
+
+    #[test]
+    fn elapsed_text() {
+        let base = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        assert_eq!(tiempo_transcurrido(base, base), "hace instantes");
+        assert_eq!(
+            tiempo_transcurrido(base, base + chrono::Duration::minutes(5)),
+            "hace 5 min"
+        );
+        assert_eq!(
+            tiempo_transcurrido(base, base + chrono::Duration::hours(3)),
+            "hace 3 h"
+        );
+        let texto = tiempo_transcurrido(base, base + chrono::Duration::days(400));
+        assert!(texto.contains("1 a"));
     }
 }

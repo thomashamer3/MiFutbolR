@@ -25,6 +25,7 @@ pub fn cargar(conn: &Connection) -> Result<Estadisticas, ServiceError> {
         rendimiento: estadisticas_repo::rendimiento(conn)?,
         canchas: estadisticas_repo::canchas(conn)?,
         goles: estadisticas_repo::goles(conn)?,
+        meta: estadisticas_repo::meta(conn)?,
     })
 }
 
@@ -105,6 +106,12 @@ mod tests {
         assert_eq!(stats.canchas.ranking[0].partidos, 3);
         assert!((stats.goles.promedio_goles - 2.0).abs() < f64::EPSILON);
         assert!((stats.goles.efectividad - 3.0).abs() < f64::EPSILON);
+        assert_eq!(stats.meta.partidos, 3);
+        assert_eq!(stats.meta.minimo, 5);
+        assert_eq!(stats.meta.maximo, 9);
+        assert!(stats.meta.desvio > 0.0);
+        assert!(stats.meta.cansancio_bajo > 0.0);
+        assert_eq!(stats.meta.tendencia.len(), 3);
     }
 
     #[test]

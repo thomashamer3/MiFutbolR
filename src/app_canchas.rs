@@ -64,6 +64,12 @@ impl App {
             }
             KeyCode::Char('d') => self.confirm_delete_cancha(),
             KeyCode::Char('a') => self.toggle_cancha_activa(),
+            KeyCode::Char('v') => {
+                if let Some(cancha) = &self.cancha_detail {
+                    let ruta = cancha.imagen_ruta.clone();
+                    self.abrir_imagen(&ruta);
+                }
+            }
             _ => return Ok(false),
         }
         Ok(true)

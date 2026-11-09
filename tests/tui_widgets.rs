@@ -1,8 +1,8 @@
 //! Verificación de los widgets de TUI mejorados (vista previa, Gauge,
 //! BarChart, Tabs, scrollbar y muestra de tema).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use mifutbol_rs::app::App;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use mifutbol_rs::app::{App, Module, Screen};
 use mifutbol_rs::config::AppPaths;
 use mifutbol_rs::db::Database;
 use mifutbol_rs::ui;
@@ -46,7 +46,7 @@ fn wide_main_menu_shows_preview_and_shortcuts() {
     let (mut app, _dir) = test_app();
     let text = render(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
-    assert!(text.contains("Módulo 1 de 11"), "{text}");
+    assert!(text.contains("Módulo 1 de 18"), "{text}");
     assert!(text.contains("Atajos"), "{text}");
     assert!(text.contains("Camisetas"), "{text}");
 }
@@ -127,4 +127,150 @@ fn ajustes_shows_theme_preview() {
     assert!(text.contains("Vista previa del tema"), "{text}");
     assert!(text.contains("Éxito"), "{text}");
     assert!(text.contains("Selección"), "{text}");
+}
+
+#[test]
+fn module_tabs_show_context() {
+    let (mut app, _dir) = test_app();
+    abrir_modulo(&mut app, 4);
+    let text = render(&mut app, 120, 34);
+    assert!(text.contains("Finanzas"), "{text}");
+    assert!(text.contains("Ajustes"), "{text}");
+    assert!(text.contains("Camis"), "{text}");
+}
+
+#[test]
+fn image_viewer_opens_and_closes() {
+    let (mut app, _dir) = test_app();
+    let ruta = std::fs::canonicalize("images/icon-512x512.png").expect("imagen");
+    app.db
+        .conn()
+        .execute(
+            "INSERT INTO camiseta (nombre, imagen_ruta) VALUES ('Con foto', ?1)",
+            [ruta.to_string_lossy()],
+        )
+        .unwrap();
+    abrir_modulo(&mut app, 0);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('v'));
+    assert_eq!(app.current_screen(), Screen::ImagenViewer);
+    let text = render(&mut app, 100, 30);
+    assert!(text.contains("Esc para volver"), "{text}");
+    press(&mut app, KeyCode::Esc);
+    assert!(matches!(app.current_screen(), Screen::CamisetaDetail(_)));
+}
+
+#[test]
+fn sidebar_click_switches_module() {
+    let (mut app, _dir) = test_app();
+    abrir_modulo(&mut app, 4);
+    let _ = render(&mut app, 160, 42);
+    let objetivo = app
+        .sidebar_hits
+        .iter()
+        .find(|(_, module)| *module == Module::Camisetas)
+        .map(|(area, _)| *area)
+        .expect("hit de Camisetas");
+    let clic = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: objetivo.x + 1,
+        row: objetivo.y,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(clic).expect("clic");
+    assert_eq!(app.active_module, Some(Module::Camisetas));
+    assert_eq!(app.current_screen(), Screen::CamisetasList);
+}
+
+#[test]
+fn main_menu_click_opens_module() {
+    let (mut app, _dir) = test_app();
+    let _ = render(&mut app, 120, 34);
+    let objetivo = app
+        .menu_hits
+        .iter()
+        .find(|(_, indice)| *indice == 3)
+        .map(|(area, _)| *area)
+        .expect("hit de Equipos");
+    let clic = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: objetivo.x + 1,
+        row: objetivo.y,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(clic).expect("clic");
+    assert_eq!(app.active_module, Some(Module::Equipos));
+    assert_eq!(app.current_screen(), Screen::EquiposList);
+}
+
+#[test]
+fn table_click_selects_row() {
+    let (mut app, _dir) = test_app();
+    for nombre in ["Uno", "Dos", "Tres"] {
+        app.db
+            .conn()
+            .execute("INSERT INTO camiseta (nombre) VALUES (?1)", [nombre])
+            .unwrap();
+    }
+    abrir_modulo(&mut app, 0);
+    let _ = render(&mut app, 120, 34);
+    let objetivo = app
+        .table_hits
+        .iter()
+        .find(|(_, indice)| *indice == 2)
+        .map(|(area, _)| *area)
+        .expect("hit de fila 2");
+    let clic = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: objetivo.x + 1,
+        row: objetivo.y,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(clic).expect("clic");
+    assert_eq!(app.camisetas_table.selected(), Some(2));
+}
+
+#[test]
+fn canchas_table_click_selects_row() {
+    let (mut app, _dir) = test_app();
+    for nombre in ["Cancha Uno", "Cancha Dos"] {
+        app.db
+            .conn()
+            .execute("INSERT INTO cancha (nombre) VALUES (?1)", [nombre])
+            .unwrap();
+    }
+    abrir_modulo(&mut app, 1);
+    let _ = render(&mut app, 120, 34);
+    let objetivo = app
+        .table_hits
+        .iter()
+        .find(|(_, indice)| *indice == 1)
+        .map(|(area, _)| *area)
+        .expect("hit de cancha 1");
+    let clic = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: objetivo.x + 1,
+        row: objetivo.y,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(clic).expect("clic");
+    assert_eq!(app.canchas_table.selected(), Some(1));
+}
+
+#[test]
+fn moving_selection_starts_row_animation() {
+    let (mut app, _dir) = test_app();
+    for nombre in ["Uno", "Dos"] {
+        app.db
+            .conn()
+            .execute("INSERT INTO camiseta (nombre) VALUES (?1)", [nombre])
+            .unwrap();
+    }
+    abrir_modulo(&mut app, 0);
+    let _ = render(&mut app, 120, 34);
+    app.animations.clear();
+    press(&mut app, KeyCode::Down);
+    let _ = render(&mut app, 120, 34);
+    assert!(app.animations.running());
 }

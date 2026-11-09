@@ -1,10 +1,10 @@
 //! Pantallas del módulo Canchas (§9.5).
 
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -31,6 +31,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             )
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -59,7 +60,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.localidad.clone()),
             Cell::from(row.partidos.to_string()),
             Cell::from(format!("{:.1}", row.rendimiento_promedio)),
-            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }),
+            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }).style(
+                Style::default()
+                    .fg(if row.activa {
+                        colors.success
+                    } else {
+                        colors.muted
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
         .style(style)
     });
@@ -78,6 +87,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .header(header)
     .block(
         Block::bordered()
+            .border_type(BorderType::Rounded)
             .title(title)
             .border_style(Style::default().fg(colors.border))
             .style(Style::default().bg(colors.bg)),
@@ -93,6 +103,12 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.canchas_table);
+    app.table_hits = crate::ui::widgets::hit::table_hits(
+        tabla_area,
+        app.canchas_table.offset(),
+        app.canchas.len(),
+    );
+    app.table_hit_target = Some(crate::app::TableHitTarget::Canchas);
 
     if let Some(panel) = preview_area {
         let seleccionada = app
@@ -135,17 +151,46 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Style::default().fg(colors.muted),
             )));
         }
-        detail::panel(frame, panel, &colors, "Vista previa", lineas);
+        let ruta_imagen = seleccionada.and_then(|row| {
+            crate::ui::images::ImageCache::resolver(
+                &row.imagen_ruta,
+                &app.paths.images_dir,
+                &app.paths.data_dir,
+            )
+        });
+        let bloque = colors.panel(" Vista previa ");
+        let interior = bloque.inner(panel);
+        frame.render_widget(bloque, panel);
+        let con_imagen = ruta_imagen.is_some() && interior.height >= 16;
+        let [texto_area, imagen_area] = Layout::vertical([
+            Constraint::Min(6),
+            Constraint::Length(if con_imagen { 8 } else { 0 }),
+        ])
+        .areas(interior);
+        frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
+        if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
+            crate::ui::images::dibujar_miniatura(
+                frame,
+                imagen_area,
+                &mut app.images,
+                &ruta,
+                &colors,
+            );
+        }
     }
 }
 
 /// Detalle de una cancha.
-pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
+pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
     let colors = palette(app.settings.theme);
     let Some(cancha) = &app.cancha_detail else {
         frame.render_widget(
             Paragraph::new(format!("Cargando cancha {id}…"))
-                .block(Block::bordered().title(" Cancha "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Cancha "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
@@ -202,7 +247,15 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     }
     push("Grabación", yes_no(cancha.tiene_grabacion));
     push("Marcador", cancha.tiene_marcador.label());
-    push("Imagen", &cancha.imagen_ruta);
+    if !cancha.imagen_ruta.trim().is_empty() {
+        let nombre = std::path::Path::new(&cancha.imagen_ruta)
+            .file_name()
+            .map_or_else(
+                || cancha.imagen_ruta.clone(),
+                |nombre| nombre.to_string_lossy().into_owned(),
+            );
+        push("Imagen", &nombre);
+    }
     push("Activa", yes_no(cancha.activa));
 
     if let Some(row) = app.canchas.iter().find(|row| row.id == cancha.id) {
@@ -240,18 +293,36 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
         ]));
     }
 
+    let ruta_imagen = crate::ui::images::ImageCache::resolver(
+        &cancha.imagen_ruta,
+        &app.paths.images_dir,
+        &app.paths.data_dir,
+    );
+    let (texto_area, imagen_area) = if ruta_imagen.is_some() && area.width >= 110 {
+        let [texto, imagen] = Layout::horizontal([Constraint::Min(44), Constraint::Length(36)])
+            .spacing(1)
+            .areas(area);
+        (texto, Some(imagen))
+    } else {
+        (area, None)
+    };
+
     frame.render_widget(
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(" Cancha · {} ", cancha.nombre))
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
             )
             .wrap(Wrap { trim: true })
             .style(Style::default().bg(colors.bg)),
-        area,
+        texto_area,
     );
+    if let (Some(area_imagen), Some(ruta)) = (imagen_area, ruta_imagen) {
+        crate::ui::images::dibujar(frame, area_imagen, &mut app.images, &ruta, &colors);
+    }
 }
 
 /// Formulario.

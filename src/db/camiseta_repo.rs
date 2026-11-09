@@ -18,7 +18,7 @@ const COLUMNS: &str = "id, nombre, color_principal, color_secundario, marca, mod
 pub fn list(conn: &Connection, filter: &CamisetaFilter) -> Result<Vec<CamisetaRow>, DbError> {
     // El ORDER BY se elige de una lista cerrada; nunca se interpola input.
     let sql = format!(
-        "SELECT c.id, c.nombre, c.activa,
+        "SELECT c.id, c.nombre, c.activa, c.imagen_ruta,
                 COUNT(p.id) AS partidos,
                 COALESCE(SUM(p.goles), 0) AS goles,
                 COALESCE(SUM(p.asistencias), 0) AS asistencias,
@@ -42,12 +42,13 @@ pub fn list(conn: &Connection, filter: &CamisetaFilter) -> Result<Vec<CamisetaRo
                     id: row.get(0)?,
                     nombre: row.get(1)?,
                     activa: row.get::<_, i64>(2)? != 0,
-                    partidos: row.get(3)?,
-                    goles: row.get(4)?,
-                    asistencias: row.get(5)?,
-                    victorias: row.get(6)?,
-                    empates: row.get(7)?,
-                    derrotas: row.get(8)?,
+                    imagen_ruta: row.get(3)?,
+                    partidos: row.get(4)?,
+                    goles: row.get(5)?,
+                    asistencias: row.get(6)?,
+                    victorias: row.get(7)?,
+                    empates: row.get(8)?,
+                    derrotas: row.get(9)?,
                 })
             },
         )?

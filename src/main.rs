@@ -70,7 +70,9 @@ fn main() -> anyhow::Result<()> {
     let mut app = App::new(db, paths)?;
 
     let mut terminal = ratatui::init();
+    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
     let result = app::run(&mut terminal, &mut app);
+    crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
     ratatui::restore();
 
     if let Err(error) = &result {

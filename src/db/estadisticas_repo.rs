@@ -7,8 +7,9 @@ use rusqlite::Connection;
 
 use super::error::DbError;
 use crate::domain::models::{
-    CanchaStats, CanchasStats, Clima, EstadisticasGenerales, FranjaHoraria, GolesStats,
-    PeriodoStats, PromedioGrupo, RendimientoStats, Resultado, TechadaEstado,
+    CanchaStats, CanchasStats, Clima, EstadisticasGenerales, FranjaHoraria, GolesStats, MetaStats,
+    PeriodoStats, PromedioGrupo, RendimientoStats, Resultado, Superficie, TechadaEstado,
+    TipoCancha,
 };
 
 /// Agregados generales con rachas, consistencia y extremos.
@@ -315,6 +316,55 @@ pub fn canchas(conn: &Connection) -> Result<CanchasStats, DbError> {
         },
     )?;
 
+    let por_tipo = grupo_etiquetado(
+        conn,
+        "SELECT ct.tipo_codigo, COUNT(p.id),
+                COALESCE(AVG(p.rendimiento_general), 0.0)
+           FROM cancha_tipo ct
+           JOIN cancha c ON c.id = ct.cancha_id
+           LEFT JOIN partido p ON p.cancha_id = c.id
+          GROUP BY ct.tipo_codigo ORDER BY ct.tipo_codigo",
+        |codigo| {
+            TipoCancha::try_from(codigo)
+                .map_or_else(|_| "?".into(), |tipo| tipo.label().to_string())
+        },
+    )?;
+
+    let por_superficie = grupo_etiquetado(
+        conn,
+        "SELECT cs.superficie_codigo, COUNT(p.id),
+                COALESCE(AVG(p.rendimiento_general), 0.0)
+           FROM cancha_superficie cs
+           JOIN cancha c ON c.id = cs.cancha_id
+           LEFT JOIN partido p ON p.cancha_id = c.id
+          GROUP BY cs.superficie_codigo ORDER BY cs.superficie_codigo",
+        |codigo| {
+            Superficie::try_from(codigo)
+                .map_or_else(|_| "?".into(), |superficie| superficie.label().to_string())
+        },
+    )?;
+
+    let mut stmt = conn.prepare(
+        "SELECT CASE
+                    WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 12 THEN 'Mañana'
+                    WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 18 THEN 'Tarde'
+                    ELSE 'Noche'
+                END AS franja,
+                COUNT(*), COALESCE(AVG(p.rendimiento_general), 0.0)
+           FROM partido p
+          GROUP BY franja
+          ORDER BY CASE franja WHEN 'Mañana' THEN 1 WHEN 'Tarde' THEN 2 ELSE 3 END",
+    )?;
+    let por_franja = stmt
+        .query_map([], |row| {
+            Ok(PromedioGrupo {
+                clave: row.get(0)?,
+                partidos: row.get(1)?,
+                promedio: row.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
     let mut stmt = conn.prepare(
         "SELECT c.localidad, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
            FROM cancha c LEFT JOIN partido p ON p.cancha_id = c.id
@@ -338,6 +388,9 @@ pub fn canchas(conn: &Connection) -> Result<CanchasStats, DbError> {
         partidos,
         ranking,
         por_techada,
+        por_tipo,
+        por_superficie,
+        por_franja,
         por_localidad,
     })
 }
@@ -578,5 +631,152 @@ fn dia_semana(codigo: i64) -> String {
         5 => "Viernes".to_string(),
         6 => "Sábado".to_string(),
         _ => "?".to_string(),
+    }
+}
+/// Métricas de meta-análisis (IMP-15).
+pub fn meta(conn: &Connection) -> Result<MetaStats, DbError> {
+    let mut stmt = conn.prepare("SELECT rendimiento_general FROM partido")?;
+    let valores = stmt
+        .query_map([], |row| row.get::<_, i64>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    let partidos = valores.len() as i64;
+    let promedio = if partidos > 0 {
+        valores.iter().map(|valor| *valor as f64).sum::<f64>() / partidos as f64
+    } else {
+        0.0
+    };
+    let desvio = if partidos > 0 {
+        let varianza = valores
+            .iter()
+            .map(|valor| {
+                let diferencia = *valor as f64 - promedio;
+                diferencia * diferencia
+            })
+            .sum::<f64>()
+            / partidos as f64;
+        varianza.sqrt()
+    } else {
+        0.0
+    };
+    let cv = if promedio.abs() > f64::EPSILON {
+        desvio * 100.0 / promedio
+    } else {
+        0.0
+    };
+    let outliers = if desvio > f64::EPSILON {
+        valores
+            .iter()
+            .filter(|valor| (**valor as f64 - promedio).abs() > 2.0 * desvio)
+            .count() as i64
+    } else {
+        0
+    };
+    let minimo = valores.iter().copied().min().unwrap_or(0);
+    let maximo = valores.iter().copied().max().unwrap_or(0);
+
+    let promedio_cond = |condicion: &str| -> Result<f64, DbError> {
+        let sql = format!(
+            "SELECT COALESCE(AVG(rendimiento_general), 0.0) FROM partido WHERE {condicion}"
+        );
+        Ok(conn.query_row(&sql, [], |row| row.get(0))?)
+    };
+
+    let (goles_por_partido, asistencias_por_partido): (f64, f64) = conn.query_row(
+        "SELECT COALESCE(AVG(goles), 0.0), COALESCE(AVG(asistencias), 0.0) FROM partido",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    let mut stmt = conn.prepare(
+        "SELECT c.nombre, AVG(p.rendimiento_general)
+           FROM partido p JOIN cancha c ON c.id = p.cancha_id
+          GROUP BY c.id
+         HAVING COUNT(*) >= 2
+          ORDER BY AVG(p.rendimiento_general) DESC",
+    )?;
+    let contextos = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mejor_contexto = contextos.first().cloned();
+    let peor_contexto = contextos.last().cloned();
+
+    let mut stmt = conn.prepare(
+        "SELECT rendimiento_general FROM partido ORDER BY fecha_hora DESC, id DESC LIMIT 12",
+    )?;
+    let mut tendencia = stmt
+        .query_map([], |row| row.get::<_, f64>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    tendencia.reverse();
+
+    Ok(MetaStats {
+        partidos,
+        promedio,
+        desvio,
+        cv,
+        minimo,
+        maximo,
+        outliers,
+        cansancio_alto: promedio_cond("cansancio >= 7")?,
+        cansancio_bajo: promedio_cond("cansancio <= 3")?,
+        animo_alto: promedio_cond("estado_animo >= 7")?,
+        animo_bajo: promedio_cond("estado_animo <= 3")?,
+        goles_por_partido,
+        asistencias_por_partido,
+        mejor_contexto,
+        peor_contexto,
+        tendencia,
+    })
+}
+
+#[cfg(test)]
+mod canchas_extra_tests {
+    use super::*;
+    use crate::db::Database;
+    use rusqlite::params;
+
+    #[test]
+    fn canchas_reports_cover_type_surface_and_slot() {
+        let db = Database::open_in_memory().unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO cancha (nombre, localidad) VALUES ('El Potrero', 'Lanús')",
+                [],
+            )
+            .unwrap();
+        let cancha = db.conn().last_insert_rowid();
+        db.conn()
+            .execute(
+                "INSERT INTO cancha_tipo (cancha_id, tipo_codigo) VALUES (?1, 7)",
+                params![cancha],
+            )
+            .unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO cancha_superficie (cancha_id, superficie_codigo) VALUES (?1, 2)",
+                params![cancha],
+            )
+            .unwrap();
+        db.conn()
+            .execute("INSERT INTO camiseta (nombre) VALUES ('Azul')", [])
+            .unwrap();
+        let camiseta = db.conn().last_insert_rowid();
+        db.conn()
+            .execute(
+                "INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, goles, asistencias,
+                                      rendimiento_general, resultado)
+                 VALUES (?1, ?2, '2026-01-10 21:00:00', 2, 1, 8, 1)",
+                params![cancha, camiseta],
+            )
+            .unwrap();
+
+        let stats = canchas(db.conn()).unwrap();
+        assert_eq!(stats.ranking.len(), 1);
+        assert_eq!(stats.por_tipo.len(), 1);
+        assert_eq!(stats.por_superficie.len(), 1);
+        assert_eq!(stats.por_franja.len(), 1);
+        assert!(stats.por_franja[0].clave.contains("Noche"));
+        assert_eq!(stats.por_localidad[0].clave, "Lanús");
     }
 }

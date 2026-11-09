@@ -14,7 +14,8 @@ const COLUMNS: &str =
 pub fn list(conn: &Connection, filter: &EquipoFilter) -> Result<Vec<EquipoRow>, DbError> {
     let sql = format!(
         "SELECT e.id, e.nombre, e.tipo, e.tipo_futbol, e.num_jugadores, e.activa,
-                (SELECT COUNT(*) FROM jugador j WHERE j.equipo_id = e.id) AS jugadores
+                (SELECT COUNT(*) FROM jugador j WHERE j.equipo_id = e.id) AS jugadores,
+                e.imagen_ruta
            FROM equipo e
           WHERE (?1 = 0 OR e.activa = CASE ?1 WHEN 1 THEN 1 ELSE 0 END)
             AND (?2 = '' OR e.nombre LIKE '%' || ?2 || '%' COLLATE NOCASE)
@@ -35,6 +36,7 @@ pub fn list(conn: &Connection, filter: &EquipoFilter) -> Result<Vec<EquipoRow>, 
                     num_jugadores: row.get(4)?,
                     activa: row.get::<_, i64>(5)? != 0,
                     jugadores_count: row.get(6)?,
+                    imagen_ruta: row.get(7)?,
                 })
             },
         )?

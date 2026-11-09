@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, List, ListItem, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, List, ListItem, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::app_carrera::CARRERA_SECCIONES;
@@ -41,6 +41,7 @@ pub fn draw_menu(frame: &mut Frame, area: Rect, app: &mut App) {
     let list = List::new(items)
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(" Carrera futbolística ")
                 .border_style(Style::default().fg(colors.border))
                 .style(Style::default().bg(colors.bg)),
@@ -113,7 +114,11 @@ pub fn draw_resumen(frame: &mut Frame, area: Rect, app: &App) {
     let Some(resumen) = &app.carrera_resumen else {
         frame.render_widget(
             Paragraph::new("Sin datos de carrera todavía.")
-                .block(Block::bordered().title(" Resumen "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Resumen "),
+                )
                 .style(Style::default().fg(colors.muted)),
             area,
         );
@@ -182,6 +187,7 @@ pub fn draw_resumen(frame: &mut Frame, area: Rect, app: &App) {
 pub fn draw_hitos(frame: &mut Frame, area: Rect, app: &mut App) {
     let colors = palette(app.settings.theme);
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(" Hitos de carrera ")
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));
@@ -420,6 +426,7 @@ fn render_texto(
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(titulo.to_string())
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),

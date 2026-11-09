@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
 use crate::ui::theme::Palette;
 
@@ -35,6 +35,7 @@ pub fn panel(
         Paragraph::new(lineas)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(" {titulo} "))
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),

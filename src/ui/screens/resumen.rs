@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -15,6 +15,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let colors = palette(app.settings.theme);
     let titulo = format!(" Resumen compartible · {} ", app.resumen_formato.label());
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(titulo)
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));

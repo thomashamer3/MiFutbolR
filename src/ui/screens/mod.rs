@@ -1,24 +1,40 @@
 //! Pantallas de la TUI.
 
 pub mod ajustes;
+pub mod amigos;
 pub mod ayuda;
 pub mod botines;
+pub mod busqueda;
+pub mod calendario;
 pub mod camisetas;
 pub mod canchas;
 pub mod carrera;
+pub mod comparador;
 pub mod equipos;
 pub mod estadisticas;
 pub mod financiamiento;
+pub mod imagen;
 pub mod lesiones;
+pub mod logros;
 pub mod main_menu;
+pub mod media;
+pub mod notificaciones;
 pub mod partidos;
+pub mod progresion;
+pub mod recordatorios;
+pub mod records;
 pub mod resumen;
+pub mod temporadas;
+pub mod tiendas;
+pub mod torneos;
+pub mod tutorial;
+pub mod ultimos;
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
 use crate::app::{App, Module};
 use crate::ui::theme::palette;
@@ -29,6 +45,7 @@ use crate::ui::theme::palette;
 pub fn module_placeholder(frame: &mut Frame, area: Rect, app: &App, module: Module) {
     let colors = palette(app.settings.theme);
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(format!(" {} ", module.label()))
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));

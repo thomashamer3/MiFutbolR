@@ -6,12 +6,23 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+    MouseEventKind,
+};
 use ratatui::DefaultTerminal;
+use ratatui::layout::{Position, Rect};
 use ratatui::widgets::{ListState, TableState};
 
 use crate::config::AppPaths;
 use crate::db::Database;
+use crate::domain::amigos::{Amigo, RankingAmigo};
+use crate::domain::busqueda::ResultadoBusqueda;
+use crate::domain::calendario::CalendarioState;
+use crate::domain::comparador::{Comparacion, OpcionComparador, TipoComparacion};
+use crate::domain::inicio::InicioResumen;
+use crate::domain::logros::LogroProgreso;
+use crate::domain::media::{MediaItem, TipoMedia};
 use crate::domain::models::{
     AppSettings, Botin, BotinFilter, BotinRow, Camiseta, CamisetaFilter, CamisetaRow, Cancha,
     CanchaFilter, CanchaRow, CarreraHall, CarreraIdentidad, CarreraPerfil, CarreraResumen,
@@ -20,11 +31,22 @@ use crate::domain::models::{
     LesionFilter, LesionRow, LesionStats, Partido, PartidoFilter, PartidoResumen, PartidoRow,
     PresupuestoVista, TimelineEvento, TransaccionFinanciera,
 };
+use crate::domain::notificacion::Notificacion;
+use crate::domain::progresion::{PlanEntrenamiento, ProgresionFila};
+use crate::domain::recordatorios::{EventoAgenda, Recordatorio};
+use crate::domain::records::RecordItem;
 use crate::domain::resumen::{DatosResumen, ResumenFormato};
+use crate::domain::temporadas::{ComparacionTemporadas, Temporada, TemporadaFicha};
+use crate::domain::tiendas::Tienda;
+use crate::domain::torneos::{Torneo, TorneoFicha};
+use crate::domain::ultimos::UltimoItem;
 use crate::domain::validation::{self, DomainError};
 use crate::domain::{Cents, dates};
 use crate::services::botin_service;
 use crate::services::camiseta_service::{self, ResultadoEliminacion};
+use crate::services::{inicio_service, notificacion_service};
+use crate::ui::animation::UiAnimations;
+use crate::ui::images::ImageCache;
 
 /// Nombre visible de la aplicación.
 pub const APP_NAME: &str = "MiFutbolR";
@@ -54,11 +76,25 @@ pub enum Module {
     Resumen,
     /// Módulo 11.
     Ajustes,
+    /// Módulo 12.
+    Torneos,
+    /// Módulo 13.
+    Temporadas,
+    /// Módulo 14.
+    Tiendas,
+    /// Módulo 15.
+    Amigos,
+    /// Módulo 16.
+    Media,
+    /// Módulo 17.
+    Recordatorios,
+    /// Módulo 18.
+    Progresion,
 }
 
 impl Module {
     /// Orden del menú principal.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 18] = [
         Self::Camisetas,
         Self::Canchas,
         Self::Botines,
@@ -70,6 +106,13 @@ impl Module {
         Self::Carrera,
         Self::Resumen,
         Self::Ajustes,
+        Self::Torneos,
+        Self::Temporadas,
+        Self::Tiendas,
+        Self::Amigos,
+        Self::Media,
+        Self::Recordatorios,
+        Self::Progresion,
     ];
 
     /// Etiqueta del menú.
@@ -87,6 +130,38 @@ impl Module {
             Self::Carrera => "Carrera futbolística",
             Self::Resumen => "Resumen compartible",
             Self::Ajustes => "Ajustes",
+            Self::Torneos => "Torneos",
+            Self::Temporadas => "Temporadas",
+            Self::Tiendas => "Tiendas",
+            Self::Amigos => "Amigos",
+            Self::Media => "Multimedia",
+            Self::Recordatorios => "Recordatorios",
+            Self::Progresion => "Progresión",
+        }
+    }
+
+    /// Etiqueta corta para la barra de módulos.
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            Self::Camisetas => "Camis",
+            Self::Canchas => "Canchas",
+            Self::Botines => "Botines",
+            Self::Equipos => "Equipos",
+            Self::Partidos => "Partidos",
+            Self::Lesiones => "Lesiones",
+            Self::Estadisticas => "Stats",
+            Self::Financiamiento => "Finanzas",
+            Self::Carrera => "Carrera",
+            Self::Resumen => "Resumen",
+            Self::Ajustes => "Ajustes",
+            Self::Torneos => "Torneos",
+            Self::Temporadas => "Temporadas",
+            Self::Tiendas => "Tiendas",
+            Self::Amigos => "Amigos",
+            Self::Media => "Multimedia",
+            Self::Recordatorios => "Recordatorios",
+            Self::Progresion => "Progresión",
         }
     }
 
@@ -105,6 +180,13 @@ impl Module {
             Self::Carrera => "carrera",
             Self::Resumen => "resumen",
             Self::Ajustes => "ajustes",
+            Self::Torneos => "torneos",
+            Self::Temporadas => "temporadas",
+            Self::Tiendas => "tiendas",
+            Self::Amigos => "amigos",
+            Self::Media => "media",
+            Self::Recordatorios => "recordatorios",
+            Self::Progresion => "progresion",
         }
     }
 
@@ -123,8 +205,34 @@ impl Module {
             Self::Carrera => "Identidad, hitos, timeline y badges de carrera.",
             Self::Resumen => "Resumen compartible en TXT/CSV/JSON/HTML/MD.",
             Self::Ajustes => "Tema, idioma, modo, backup e integridad.",
+            Self::Torneos => "Torneos, equipos, fixture, resultados y tabla.",
+            Self::Temporadas => "Temporadas, fases, resumen, fatiga y comparación.",
+            Self::Tiendas => "Tiendas deportivas, contacto, productos y favoritos.",
+            Self::Amigos => "Amigos, ranking y comparación con el usuario.",
+            Self::Media => "Videos, fotos, artículos y audio asociados a partidos.",
+            Self::Recordatorios => "Recordatorios, recurrencias y agenda.",
+            Self::Progresion => "Planes de entrenamiento y evolución semanal por jugador.",
         }
     }
+}
+
+/// Tabla cuyas filas aceptan clic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableHitTarget {
+    /// Listado de camisetas.
+    Camisetas,
+    /// Listado de partidos.
+    Partidos,
+    /// Listado de canchas.
+    Canchas,
+    /// Listado de botines.
+    Botines,
+    /// Listado de equipos.
+    Equipos,
+    /// Listado de lesiones.
+    Lesiones,
+    /// Listado de transacciones.
+    Financiamiento,
 }
 
 /// Pantalla activa de la pila de navegación.
@@ -208,8 +316,64 @@ pub enum Screen {
     ResumenPreview,
     /// Formulario de ajustes.
     AjustesForm,
+    /// Visor de imagen a pantalla completa.
+    ImagenViewer,
     /// Formulario de importación legacy.
     LegacyImportForm,
+    /// Calendario mensual.
+    Calendario,
+    /// Catálogo de logros.
+    Logros,
+    /// Bandeja de notificaciones.
+    Notificaciones,
+    /// Tutorial de inicio.
+    Tutorial,
+    /// Récords y rankings.
+    Records,
+    /// Listado de torneos.
+    TorneosList,
+    /// Detalle de un torneo.
+    TorneoDetail(i64),
+    /// Formulario de torneo.
+    TorneoForm(FormMode),
+    /// Formulario de resultado de un partido de torneo.
+    TorneoResultadoForm(i64),
+    /// Últimos partidos por resultado/aporte.
+    Ultimos,
+    /// Comparador A/B.
+    Comparador,
+    /// Listado de temporadas.
+    TemporadasList,
+    /// Detalle de una temporada.
+    TemporadaDetail(i64),
+    /// Formulario de temporada.
+    TemporadaForm(FormMode),
+    /// Listado de tiendas.
+    TiendasList,
+    /// Formulario de tienda.
+    TiendaForm(FormMode),
+    /// Ranking de amigos.
+    AmigosList,
+    /// Formulario de amigo.
+    AmigoForm(FormMode),
+    /// Listado de multimedia.
+    MediaList,
+    /// Formulario de referencia multimedia.
+    MediaForm(FormMode),
+    /// Listado de recordatorios.
+    RecordatoriosList,
+    /// Formulario de recordatorio.
+    RecordatorioForm(FormMode),
+    /// Agenda fusionada.
+    Agenda,
+    /// Listado de progresión.
+    ProgresionList,
+    /// Formulario de medición.
+    ProgresionForm(FormMode),
+    /// Listado de planes.
+    PlanesList,
+    /// Formulario de plan.
+    PlanForm(FormMode),
     /// Ayuda contextual.
     Ayuda,
 }
@@ -243,6 +407,26 @@ pub enum ConfirmAction {
     RestoreBackup,
     /// Reiniciar el sorteo de botines.
     ResetSorteoBotines,
+    /// Deshacer la última operación.
+    Undo,
+    /// Eliminar el torneo indicado.
+    DeleteTorneo(i64),
+    /// Generar el fixture del torneo indicado.
+    GenerarFixture(i64),
+    /// Eliminar la temporada indicada.
+    DeleteTemporada(i64),
+    /// Eliminar la tienda indicada.
+    DeleteTienda(i64),
+    /// Eliminar el amigo indicado.
+    DeleteAmigo(i64),
+    /// Eliminar la referencia multimedia indicada.
+    DeleteMedia(i64),
+    /// Eliminar el recordatorio indicado.
+    DeleteRecordatorio(i64),
+    /// Eliminar la medición indicada.
+    DeleteProgresion(i64),
+    /// Eliminar el plan indicado.
+    DeletePlan(i64),
     /// Salir de la aplicación.
     Quit,
 }
@@ -625,21 +809,22 @@ impl Form {
 
     /// Escribe un carácter en el campo activo.
     pub fn push_char(&mut self, ch: char) {
-        if let Some(field) = self.fields.get_mut(self.focus) {
-            if field.is_text_entry() {
-                field.push_char(ch);
-                self.dirty = true;
-            }
+        if let Some(field) = self.fields.get_mut(self.focus)
+            && field.is_text_entry()
+        {
+            field.push_char(ch);
+            self.dirty = true;
         }
     }
 
     /// Borra el último carácter del campo activo.
     pub fn pop_char(&mut self) {
-        if let Some(field) = self.fields.get_mut(self.focus) {
-            if field.is_text_entry() && !field.value.is_empty() {
-                field.pop_char();
-                self.dirty = true;
-            }
+        if let Some(field) = self.fields.get_mut(self.focus)
+            && field.is_text_entry()
+            && !field.value.is_empty()
+        {
+            field.pop_char();
+            self.dirty = true;
         }
     }
 
@@ -727,6 +912,127 @@ pub struct SearchState {
     pub buffer: String,
 }
 
+/// Pestañas del catálogo de logros.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogrosTab {
+    /// Todos.
+    Todos,
+    /// Solo completados.
+    Completados,
+    /// En progreso (valor > 0).
+    EnProgreso,
+    /// Sin empezar.
+    Bloqueados,
+}
+
+impl LogrosTab {
+    /// Todas las pestañas.
+    pub const ALL: [Self; 4] = [
+        Self::Todos,
+        Self::Completados,
+        Self::EnProgreso,
+        Self::Bloqueados,
+    ];
+
+    /// Etiqueta.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Todos => "Todos",
+            Self::Completados => "Completados",
+            Self::EnProgreso => "En progreso",
+            Self::Bloqueados => "Bloqueados",
+        }
+    }
+
+    /// Siguiente pestaña.
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Todos => Self::Completados,
+            Self::Completados => Self::EnProgreso,
+            Self::EnProgreso => Self::Bloqueados,
+            Self::Bloqueados => Self::Todos,
+        }
+    }
+
+    /// Anterior.
+    #[must_use]
+    pub const fn previous(self) -> Self {
+        match self {
+            Self::Todos => Self::Bloqueados,
+            Self::Completados => Self::Todos,
+            Self::EnProgreso => Self::Completados,
+            Self::Bloqueados => Self::EnProgreso,
+        }
+    }
+
+    /// ¿Entra en la pestaña?
+    #[must_use]
+    pub fn incluye(self, logro: &LogroProgreso) -> bool {
+        match self {
+            Self::Todos => true,
+            Self::Completados => logro.completado,
+            Self::EnProgreso => !logro.completado && logro.valor > 0,
+            Self::Bloqueados => !logro.completado && logro.valor == 0,
+        }
+    }
+}
+
+/// Estado de la búsqueda global.
+#[derive(Debug, Clone, Default)]
+pub struct BusquedaState {
+    /// Texto.
+    pub query: String,
+    /// Resultados.
+    pub resultados: Vec<ResultadoBusqueda>,
+    /// Selección.
+    pub selected: usize,
+}
+
+/// Estado de la paleta de comandos.
+#[derive(Debug, Clone, Default)]
+pub struct PaletaState {
+    /// Texto.
+    pub query: String,
+    /// Selección.
+    pub selected: usize,
+}
+
+/// Overlay abierto sobre la pantalla actual.
+#[derive(Debug, Clone)]
+pub enum Overlay {
+    /// Búsqueda global.
+    Busqueda(BusquedaState),
+    /// Paleta de comandos.
+    Paleta(PaletaState),
+}
+
+/// Acciones de la paleta: (etiqueta, id).
+pub const ACCIONES_PALETA: [(&str, &str); 21] = [
+    ("Nuevo partido", "nuevo_partido"),
+    ("Ir a Partidos", "partidos"),
+    ("Ir a Camisetas", "camisetas"),
+    ("Ir a Canchas", "canchas"),
+    ("Calendario", "calendario"),
+    ("Logros", "logros"),
+    ("Récords y rankings", "records"),
+    ("Torneos", "torneos"),
+    ("Últimos partidos", "ultimos"),
+    ("Comparador A/B", "comparador"),
+    ("Temporadas", "temporadas"),
+    ("Tiendas", "tiendas"),
+    ("Ranking de amigos", "amigos"),
+    ("Multimedia", "media"),
+    ("Recordatorios", "recordatorios"),
+    ("Progresión", "progresion"),
+    ("Notificaciones", "notificaciones"),
+    ("Resumen compartible", "resumen"),
+    ("Deshacer última acción", "deshacer"),
+    ("Ajustes", "ajustes"),
+    ("Ayuda", "ayuda"),
+];
+
 /// Estado global de la aplicación.
 pub struct App {
     /// Base de datos.
@@ -735,6 +1041,8 @@ pub struct App {
     pub paths: AppPaths,
     /// Pila de pantallas.
     pub stack: Vec<Screen>,
+    /// Módulo activo (para la barra de módulos).
+    pub active_module: Option<Module>,
     /// Modal activo.
     pub modal: Option<Modal>,
     /// Mensaje de estado.
@@ -743,6 +1051,26 @@ pub struct App {
     pub should_quit: bool,
     /// Preferencias.
     pub settings: AppSettings,
+    /// Animaciones de la TUI.
+    pub animations: UiAnimations,
+    /// Caché de imágenes para las fichas.
+    pub images: ImageCache,
+    /// Imagen abierta en el visor.
+    pub imagen_abierta: Option<String>,
+    /// Zonas clicables del sidebar (módulo por fila).
+    pub sidebar_hits: Vec<(Rect, Module)>,
+    /// Zonas clicables del menú principal (fila por módulo).
+    pub menu_hits: Vec<(Rect, usize)>,
+    /// Zonas clicables de la tabla dibujada.
+    pub table_hits: Vec<(Rect, usize)>,
+    /// Tabla a la que pertenecen `table_hits`.
+    pub table_hit_target: Option<TableHitTarget>,
+    /// Selección de tabla del frame anterior (para animar el cambio).
+    pub last_selection: Option<(TableHitTarget, usize)>,
+    /// Última pantalla dibujada (para animar transiciones).
+    pub last_screen: Option<Screen>,
+    /// Si el modal estaba abierto en el frame anterior.
+    pub last_modal_open: bool,
     /// Menú principal.
     pub menu_state: ListState,
     /// Filas del listado de camisetas.
@@ -877,6 +1205,120 @@ pub struct App {
     pub resumen_texto: String,
     /// Desplazamiento de la vista previa.
     pub resumen_scroll: u16,
+    /// Panel "Hoy".
+    pub inicio: InicioResumen,
+    /// Calendario.
+    pub calendario: CalendarioState,
+    /// Logros.
+    pub logros: Vec<LogroProgreso>,
+    /// Pestaña de logros.
+    pub logros_tab: LogrosTab,
+    /// Selección de logros.
+    pub logros_table: TableState,
+    /// Notificaciones.
+    pub notificaciones: Vec<Notificacion>,
+    /// Selección de notificaciones.
+    pub notificaciones_table: TableState,
+    /// No leídas.
+    pub no_leidas: i64,
+    /// Overlay (búsqueda o paleta).
+    pub overlay: Option<Overlay>,
+    /// Paso del tutorial.
+    pub tutorial_paso: usize,
+    /// ¿Tutorial completado?
+    pub tutorial_completado: bool,
+    /// Récords calculados.
+    pub records: Vec<RecordItem>,
+    /// Selección de récords.
+    pub records_table: TableState,
+    /// Torneos.
+    pub torneos: Vec<Torneo>,
+    /// Selección de torneos.
+    pub torneos_table: TableState,
+    /// Ficha del torneo abierto.
+    pub torneo_detail: Option<TorneoFicha>,
+    /// Selección de partidos del fixture.
+    pub torneo_partidos_table: TableState,
+    /// Torneo en edición.
+    pub torneo_edit_id: Option<i64>,
+    /// Partido de torneo en carga de resultado.
+    pub torneo_resultado_partido: Option<i64>,
+    /// Últimos calculados.
+    pub ultimos: Vec<UltimoItem>,
+    /// Selección de últimos.
+    pub ultimos_table: TableState,
+    /// Tipo del comparador.
+    pub comparador_tipo: TipoComparacion,
+    /// Opciones del comparador.
+    pub comparador_opciones: Vec<OpcionComparador>,
+    /// Índice de A.
+    pub comparador_a: usize,
+    /// Índice de B.
+    pub comparador_b: usize,
+    /// Lado activo (0 = A, 1 = B).
+    pub comparador_activo: usize,
+    /// Resultado.
+    pub comparador_resultado: Option<Comparacion>,
+    /// Temporadas.
+    pub temporadas: Vec<Temporada>,
+    /// Selección de temporadas.
+    pub temporadas_table: TableState,
+    /// Ficha de temporada.
+    pub temporada_detail: Option<TemporadaFicha>,
+    /// Desplazamiento del detalle.
+    pub temporada_scroll: u16,
+    /// Temporada en edición.
+    pub temporada_edit_id: Option<i64>,
+    /// Comparación de temporadas.
+    pub temporada_comparacion: Option<ComparacionTemporadas>,
+    /// Tiendas.
+    pub tiendas: Vec<Tienda>,
+    /// Selección de tiendas.
+    pub tiendas_table: TableState,
+    /// Tienda en edición.
+    pub tienda_edit_id: Option<i64>,
+    /// Amigos.
+    pub amigos: Vec<Amigo>,
+    /// Ranking de amigos.
+    pub amigos_ranking: Vec<RankingAmigo>,
+    /// Selección de amigos.
+    pub amigos_table: TableState,
+    /// Amigo en edición.
+    pub amigo_edit_id: Option<i64>,
+    /// Referencias multimedia.
+    pub media: Vec<MediaItem>,
+    /// Selección de multimedia.
+    pub media_table: TableState,
+    /// Referencia en edición.
+    pub media_edit_id: Option<i64>,
+    /// Filtro de tipo.
+    pub media_filter: Option<TipoMedia>,
+    /// Recordatorios.
+    pub recordatorios: Vec<Recordatorio>,
+    /// Selección de recordatorios.
+    pub recordatorios_table: TableState,
+    /// Recordatorio en edición.
+    pub recordatorio_edit_id: Option<i64>,
+    /// Agenda fusionada.
+    pub agenda: Vec<EventoAgenda>,
+    /// Selección de agenda.
+    pub agenda_table: TableState,
+    /// Mediciones de progresión.
+    pub progresion: Vec<ProgresionFila>,
+    /// Selección de progresión.
+    pub progresion_table: TableState,
+    /// Medición en edición.
+    pub progresion_edit_id: Option<i64>,
+    /// Jugadores para el formulario.
+    pub progresion_jugadores: Vec<(i64, String)>,
+    /// Planes para el formulario.
+    pub progresion_planes: Vec<PlanEntrenamiento>,
+    /// Planes.
+    pub planes: Vec<PlanEntrenamiento>,
+    /// Selección de planes.
+    pub planes_table: TableState,
+    /// Plan en edición.
+    pub plan_edit_id: Option<i64>,
     /// Búsqueda activa.
     pub search: Option<SearchState>,
 }
@@ -891,14 +1333,29 @@ impl App {
             Some(path) => format!("BD: {}", path.display()),
             None => "BD: en memoria".to_string(),
         };
+        let inicio = inicio_service::resumen(db.conn()).unwrap_or_default();
+        let no_leidas = notificacion_service::no_leidas(db.conn()).unwrap_or(0);
+        let tutorial_completado =
+            crate::db::settings_repo::tutorial_completado(db.conn()).unwrap_or(false);
         Ok(Self {
             db,
             paths,
             stack: vec![Screen::MainMenu],
+            active_module: None,
             modal: None,
             status,
             should_quit: false,
             settings,
+            animations: UiAnimations::default(),
+            images: ImageCache::default(),
+            imagen_abierta: None,
+            sidebar_hits: Vec::new(),
+            menu_hits: Vec::new(),
+            table_hits: Vec::new(),
+            table_hit_target: None,
+            last_selection: None,
+            last_screen: None,
+            last_modal_open: false,
             menu_state,
             camisetas: Vec::new(),
             camisetas_table: TableState::default(),
@@ -966,6 +1423,63 @@ impl App {
             resumen_scroll: 0,
             form: None,
             form_original: None,
+            inicio,
+            calendario: CalendarioState::default(),
+            logros: Vec::new(),
+            logros_tab: LogrosTab::Todos,
+            logros_table: TableState::default(),
+            notificaciones: Vec::new(),
+            notificaciones_table: TableState::default(),
+            no_leidas,
+            overlay: None,
+            tutorial_paso: 0,
+            tutorial_completado,
+            records: Vec::new(),
+            records_table: TableState::default(),
+            torneos: Vec::new(),
+            torneos_table: TableState::default(),
+            torneo_detail: None,
+            torneo_partidos_table: TableState::default(),
+            torneo_edit_id: None,
+            torneo_resultado_partido: None,
+            ultimos: Vec::new(),
+            ultimos_table: TableState::default(),
+            comparador_tipo: TipoComparacion::Camiseta,
+            comparador_opciones: Vec::new(),
+            comparador_a: 0,
+            comparador_b: 0,
+            comparador_activo: 0,
+            comparador_resultado: None,
+            temporadas: Vec::new(),
+            temporadas_table: TableState::default(),
+            temporada_detail: None,
+            temporada_scroll: 0,
+            temporada_edit_id: None,
+            temporada_comparacion: None,
+            tiendas: Vec::new(),
+            tiendas_table: TableState::default(),
+            tienda_edit_id: None,
+            amigos: Vec::new(),
+            amigos_ranking: Vec::new(),
+            amigos_table: TableState::default(),
+            amigo_edit_id: None,
+            media: Vec::new(),
+            media_table: TableState::default(),
+            media_edit_id: None,
+            media_filter: None,
+            recordatorios: Vec::new(),
+            recordatorios_table: TableState::default(),
+            recordatorio_edit_id: None,
+            agenda: Vec::new(),
+            agenda_table: TableState::default(),
+            progresion: Vec::new(),
+            progresion_table: TableState::default(),
+            progresion_edit_id: None,
+            progresion_jugadores: Vec::new(),
+            progresion_planes: Vec::new(),
+            planes: Vec::new(),
+            planes_table: TableState::default(),
+            plan_edit_id: None,
             search: None,
         })
     }
@@ -992,7 +1506,9 @@ impl App {
             Screen::BotinDetail(_) => "Botines · detalle".to_string(),
             Screen::BotinForm(_) => "Botines · formulario".to_string(),
             Screen::EquiposList => "Equipos".to_string(),
-            Screen::EquipoDetail(_) => "Equipos · detalle".to_string(),
+            Screen::EquipoDetail(_) => {
+                "a: jugador  e: editar  d: borrar  v: imagen  Esc: volver".to_string()
+            }
             Screen::EquipoForm(_) => "Equipos · formulario".to_string(),
             Screen::JugadorForm(_) => "Equipos · jugador".to_string(),
             Screen::PartidosList => "Partidos".to_string(),
@@ -1021,7 +1537,38 @@ impl App {
             Screen::CarreraLogros => "Carrera · logros".to_string(),
             Screen::ResumenPreview => "Resumen compartible".to_string(),
             Screen::AjustesForm => "Ajustes".to_string(),
+            Screen::ImagenViewer => "Imagen".to_string(),
             Screen::LegacyImportForm => "Ajustes · importar legacy".to_string(),
+            Screen::Calendario => format!(
+                "Calendario · {:02}/{:04}",
+                self.calendario.month, self.calendario.year
+            ),
+            Screen::Logros => "Logros".to_string(),
+            Screen::Notificaciones => "Notificaciones".to_string(),
+            Screen::Tutorial => "Tutorial".to_string(),
+            Screen::Records => "Récords y rankings".to_string(),
+            Screen::TorneosList => "Torneos".to_string(),
+            Screen::TorneoDetail(id) => format!("Torneos · #{id}"),
+            Screen::TorneoForm(_) => "Torneos · formulario".to_string(),
+            Screen::TorneoResultadoForm(_) => "Torneos · resultado".to_string(),
+            Screen::Ultimos => "Últimos".to_string(),
+            Screen::Comparador => "Comparador A/B".to_string(),
+            Screen::TemporadasList => "Temporadas".to_string(),
+            Screen::TemporadaDetail(id) => format!("Temporadas · #{id}"),
+            Screen::TemporadaForm(_) => "Temporadas · formulario".to_string(),
+            Screen::TiendasList => "Tiendas".to_string(),
+            Screen::TiendaForm(_) => "Tiendas · formulario".to_string(),
+            Screen::AmigosList => "Ranking de amigos".to_string(),
+            Screen::AmigoForm(_) => "Amigos · formulario".to_string(),
+            Screen::MediaList => "Multimedia".to_string(),
+            Screen::MediaForm(_) => "Multimedia · formulario".to_string(),
+            Screen::RecordatoriosList => "Recordatorios".to_string(),
+            Screen::RecordatorioForm(_) => "Recordatorios · formulario".to_string(),
+            Screen::Agenda => "Agenda".to_string(),
+            Screen::ProgresionList => "Progresión".to_string(),
+            Screen::ProgresionForm(_) => "Progresión · formulario".to_string(),
+            Screen::PlanesList => "Planes de entrenamiento".to_string(),
+            Screen::PlanForm(_) => "Planes · formulario".to_string(),
             Screen::Ayuda => "Ayuda".to_string(),
         }
     }
@@ -1037,47 +1584,60 @@ impl App {
             };
         }
         match self.current_screen() {
-            Screen::MainMenu => "↑↓/jk: mover   Enter: abrir   q: salir   ?: ayuda",
-            Screen::CamisetasList => {
-                "n: nueva  e: editar  d: borrar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  r: refrescar"
+            Screen::MainMenu => {
+                "↑↓/jk: mover  Enter: abrir  c: calendario  Ctrl+F: buscar  !: avisos  ?: ayuda"
             }
-            Screen::CamisetaDetail(_) => "e: editar  d: borrar  Esc: volver",
+            Screen::CamisetasList => {
+                "n: nueva  e: editar  d: borrar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
+            }
+            Screen::CamisetaDetail(_) => "e: editar  d: borrar  v: imagen  Esc: volver",
             Screen::CamisetaForm(_)
             | Screen::CanchaForm(_)
             | Screen::BotinForm(_)
             | Screen::EquipoForm(_)
             | Screen::JugadorForm(_)
             | Screen::PartidoForm(_)
-            | Screen::LesionForm(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
+            | Screen::LesionForm(_)
+            | Screen::TorneoForm(_)
+            | Screen::TorneoResultadoForm(_)
+            | Screen::TemporadaForm(_)
+            | Screen::TiendaForm(_)
+            | Screen::AmigoForm(_)
+            | Screen::MediaForm(_)
+            | Screen::RecordatorioForm(_)
+            | Screen::ProgresionForm(_)
+            | Screen::PlanForm(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
             Screen::CanchasList => {
-                "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
-            Screen::CanchaDetail(_) => "e: editar  d: borrar  a: activar/desactivar  Esc: volver",
+            Screen::CanchaDetail(_) => {
+                "e: editar  d: borrar  a: activar/desactivar  v: imagen  Esc: volver"
+            }
             Screen::BotinesList => {
                 "n: nuevo  e: editar  d: borrar  s: sortear  R: reiniciar sorteo  p: predeterminado  a: activar/desactivar  /: buscar"
             }
             Screen::BotinDetail(_) => "e: editar  d: borrar  p: predeterminado  Esc: volver",
             Screen::EquiposList => {
-                "n: nuevo  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  r: refrescar"
+                "n: nuevo  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
             Screen::EquipoDetail(_) => {
                 "a: agregar jugador  e: editar jugador  d: borrar jugador  Esc: volver"
             }
             Screen::PartidosList => {
-                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar"
+                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar  x: exportar"
             }
             Screen::PartidoDetail(_) => "e: editar  d: borrar  F: favorito  Esc: volver",
             Screen::PartidoWizard => {
                 "Tab: campo  Enter/PgDn: siguiente paso  PgUp: anterior  Ctrl+S: guardar  Esc: cancelar"
             }
             Screen::LesionesList => {
-                "n: nueva  e: editar  d: borrar  Enter: detalle  f: estado  o: orden  /: buscar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  Enter: detalle  f: estado  o: orden  /: buscar  x: exportar  r: refrescar"
             }
             Screen::LesionDetail(_) => "e: editar  d: borrar  Esc: volver",
             Screen::EstadisticasHub => "↑↓: categoría  Enter: abrir  r: recalcular  Esc: volver",
             Screen::EstadisticasDetalle(_) => "↑↓: desplazar  PgUp/PgDn: página  Esc: volver",
             Screen::FinanciamientoList => {
-                "n: nueva  e: editar  d: borrar  p: presupuesto  f: tipo  c: categoría  /: buscar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  p: presupuesto  f: tipo  c: categoría  /: buscar  x: exportar  r: refrescar"
             }
             Screen::TransaccionForm(_) | Screen::PresupuestoForm => {
                 "Tab: campo  Ctrl+S: guardar  Esc: cancelar"
@@ -1102,7 +1662,41 @@ impl App {
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
             }
-            Screen::Module(_) | Screen::Ayuda => "Esc: volver",
+            Screen::Calendario => {
+                "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
+            }
+            Screen::Logros => "h/l: pestaña  j/k: mover  r: refrescar  Esc: volver",
+            Screen::Notificaciones => "j/k: mover  m: leída  M: todas  Enter: abrir  Esc: volver",
+            Screen::Tutorial => "←/→: paso  Enter: siguiente  Esc: salir",
+            Screen::Records => "j/k: mover  Enter: abrir partido  r: recalcular  Esc: volver",
+            Screen::TorneosList => {
+                "n: nuevo  e: editar  d: borrar  Enter: detalle  x: exportar  r: refrescar"
+            }
+            Screen::TorneoDetail(_) => {
+                "g: fixture  r: resultado  a: equipos  e: editar  d: borrar  Esc: volver"
+            }
+            Screen::Ultimos => "j/k: mover  Enter: abrir partido  r: refrescar  Esc: volver",
+            Screen::TemporadasList => {
+                "n: nueva  e: editar  d: borrar  Enter: detalle  r: refrescar"
+            }
+            Screen::TemporadaDetail(_) => {
+                "e: editar  d: borrar  c: comparar  ↑↓: desplazar  Esc: volver"
+            }
+            Screen::Comparador => {
+                "1/2: tipo  Tab: A/B  j/k: mover  Enter: comparar  r: recargar  Esc: volver"
+            }
+            Screen::TiendasList => "n: nueva  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::AmigosList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::MediaList => {
+                "n: nueva  e: editar  d: borrar  f: tipo  r: refrescar  Esc: volver"
+            }
+            Screen::RecordatoriosList => {
+                "n: nuevo  e: editar  d: borrar  c: completar  a: agenda  r: refrescar"
+            }
+            Screen::Agenda => "j/k: mover  Esc: volver",
+            Screen::ProgresionList => "n: nueva  e: editar  d: borrar  p: planes  r: refrescar",
+            Screen::PlanesList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::Module(_) | Screen::Ayuda | Screen::ImagenViewer => "Esc: volver",
         }
     }
 
@@ -1124,7 +1718,102 @@ impl App {
     pub fn go_back(&mut self) {
         if self.stack.len() > 1 {
             self.stack.pop();
+            if self.current_screen() == Screen::MainMenu {
+                self.active_module = None;
+                let _ = self.refrescar_inicio();
+            }
             self.status = "Volvió a la pantalla anterior".to_string();
+        }
+    }
+
+    /// Abre el visor de imagen si la ruta se resuelve.
+    pub fn abrir_imagen(&mut self, ruta: &str) {
+        if let Some(ruta) = ImageCache::resolver(ruta, &self.paths.images_dir, &self.paths.data_dir)
+        {
+            self.imagen_abierta = Some(ruta.to_string_lossy().into_owned());
+            self.push_screen(Screen::ImagenViewer);
+        } else {
+            self.status = "No hay imagen disponible".to_string();
+        }
+    }
+
+    /// Procesa eventos de ratón: rueda para navegar y clic en el sidebar.
+    pub fn handle_mouse(&mut self, mouse: MouseEvent) -> Result<()> {
+        if self.modal.is_some() {
+            return Ok(());
+        }
+        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+            let posicion = Position::new(mouse.column, mouse.row);
+            if let Some(module) = self
+                .sidebar_hits
+                .iter()
+                .find(|(area, _)| area.contains(posicion))
+                .map(|(_, module)| *module)
+            {
+                self.switch_module(module);
+                return Ok(());
+            }
+            if self.current_screen() == Screen::MainMenu
+                && let Some(indice) = self
+                    .menu_hits
+                    .iter()
+                    .find(|(area, _)| area.contains(posicion))
+                    .map(|(_, indice)| *indice)
+            {
+                self.menu_state.select(Some(indice));
+                self.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))?;
+                return Ok(());
+            }
+            if let Some(indice) = self
+                .table_hits
+                .iter()
+                .find(|(area, _)| area.contains(posicion))
+                .map(|(_, indice)| *indice)
+            {
+                match self.table_hit_target {
+                    Some(TableHitTarget::Camisetas) if indice < self.camisetas.len() => {
+                        self.camisetas_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Partidos) if indice < self.partidos.len() => {
+                        self.partidos_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Canchas) if indice < self.canchas.len() => {
+                        self.canchas_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Botines) if indice < self.botines.len() => {
+                        self.botines_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Equipos) if indice < self.equipos.len() => {
+                        self.equipos_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Lesiones) if indice < self.lesiones.len() => {
+                        self.lesiones_table.select(Some(indice));
+                    }
+                    Some(TableHitTarget::Financiamiento) if indice < self.transacciones.len() => {
+                        self.transacciones_table.select(Some(indice));
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(());
+        }
+        let code = match mouse.kind {
+            MouseEventKind::ScrollDown => KeyCode::Down,
+            MouseEventKind::ScrollUp => KeyCode::Up,
+            _ => return Ok(()),
+        };
+        self.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    /// Cambia de módulo desde el sidebar reiniciando la pila de pantallas.
+    pub fn switch_module(&mut self, module: Module) {
+        if self.active_module == Some(module) {
+            return;
+        }
+        self.stack = vec![Screen::MainMenu];
+        self.active_module = Some(module);
+        if let Err(error) = self.open_module(module) {
+            self.modal = Some(Modal::Error(error.to_string()));
         }
     }
 
@@ -1137,8 +1826,19 @@ impl App {
             self.handle_modal_key(key);
             return Ok(());
         }
+        if self.overlay.is_some() {
+            self.handle_overlay_key(key)?;
+            return Ok(());
+        }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('s') {
             self.save_current_form()?;
+            return Ok(());
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.code == KeyCode::Char('z')
+            && self.form.is_none()
+        {
+            self.solicitar_undo()?;
             return Ok(());
         }
         if key.modifiers.contains(KeyModifiers::CONTROL)
@@ -1172,6 +1872,13 @@ impl App {
             self.handle_search_key(key)?;
             return Ok(());
         }
+        if self.handle_overlay_shortcut(key)? {
+            return Ok(());
+        }
+        if key.code == KeyCode::Char('x') && self.es_listado_exportable() {
+            self.exportar_listado_actual()?;
+            return Ok(());
+        }
 
         let consumed = match self.current_screen() {
             Screen::MainMenu => self.handle_main_menu_key(key)?,
@@ -1189,7 +1896,9 @@ impl App {
             | Screen::CarreraIdentidadForm
             | Screen::CarreraHitoForm(_)
             | Screen::AjustesForm
-            | Screen::LegacyImportForm => {
+            | Screen::LegacyImportForm
+            | Screen::TorneoForm(_)
+            | Screen::TorneoResultadoForm(_) => {
                 self.handle_form_key(key)?;
                 true
             }
@@ -1202,6 +1911,15 @@ impl App {
             Screen::PartidosList => self.handle_partidos_list_key(key)?,
             Screen::PartidoDetail(_) => self.handle_partido_detail_key(key)?,
             Screen::PartidoWizard => self.handle_partido_wizard_key(key)?,
+            Screen::ImagenViewer => {
+                if key.code == KeyCode::Esc {
+                    self.imagen_abierta = None;
+                    self.go_back();
+                    true
+                } else {
+                    false
+                }
+            }
             Screen::LesionesList => self.handle_lesiones_list_key(key)?,
             Screen::LesionDetail(_) => self.handle_lesion_detail_key(key)?,
             Screen::EstadisticasHub => self.handle_estadisticas_hub_key(key)?,
@@ -1216,21 +1934,83 @@ impl App {
             | Screen::CarreraLogros => self.handle_carrera_scroll_key(key)?,
             Screen::CarreraHitos => self.handle_carrera_hitos_key(key)?,
             Screen::ResumenPreview => self.handle_resumen_key(key)?,
+            Screen::Calendario => self.handle_calendario_key(key)?,
+            Screen::Logros => self.handle_logros_key(key)?,
+            Screen::Notificaciones => self.handle_notificaciones_key(key)?,
+            Screen::Tutorial => self.handle_tutorial_key(key)?,
+            Screen::Records => self.handle_records_key(key)?,
+            Screen::TorneosList => self.handle_torneos_list_key(key)?,
+            Screen::TorneoDetail(_) => self.handle_torneo_detail_key(key)?,
+            Screen::TemporadaForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
+            Screen::TemporadasList => self.handle_temporadas_list_key(key)?,
+            Screen::TemporadaDetail(_) => self.handle_temporada_detail_key(key)?,
+            Screen::TiendasList => self.handle_tiendas_list_key(key)?,
+            Screen::AmigosList => self.handle_amigos_list_key(key)?,
+            Screen::MediaList => self.handle_media_list_key(key)?,
+            Screen::RecordatoriosList => self.handle_recordatorios_list_key(key)?,
+            Screen::Agenda => self.handle_agenda_key(key)?,
+            Screen::ProgresionList => self.handle_progresion_list_key(key)?,
+            Screen::PlanesList => self.handle_planes_list_key(key)?,
+            Screen::Ultimos => self.handle_ultimos_key(key)?,
+            Screen::Comparador => self.handle_comparador_key(key)?,
+            Screen::TiendaForm(_) | Screen::AmigoForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
+            Screen::MediaForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
+            Screen::RecordatorioForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
+            Screen::ProgresionForm(_) | Screen::PlanForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
             Screen::Module(_) | Screen::Ayuda => false,
         };
         if !consumed {
-            self.handle_common_key(key);
+            self.handle_common_key(key)?;
         }
         Ok(())
     }
 
-    fn handle_common_key(&mut self, key: KeyEvent) {
+    fn handle_common_key(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
             KeyCode::Char('q') => self.request_quit(),
             KeyCode::Esc => self.go_back(),
             KeyCode::Char('?') => self.push_screen(Screen::Ayuda),
+            KeyCode::Char('g') => self.ir_a_inicio()?,
+            KeyCode::Char('c') => self.open_calendario()?,
+            KeyCode::Char('!') => self.open_notificaciones()?,
+            KeyCode::Char('l') if !matches!(self.current_screen(), Screen::Logros) => {
+                self.open_logros()?
+            }
+            KeyCode::Char('n') if matches!(self.current_screen(), Screen::MainMenu) => {
+                self.abrir_nuevo_partido()?
+            }
+            KeyCode::Char('t') if matches!(self.current_screen(), Screen::MainMenu) => {
+                self.open_tutorial()?
+            }
+            KeyCode::Char('R') => self.open_records()?,
+            KeyCode::Char('T') => self.open_torneos()?,
+            KeyCode::Char('U') => self.open_ultimos()?,
+            KeyCode::Char('C') => self.open_comparador()?,
+            KeyCode::Char('E') => self.open_temporadas()?,
+            KeyCode::Char('D') => self.open_tiendas()?,
+            KeyCode::Char('A') => self.open_amigos()?,
+            KeyCode::Char('M') => self.open_media()?,
+            KeyCode::Char('Y') => self.open_recordatorios()?,
+            KeyCode::Char('P') => self.open_progresion()?,
+            KeyCode::Char('L') => self.open_logros()?,
             _ => {}
         }
+        Ok(())
     }
 
     fn handle_main_menu_key(&mut self, key: KeyEvent) -> Result<bool> {
@@ -1297,6 +2077,12 @@ impl App {
                 }
             }
             KeyCode::Char('d') => self.confirm_delete_camiseta(),
+            KeyCode::Char('v') => {
+                if let Some(camiseta) = &self.camiseta_detail {
+                    let ruta = camiseta.imagen_ruta.clone();
+                    self.abrir_imagen(&ruta);
+                }
+            }
             _ => return Ok(false),
         }
         Ok(true)
@@ -1437,6 +2223,97 @@ impl App {
 
     fn confirm(&mut self, action: ConfirmAction) {
         match action {
+            ConfirmAction::DeleteTorneo(id) => {
+                if let Err(error) = crate::services::torneos_service::eliminar(self.db.conn(), id) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    self.go_back();
+                    let _ = self.refresh_torneos();
+                }
+            }
+            ConfirmAction::DeleteTienda(id) => {
+                if let Err(error) = crate::services::tiendas_service::eliminar(self.db.conn(), id) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_tiendas();
+                }
+            }
+            ConfirmAction::DeleteProgresion(id) => {
+                if let Err(error) =
+                    crate::services::progresion_service::eliminar(self.db.conn(), id)
+                {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_progresion();
+                }
+            }
+            ConfirmAction::DeletePlan(id) => {
+                if let Err(error) =
+                    crate::services::progresion_service::eliminar_plan(self.db.conn(), id)
+                {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_planes();
+                }
+            }
+            ConfirmAction::DeleteRecordatorio(id) => {
+                if let Err(error) =
+                    crate::services::recordatorios_service::eliminar(self.db.conn(), id)
+                {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_recordatorios();
+                }
+            }
+            ConfirmAction::DeleteMedia(id) => {
+                if let Err(error) = crate::services::media_service::eliminar(self.db.conn(), id) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_media();
+                }
+            }
+            ConfirmAction::DeleteAmigo(id) => {
+                if let Err(error) = crate::services::amigos_service::eliminar(self.db.conn(), id) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    let _ = self.refresh_amigos();
+                }
+            }
+            ConfirmAction::DeleteTemporada(id) => {
+                if let Err(error) =
+                    crate::services::temporadas_service::eliminar(self.db.conn(), id)
+                {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    self.go_back();
+                    let _ = self.refresh_temporadas();
+                }
+            }
+            ConfirmAction::GenerarFixture(id) => {
+                match crate::services::torneos_service::generar_fixture(self.db.conn(), id) {
+                    Ok(cantidad) => {
+                        self.status = format!("Fixture generado: {cantidad} partidos");
+                        let _ = self.refresh_torneo_detail();
+                    }
+                    Err(error) => {
+                        self.modal = Some(Modal::Error(error.to_string()));
+                    }
+                }
+            }
+            ConfirmAction::Undo => {
+                match crate::services::undo_service::deshacer_ultima(self.db.conn()) {
+                    Ok(Some(descripcion)) => {
+                        self.status = format!("Deshecho: {descripcion}");
+                        self.refrescar_pantalla_actual();
+                    }
+                    Ok(None) => {
+                        self.status = "No hay operaciones para deshacer".to_string();
+                    }
+                    Err(error) => {
+                        self.modal = Some(Modal::Error(format!("No se pudo deshacer: {error}")));
+                    }
+                }
+            }
             ConfirmAction::Quit => self.should_quit = true,
             ConfirmAction::DeleteCamiseta(id) => {
                 if let Err(error) = self.delete_camiseta(id) {
@@ -1539,7 +2416,8 @@ impl App {
         }
     }
 
-    fn open_module(&mut self, module: Module) -> Result<()> {
+    pub(crate) fn open_module(&mut self, module: Module) -> Result<()> {
+        self.active_module = Some(module);
         match module {
             Module::Camisetas => {
                 self.push_screen(Screen::CamisetasList);
@@ -1583,6 +2461,34 @@ impl App {
             }
             Module::Ajustes => {
                 self.open_ajustes_form()?;
+            }
+            Module::Torneos => {
+                self.push_screen(Screen::TorneosList);
+                self.refresh_torneos()?;
+            }
+            Module::Temporadas => {
+                self.push_screen(Screen::TemporadasList);
+                self.refresh_temporadas()?;
+            }
+            Module::Tiendas => {
+                self.push_screen(Screen::TiendasList);
+                self.refresh_tiendas()?;
+            }
+            Module::Amigos => {
+                self.push_screen(Screen::AmigosList);
+                self.refresh_amigos()?;
+            }
+            Module::Media => {
+                self.push_screen(Screen::MediaList);
+                self.refresh_media()?;
+            }
+            Module::Recordatorios => {
+                self.push_screen(Screen::RecordatoriosList);
+                self.refresh_recordatorios()?;
+            }
+            Module::Progresion => {
+                self.push_screen(Screen::ProgresionList);
+                self.refresh_progresion()?;
             }
         }
         Ok(())
@@ -1735,15 +2641,33 @@ impl App {
             Screen::BotinForm(mode) => self.save_botin_form(mode),
             Screen::EquipoForm(mode) => self.save_equipo_form(mode),
             Screen::JugadorForm(mode) => self.save_jugador_form(mode),
-            Screen::PartidoForm(mode) => self.save_partido_form(mode),
-            Screen::PartidoWizard => self.save_partido_wizard(),
+            Screen::PartidoForm(mode) => {
+                let resultado = self.save_partido_form(mode);
+                self.evaluar_logros_silencioso();
+                resultado
+            }
+            Screen::PartidoWizard => {
+                let resultado = self.save_partido_wizard();
+                self.evaluar_logros_silencioso();
+                resultado
+            }
             Screen::LesionForm(mode) => self.save_lesion_form(mode),
             Screen::TransaccionForm(mode) => self.save_transaccion_form(mode),
             Screen::PresupuestoForm => self.save_presupuesto_form(),
             Screen::CarreraIdentidadForm => self.save_carrera_identidad(),
             Screen::CarreraHitoForm(mode) => self.save_carrera_hito(mode),
+            Screen::TorneoForm(mode) => self.save_torneo_form(mode),
+            Screen::TorneoResultadoForm(_) => self.save_torneo_resultado_form(),
+            Screen::TemporadaForm(mode) => self.save_temporada_form(mode),
+            Screen::TiendaForm(mode) => self.save_tienda_form(mode),
+            Screen::AmigoForm(mode) => self.save_amigo_form(mode),
+            Screen::MediaForm(mode) => self.save_media_form(mode),
+            Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),
+            Screen::ProgresionForm(mode) => self.save_progresion_form(mode),
+            Screen::PlanForm(mode) => self.save_plan_form(mode),
             Screen::AjustesForm => self.save_ajustes_form(),
             Screen::LegacyImportForm => self.save_legacy_import(),
+            Screen::ImagenViewer => Ok(()),
             _ => {
                 self.status = "No hay formulario activo".to_string();
                 Ok(())
@@ -1969,10 +2893,17 @@ impl Camiseta {
 pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     loop {
         terminal.draw(|frame| crate::ui::draw(frame, app))?;
-        if event::poll(Duration::from_millis(250))?
-            && let Event::Key(key) = event::read()?
-        {
-            app.handle_key(key)?;
+        let espera = if app.animations.running() {
+            Duration::from_millis(16)
+        } else {
+            Duration::from_millis(120)
+        };
+        if event::poll(espera)? {
+            match event::read()? {
+                Event::Key(key) => app.handle_key(key)?,
+                Event::Mouse(mouse) => app.handle_mouse(mouse)?,
+                _ => {}
+            }
         }
         if app.should_quit {
             return Ok(());

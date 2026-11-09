@@ -7,7 +7,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Padding, Paragraph, Wrap};
 
 use crate::app::{App, FieldKind, Form};
 use crate::ui::theme::{Palette, palette};
@@ -17,8 +17,10 @@ use crate::ui::widgets::scroll;
 pub fn draw(frame: &mut Frame, area: Rect, app: &App, form: &Form) {
     let colors = palette(app.settings.theme);
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(colors.accent))
         .title(format!(" {} ", form.title))
-        .border_style(Style::default().fg(colors.border))
+        .padding(Padding::horizontal(1))
         .style(Style::default().bg(colors.bg));
     let inner = block.inner(area);
     frame.render_widget(block, area);

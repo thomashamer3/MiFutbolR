@@ -30,7 +30,8 @@ pub fn list(conn: &Connection, filter: &CanchaFilter) -> Result<Vec<CanchaRow>, 
                 COALESCE(SUM(CASE WHEN p.resultado = 1 THEN 1 ELSE 0 END), 0) AS victorias,
                 COALESCE(SUM(CASE WHEN p.resultado = 2 THEN 1 ELSE 0 END), 0) AS empates,
                 COALESCE(SUM(CASE WHEN p.resultado = 3 THEN 1 ELSE 0 END), 0) AS derrotas,
-                COALESCE(AVG(p.rendimiento_general), 0.0) AS rendimiento_promedio
+                COALESCE(AVG(p.rendimiento_general), 0.0) AS rendimiento_promedio,
+                c.imagen_ruta
            FROM cancha c
            LEFT JOIN partido p ON p.cancha_id = c.id
           WHERE (?1 = 0 OR c.activa = CASE ?1 WHEN 1 THEN 1 ELSE 0 END)
@@ -57,6 +58,7 @@ pub fn list(conn: &Connection, filter: &CanchaFilter) -> Result<Vec<CanchaRow>, 
                     empates: row.get(8)?,
                     derrotas: row.get(9)?,
                     rendimiento_promedio: row.get(10)?,
+                    imagen_ruta: row.get(11)?,
                 })
             },
         )?

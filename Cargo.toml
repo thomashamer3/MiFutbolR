@@ -2,7 +2,7 @@
 name = "mifutbol-rs"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Gestión futbolística personal en TUI (Rust + rusqlite + ratatui)"
 license = "MIT"
 
@@ -18,6 +18,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 unicode-width = "0.2"
+tachyonfx = { version = "0.25", default-features = false, features = ["std", "std-duration"] }
+tui-big-text = "0.8.10"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+ratatui-image = { version = "12.0.0-rc.3", default-features = false, features = ["crossterm"] }
 
 [dev-dependencies]
 criterion = "0.5"

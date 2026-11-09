@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -14,16 +14,22 @@ const ATAJOS: &[(&str, &str)] = &[
     ("↑/↓ o k/j", "Mover la selección"),
     ("Enter", "Abrir / editar / confirmar"),
     ("Esc", "Volver / cancelar"),
-    ("n", "Nuevo registro (en listados)"),
-    ("e", "Editar seleccionado"),
-    ("d", "Eliminar con confirmación"),
-    ("/", "Buscar"),
-    ("f", "Filtros"),
-    ("s", "Ordenar"),
-    ("r", "Refrescar"),
-    ("Tab / Shift+Tab", "Campo siguiente / anterior"),
-    ("Espacio", "Marcar / desmarcar en selects múltiples"),
     ("Ctrl+S", "Guardar formulario"),
+    ("Tab / Shift+Tab", "Campo siguiente / anterior"),
+    ("n / e / d", "Nuevo / editar / eliminar"),
+    ("/", "Buscar en el listado"),
+    ("f / o", "Filtros / ordenar"),
+    ("r", "Refrescar"),
+    ("x", "Exportar listado (CSV/JSON/HTML/MD)"),
+    ("Ctrl+K / Ctrl+F", "Paleta / búsqueda global"),
+    ("g / c / !", "Inicio / calendario / avisos"),
+    ("l / R / T / U", "Logros / récords / torneos / últimos"),
+    ("C", "Comparador A/B"),
+    ("D / A / M", "Tiendas / amigos / multimedia"),
+    ("Y", "Recordatorios"),
+    ("P", "Progresión"),
+    ("t / Ctrl+Z", "Tutorial / deshacer"),
+    ("Espacio", "Marcar / desmarcar"),
     ("?", "Esta ayuda"),
     ("q", "Salir / volver"),
 ];
@@ -50,6 +56,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     )));
 
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(" Ayuda ")
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));

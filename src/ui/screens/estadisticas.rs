@@ -5,7 +5,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Bar, BarChart, Block, LineGauge, List, ListItem, Paragraph, Sparkline, Wrap,
+    Bar, BarChart, Block, BorderType, LineGauge, List, ListItem, Paragraph, Sparkline, Wrap,
 };
 
 use crate::app::App;
@@ -44,6 +44,7 @@ pub fn draw_hub(frame: &mut Frame, area: Rect, app: &mut App) {
     let list = List::new(items)
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(" Estadísticas ")
                 .border_style(Style::default().fg(colors.border))
                 .style(Style::default().bg(colors.bg)),
@@ -114,7 +115,11 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, kind: EstadisticaKi
     let Some(estadisticas) = app.estadisticas() else {
         frame.render_widget(
             Paragraph::new("Sin datos suficientes; registra partidos para ver estadísticas.")
-                .block(Block::bordered().title(" Estadísticas "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Estadísticas "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
@@ -126,6 +131,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, kind: EstadisticaKi
             Paragraph::new("Sin datos suficientes; registra partidos para ver estadísticas.")
                 .block(
                     Block::bordered()
+                        .border_type(BorderType::Rounded)
                         .title(format!(" {} ", kind.label()))
                         .border_style(Style::default().fg(colors.border)),
                 )
@@ -179,6 +185,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, kind: EstadisticaKi
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(" {} ", kind.label()))
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -217,6 +224,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, kind: EstadisticaKi
             .style(Style::default().fg(colors.accent))
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(" Tendencia de rendimiento ")
                     .border_style(Style::default().fg(colors.border)),
             );
@@ -294,6 +302,7 @@ fn dibujar_barras(
         .label_style(Style::default().fg(colors.muted))
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(format!(" {titulo} "))
                 .border_style(Style::default().fg(colors.border)),
         );
@@ -312,6 +321,7 @@ fn build_lines(
         EstadisticaKind::Rendimiento => rendimiento(estadisticas, colors),
         EstadisticaKind::Canchas => canchas(estadisticas, colors),
         EstadisticaKind::Goles => goles(&estadisticas.goles, colors),
+        EstadisticaKind::Meta => meta(estadisticas, colors),
     }
 }
 
@@ -447,7 +457,15 @@ fn canchas(estadisticas: &Estadisticas, colors: &Palette) -> Vec<Line<'static>> 
             c.total, c.activas, c.partidos
         ),
     );
-    encabezado(&mut lines, colors, "Ranking de canchas");
+    encabezado(&mut lines, colors, "Más usadas");
+    for cancha in c.ranking.iter().take(5) {
+        lines.push(linea_cancha(cancha, colors));
+    }
+    encabezado(&mut lines, colors, "Menos usadas");
+    for cancha in c.ranking.iter().rev().take(5) {
+        lines.push(linea_cancha(cancha, colors));
+    }
+    encabezado(&mut lines, colors, "Rendimiento y aportes por cancha");
     lines.push(Line::from(Span::styled(
         format!(
             "{:<24} {:>4} {:>4} {:>4} {:>8}",
@@ -476,6 +494,9 @@ fn canchas(estadisticas: &Estadisticas, colors: &Palette) -> Vec<Line<'static>> 
         "Techadas vs descubiertas",
         &c.por_techada,
     );
+    seccion_grupos(&mut lines, colors, "Por tipo de cancha", &c.por_tipo);
+    seccion_grupos(&mut lines, colors, "Por superficie", &c.por_superficie);
+    seccion_grupos(&mut lines, colors, "Por franja horaria", &c.por_franja);
     seccion_grupos(&mut lines, colors, "Por localidad", &c.por_localidad);
     lines
 }
@@ -568,4 +589,119 @@ fn linea(lines: &mut Vec<Line<'static>>, colors: &Palette, etiqueta: &str, valor
         Span::styled(format!("{etiqueta:<26}"), Style::default().fg(colors.muted)),
         Span::styled(valor.to_string(), Style::default().fg(colors.fg)),
     ]));
+}
+
+fn linea_cancha(cancha: &crate::domain::models::CanchaStats, colors: &Palette) -> Line<'static> {
+    Line::from(Span::styled(
+        format!(
+            "{:<24} {:>4} {:>4} {:>4} {:>8.2}",
+            cancha.nombre, cancha.partidos, cancha.goles, cancha.asistencias, cancha.rendimiento
+        ),
+        Style::default().fg(colors.fg),
+    ))
+}
+
+fn meta(estadisticas: &Estadisticas, colors: &Palette) -> Vec<Line<'static>> {
+    let m = &estadisticas.meta;
+    let mut lines = Vec::new();
+    linea(
+        &mut lines,
+        colors,
+        "Consistencia",
+        &format!(
+            "{} partidos · prom {:.2} · desvío {:.2} · CV {:.1}% · rango {}–{}",
+            m.partidos, m.promedio, m.desvio, m.cv, m.minimo, m.maximo
+        ),
+    );
+    linea(
+        &mut lines,
+        colors,
+        "Partidos atípicos (|z| > 2)",
+        &m.outliers.to_string(),
+    );
+    linea(
+        &mut lines,
+        colors,
+        "Impacto del cansancio",
+        &format!(
+            "alto {:.2} vs bajo {:.2} (Δ {:.2})",
+            m.cansancio_alto,
+            m.cansancio_bajo,
+            m.cansancio_alto - m.cansancio_bajo
+        ),
+    );
+    linea(
+        &mut lines,
+        colors,
+        "Impacto del estado de ánimo",
+        &format!(
+            "alto {:.2} vs bajo {:.2} (Δ {:.2})",
+            m.animo_alto,
+            m.animo_bajo,
+            m.animo_alto - m.animo_bajo
+        ),
+    );
+    linea(
+        &mut lines,
+        colors,
+        "Eficiencia",
+        &format!(
+            "{:.2} goles/partido · {:.2} asistencias/partido",
+            m.goles_por_partido, m.asistencias_por_partido
+        ),
+    );
+    if let Some((cancha, promedio)) = &m.mejor_contexto {
+        linea(
+            &mut lines,
+            colors,
+            "Mejor contexto",
+            &format!("{cancha} · rend. {promedio:.2}"),
+        );
+    }
+    if let Some((cancha, promedio)) = &m.peor_contexto {
+        linea(
+            &mut lines,
+            colors,
+            "Peor contexto",
+            &format!("{cancha} · rend. {promedio:.2}"),
+        );
+    }
+    if !m.tendencia.is_empty() {
+        let valores: Vec<String> = m
+            .tendencia
+            .iter()
+            .map(|valor| format!("{valor:.0}"))
+            .collect();
+        linea(
+            &mut lines,
+            colors,
+            "Últimos rendimientos",
+            &valores.join(" · "),
+        );
+    }
+    seccion_grupos(
+        &mut lines,
+        colors,
+        "Por intensidad",
+        &estadisticas.rendimiento.por_intensidad,
+    );
+    seccion_grupos(
+        &mut lines,
+        colors,
+        "Por dolor físico",
+        &estadisticas.rendimiento.por_dolor,
+    );
+    seccion_grupos(
+        &mut lines,
+        colors,
+        "Por arbitraje",
+        &estadisticas.rendimiento.por_arbitraje,
+    );
+    seccion_grupos(
+        &mut lines,
+        colors,
+        "Por temperatura",
+        &estadisticas.rendimiento.por_temperatura,
+    );
+    lines
 }

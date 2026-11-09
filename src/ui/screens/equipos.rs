@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -30,6 +30,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             )
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -66,7 +67,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.tipo.label()),
             Cell::from(row.tipo_futbol.label()),
             Cell::from(format!("{}/{}", row.jugadores_count, row.num_jugadores)),
-            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }),
+            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }).style(
+                Style::default()
+                    .fg(if row.activa {
+                        colors.success
+                    } else {
+                        colors.muted
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
         .style(style)
     });
@@ -85,6 +94,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .header(header)
     .block(
         Block::bordered()
+            .border_type(BorderType::Rounded)
             .title(title)
             .border_style(Style::default().fg(colors.border))
             .style(Style::default().bg(colors.bg)),
@@ -100,6 +110,12 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.equipos_table);
+    app.table_hits = crate::ui::widgets::hit::table_hits(
+        tabla_area,
+        app.equipos_table.offset(),
+        app.equipos.len(),
+    );
+    app.table_hit_target = Some(crate::app::TableHitTarget::Equipos);
 
     if let Some(panel) = preview_area {
         let seleccionado = app
@@ -139,7 +155,32 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Style::default().fg(colors.muted),
             )));
         }
-        detail::panel(frame, panel, &colors, "Vista previa", lineas);
+        let ruta_imagen = seleccionado.and_then(|row| {
+            crate::ui::images::ImageCache::resolver(
+                &row.imagen_ruta,
+                &app.paths.images_dir,
+                &app.paths.data_dir,
+            )
+        });
+        let bloque = colors.panel(" Vista previa ");
+        let interior = bloque.inner(panel);
+        frame.render_widget(bloque, panel);
+        let con_imagen = ruta_imagen.is_some() && interior.height >= 16;
+        let [texto_area, imagen_area] = Layout::vertical([
+            Constraint::Min(6),
+            Constraint::Length(if con_imagen { 8 } else { 0 }),
+        ])
+        .areas(interior);
+        frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
+        if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
+            crate::ui::images::dibujar_miniatura(
+                frame,
+                imagen_area,
+                &mut app.images,
+                &ruta,
+                &colors,
+            );
+        }
     }
 }
 
@@ -149,15 +190,37 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
     let Some(equipo) = &app.equipo_detail else {
         frame.render_widget(
             Paragraph::new(format!("Cargando equipo {id}…"))
-                .block(Block::bordered().title(" Equipo "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Equipo "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
         return;
     };
 
+    let ruta_imagen = crate::ui::images::ImageCache::resolver(
+        &equipo.imagen_ruta,
+        &app.paths.images_dir,
+        &app.paths.data_dir,
+    );
+    let alto_info = if ruta_imagen.is_some() && area.width >= 100 {
+        12
+    } else {
+        9
+    };
     let [info_area, squad_area] =
-        Layout::vertical([Constraint::Length(9), Constraint::Min(5)]).areas(area);
+        Layout::vertical([Constraint::Length(alto_info), Constraint::Min(5)]).areas(area);
+    let (info_area, imagen_area) = if ruta_imagen.is_some() && area.width >= 100 {
+        let [texto, imagen] = Layout::horizontal([Constraint::Min(44), Constraint::Length(34)])
+            .spacing(1)
+            .areas(info_area);
+        (texto, Some(imagen))
+    } else {
+        (info_area, None)
+    };
 
     let info = vec![
         Line::from(vec![
@@ -199,13 +262,22 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
                 format!("{:<16}", "Imagen"),
                 Style::default().fg(colors.muted),
             ),
-            Span::styled(equipo.imagen_ruta.clone(), Style::default().fg(colors.fg)),
+            Span::styled(
+                std::path::Path::new(&equipo.imagen_ruta)
+                    .file_name()
+                    .map_or_else(
+                        || equipo.imagen_ruta.clone(),
+                        |nombre| nombre.to_string_lossy().into_owned(),
+                    ),
+                Style::default().fg(colors.fg),
+            ),
         ]),
     ];
     frame.render_widget(
         Paragraph::new(info)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(" Equipo · {} ", equipo.nombre))
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -214,6 +286,10 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
             .style(Style::default().bg(colors.bg)),
         info_area,
     );
+
+    if let (Some(area_imagen), Some(ruta)) = (imagen_area, ruta_imagen) {
+        crate::ui::images::dibujar(frame, area_imagen, &mut app.images, &ruta, &colors);
+    }
 
     let header = Row::new(vec!["#", "Nombre", "Posición", "Capitán"]).style(
         Style::default()
@@ -241,6 +317,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
             Paragraph::new("Sin jugadores cargados.  a: agregar jugador")
                 .block(
                     Block::bordered()
+                        .border_type(BorderType::Rounded)
                         .title(" Formación ")
                         .border_style(Style::default().fg(colors.border)),
                 )
@@ -262,6 +339,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
     .header(header)
     .block(
         Block::bordered()
+            .border_type(BorderType::Rounded)
             .title(" Formación ")
             .border_style(Style::default().fg(colors.border))
             .style(Style::default().bg(colors.bg)),

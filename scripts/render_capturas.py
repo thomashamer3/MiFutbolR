@@ -22,7 +22,7 @@ BARRA = 34
 def hexa(c):
     return tuple(c)
 
-for nombre in ["menu", "partidos", "estadisticas", "financiamiento"]:
+for nombre in ["menu", "lista_camisetas", "camiseta", "visor", "partidos", "estadisticas", "financiamiento", "panorama"]:
     with open(os.path.join(SRC, nombre + ".json"), encoding="utf-8") as f:
         data = json.load(f)
     ancho = data["width"] * CW + MARGEN * 2

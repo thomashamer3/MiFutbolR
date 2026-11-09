@@ -4,7 +4,9 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Tabs, Wrap};
+use ratatui::widgets::{
+    Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Tabs, Wrap,
+};
 
 use crate::app::App;
 use crate::ui::theme::{Palette, palette};
@@ -33,7 +35,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 "No hay partidos para el filtro actual.\n\nn: registrar partido      /: buscar      Esc: volver",
             )
             .block(
-                Block::bordered()
+                Block::bordered().border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -65,10 +67,20 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(row.camiseta.clone()),
                 Cell::from(row.goles.to_string()),
                 Cell::from(row.asistencias.to_string()),
-                Cell::from(row.resultado.label()),
+                Cell::from(row.resultado.label()).style(
+                    Style::default()
+                        .fg(match row.resultado {
+                            crate::domain::models::Resultado::Victoria => colors.success,
+                            crate::domain::models::Resultado::Empate => colors.warning,
+                            crate::domain::models::Resultado::Derrota => colors.error,
+                            crate::domain::models::Resultado::NoAplica => colors.muted,
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Cell::from(row.precio.display_ars()),
                 Cell::from(row.tipo_partido.label()),
-                Cell::from(if row.favorito { "★" } else { "" }),
+                Cell::from(if row.favorito { "★" } else { "" })
+                    .style(Style::default().fg(colors.warning)),
             ])
         });
 
@@ -91,6 +103,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .header(header)
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(title)
                 .border_style(Style::default().fg(colors.border))
                 .style(Style::default().bg(colors.bg)),
@@ -106,6 +119,23 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("▶ ");
 
         frame.render_stateful_widget(table, tabla_area, &mut app.partidos_table);
+        let offset = app.partidos_table.offset();
+        let visibles = tabla_area.height.saturating_sub(3) as usize;
+        app.table_hits = (0..visibles)
+            .filter_map(|fila| {
+                let indice = offset + fila;
+                (indice < app.partidos.len()).then_some((
+                    Rect {
+                        x: tabla_area.x + 1,
+                        y: tabla_area.y + 2 + fila as u16,
+                        width: tabla_area.width.saturating_sub(2),
+                        height: 1,
+                    },
+                    indice,
+                ))
+            })
+            .collect();
+        app.table_hit_target = Some(crate::app::TableHitTarget::Partidos);
 
         if let Some(panel) = preview_area {
             let seleccionado = app
@@ -202,7 +232,11 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     let Some(partido) = &app.partido_detail else {
         frame.render_widget(
             Paragraph::new(format!("Cargando partido {id}…"))
-                .block(Block::bordered().title(" Partido "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Partido "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
@@ -373,6 +407,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(
                         " Partido · {} ",
                         crate::domain::dates::display_datetime(partido.fecha_hora)
@@ -450,6 +485,7 @@ pub fn draw_wizard(frame: &mut Frame, area: Rect, app: &App) {
     let area = resto;
 
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(format!(" Asistente · {titulo} "))
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));

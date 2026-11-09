@@ -60,6 +60,12 @@ impl App {
                 }
             }
             KeyCode::Char('d') => self.confirm_delete_jugador(),
+            KeyCode::Char('v') => {
+                if let Some(equipo) = &self.equipo_detail {
+                    let ruta = equipo.imagen_ruta.clone();
+                    self.abrir_imagen(&ruta);
+                }
+            }
             _ => return Ok(false),
         }
         Ok(true)

@@ -39,6 +39,28 @@ pub fn load(conn: &Connection) -> Result<AppSettings, DbError> {
     })
 }
 
+/// ¿El tutorial de inicio ya se completó?
+pub fn tutorial_completado(conn: &Connection) -> Result<bool, DbError> {
+    let valor = conn
+        .query_row(
+            "SELECT IFNULL(tutorial_completado, 0) FROM settings WHERE id = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+    Ok(valor != 0)
+}
+
+/// Marca el tutorial como completado.
+pub fn marcar_tutorial(conn: &Connection) -> Result<(), DbError> {
+    conn.execute(
+        "UPDATE settings SET tutorial_completado = 1 WHERE id = 1",
+        [],
+    )?;
+    Ok(())
+}
+
 /// Guarda las preferencias (actualiza o crea la fila única).
 pub fn save(conn: &Connection, settings: &AppSettings) -> Result<(), DbError> {
     let updated = conn.execute(

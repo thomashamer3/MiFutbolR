@@ -77,6 +77,7 @@ fn nueva_app() -> anyhow::Result<App> {
     let mut app = App::new(db, paths)?;
     app.settings.theme = Theme::Dark;
     app.status = "Listo".to_string();
+    app.animations.enabled = false;
     Ok(app)
 }
 
@@ -91,13 +92,17 @@ fn abrir_modulo(app: &mut App, indice: usize) -> anyhow::Result<()> {
 }
 
 fn guardar(app: &mut App, nombre: &str) -> anyhow::Result<()> {
-    let backend = TestBackend::new(ANCHO, ALTO);
+    guardar_tamano(app, nombre, ANCHO, ALTO)
+}
+
+fn guardar_tamano(app: &mut App, nombre: &str, ancho: u16, alto: u16) -> anyhow::Result<()> {
+    let backend = TestBackend::new(ancho, alto);
     let mut terminal = Terminal::new(backend)?;
     terminal.draw(|frame| ui::draw(frame, app))?;
     let buffer = terminal.backend().buffer();
     let mut celdas = Vec::with_capacity((ANCHO as usize) * (ALTO as usize));
-    for y in 0..ALTO {
-        for x in 0..ANCHO {
+    for y in 0..alto {
+        for x in 0..ancho {
             let celda = &buffer[(x, y)];
             celdas.push(Celda {
                 s: celda.symbol().to_string(),
@@ -109,8 +114,8 @@ fn guardar(app: &mut App, nombre: &str) -> anyhow::Result<()> {
         }
     }
     let captura = Captura {
-        width: ANCHO,
-        height: ALTO,
+        width: ancho,
+        height: alto,
         celdas,
     };
     fs::create_dir_all("target/capturas")?;
@@ -130,8 +135,26 @@ fn main() -> anyhow::Result<()> {
     fs::copy("datos/mifutbol_convertida.db", "target/capturas.db")
         .context("copiá datos/mifutbol_convertida.db")?;
 
+    // Preparar una ficha con imagen real para la captura.
+    let ruta_imagen = fs::canonicalize("images/icon-512x512.png")?;
+    let con = rusqlite::Connection::open("target/capturas.db")?;
+    con.execute(
+        "UPDATE camiseta SET imagen_ruta = ?1",
+        [ruta_imagen.to_string_lossy().to_string()],
+    )?;
+    drop(con);
+
     let mut app = nueva_app()?;
     guardar(&mut app, "menu")?;
+
+    let mut app = nueva_app()?;
+    abrir_modulo(&mut app, 0)?;
+    pulsar(&mut app, KeyCode::Down)?;
+    guardar(&mut app, "lista_camisetas")?;
+    pulsar(&mut app, KeyCode::Enter)?;
+    guardar(&mut app, "camiseta")?;
+    pulsar(&mut app, KeyCode::Char('v'))?;
+    guardar(&mut app, "visor")?;
 
     let mut app = nueva_app()?;
     abrir_modulo(&mut app, 4)?;
@@ -147,6 +170,12 @@ fn main() -> anyhow::Result<()> {
     let mut app = nueva_app()?;
     abrir_modulo(&mut app, 7)?;
     guardar(&mut app, "financiamiento")?;
+
+    // Panorama ancho con sidebar.
+    let mut app = nueva_app()?;
+    abrir_modulo(&mut app, 4)?;
+    pulsar(&mut app, KeyCode::Down)?;
+    guardar_tamano(&mut app, "panorama", 160, 42)?;
 
     Ok(())
 }

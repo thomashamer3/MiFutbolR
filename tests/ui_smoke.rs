@@ -1,6 +1,6 @@
 //! Pruebas de humo de la TUI con `TestBackend` (§22.1).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use mifutbol_rs::app::{App, Screen};
 use mifutbol_rs::config::AppPaths;
 use mifutbol_rs::db::Database;
@@ -36,7 +36,7 @@ fn render(app: &mut App, width: u16, height: u16) -> String {
 }
 
 #[test]
-fn main_menu_lists_all_eleven_modules() {
+fn main_menu_lists_all_modules() {
     let (mut app, _dir) = test_app();
     let text = render(&mut app, 100, 30);
     assert!(text.contains("MiFutbolR"), "falta el nombre de la app");
@@ -52,6 +52,13 @@ fn main_menu_lists_all_eleven_modules() {
         "Carrera futbolística",
         "Resumen compartible",
         "Ajustes",
+        "Torneos",
+        "Temporadas",
+        "Tiendas",
+        "Amigos",
+        "Multimedia",
+        "Recordatorios",
+        "Progresión",
     ] {
         assert!(text.contains(label), "falta el módulo {label}");
     }
@@ -73,7 +80,7 @@ fn enter_opens_camisetas_and_esc_returns() {
 fn arrow_keys_move_the_selection_with_wrap() {
     let (mut app, _dir) = test_app();
     press(&mut app, KeyCode::Up);
-    assert_eq!(app.selected_module(), mifutbol_rs::app::Module::Ajustes);
+    assert_eq!(app.selected_module(), mifutbol_rs::app::Module::Progresion);
     press(&mut app, KeyCode::Down);
     assert_eq!(app.selected_module(), mifutbol_rs::app::Module::Camisetas);
     press(&mut app, KeyCode::Char('3'));
@@ -110,4 +117,23 @@ fn renders_in_narrow_and_short_terminals() {
         let text = render(&mut app, width, height);
         assert!(!text.is_empty(), "sin contenido en {width}x{height}");
     }
+}
+
+#[test]
+fn mouse_wheel_moves_menu_selection() {
+    let (mut app, _dir) = test_app();
+    let abajo = MouseEvent {
+        kind: MouseEventKind::ScrollDown,
+        column: 5,
+        row: 5,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(abajo).expect("mouse");
+    assert_eq!(app.menu_state.selected(), Some(1));
+    let arriba = MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        ..abajo
+    };
+    app.handle_mouse(arriba).expect("mouse");
+    assert_eq!(app.menu_state.selected(), Some(0));
 }

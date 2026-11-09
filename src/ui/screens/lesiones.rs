@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -34,7 +34,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 "No hay lesiones registradas.\n\nn: registrar lesión      /: buscar      Esc: volver",
             )
             .block(
-                Block::bordered()
+                Block::bordered().border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -63,7 +63,17 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(crate::domain::dates::display_datetime(row.fecha)),
                 Cell::from(row.jugador.clone()),
                 Cell::from(row.tipo.clone()),
-                Cell::from(row.estado.label()),
+                Cell::from(row.estado.label()).style(
+                    Style::default()
+                        .fg(match row.estado {
+                            crate::domain::models::EstadoLesion::Recuperado => colors.muted,
+                            crate::domain::models::EstadoLesion::Activa
+                            | crate::domain::models::EstadoLesion::Recaida => colors.error,
+                            crate::domain::models::EstadoLesion::EnTratamiento => colors.warning,
+                            crate::domain::models::EstadoLesion::Mejorando => colors.accent,
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Cell::from(row.camiseta.clone()),
                 Cell::from(row.partido.clone()),
             ])
@@ -85,6 +95,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .header(header)
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(title)
                 .border_style(Style::default().fg(colors.border))
                 .style(Style::default().bg(colors.bg)),
@@ -100,6 +111,12 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("▶ ");
 
         frame.render_stateful_widget(table, tabla_area, &mut app.lesiones_table);
+        app.table_hits = crate::ui::widgets::hit::table_hits(
+            tabla_area,
+            app.lesiones_table.offset(),
+            app.lesiones.len(),
+        );
+        app.table_hit_target = Some(crate::app::TableHitTarget::Lesiones);
 
         if let Some(panel) = preview_area {
             let seleccionada = app
@@ -162,7 +179,11 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     let Some(lesion) = &app.lesion_detail else {
         frame.render_widget(
             Paragraph::new(format!("Cargando lesión {id}…"))
-                .block(Block::bordered().title(" Lesión "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Lesión "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
@@ -206,6 +227,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(
                         " Lesión · {} ",
                         crate::domain::dates::display_datetime(lesion.fecha)

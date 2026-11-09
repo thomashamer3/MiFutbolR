@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::domain::models::Camiseta;
@@ -31,7 +31,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 "No hay camisetas registradas.\n\nn: crear una nueva      /: buscar      Esc: volver",
             )
             .block(
-                Block::bordered()
+                Block::bordered().border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -87,7 +87,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.victorias.to_string()),
             Cell::from(row.empates.to_string()),
             Cell::from(row.derrotas.to_string()),
-            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }),
+            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }).style(
+                Style::default()
+                    .fg(if row.activa {
+                        colors.success
+                    } else {
+                        colors.muted
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
         .style(row_style)
     });
@@ -108,6 +116,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .header(header)
         .block(
             Block::bordered()
+                .border_type(BorderType::Rounded)
                 .title(title)
                 .border_style(Style::default().fg(colors.border))
                 .style(Style::default().bg(colors.bg)),
@@ -123,6 +132,23 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.camisetas_table);
+    let offset = app.camisetas_table.offset();
+    let visibles = tabla_area.height.saturating_sub(3) as usize;
+    app.table_hits = (0..visibles)
+        .filter_map(|fila| {
+            let indice = offset + fila;
+            (indice < app.camisetas.len()).then_some((
+                Rect {
+                    x: tabla_area.x + 1,
+                    y: tabla_area.y + 2 + fila as u16,
+                    width: tabla_area.width.saturating_sub(2),
+                    height: 1,
+                },
+                indice,
+            ))
+        })
+        .collect();
+    app.table_hit_target = Some(crate::app::TableHitTarget::Camisetas);
 
     if let Some(panel) = preview_area {
         let seleccionada = app
@@ -163,16 +189,43 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Style::default().fg(colors.muted),
             )));
         }
-        detail::panel(frame, panel, &colors, "Vista previa", lineas);
+        let ruta_imagen = seleccionada.and_then(|row| {
+            crate::ui::images::ImageCache::resolver(
+                &row.imagen_ruta,
+                &app.paths.images_dir,
+                &app.paths.data_dir,
+            )
+        });
+        let bloque = colors.panel(" Vista previa ");
+        let interior = bloque.inner(panel);
+        frame.render_widget(bloque, panel);
+        let con_imagen = ruta_imagen.is_some() && interior.height >= 16;
+        let alto_imagen = if con_imagen { 8 } else { 0 };
+        let [texto_area, imagen_area] =
+            Layout::vertical([Constraint::Min(6), Constraint::Length(alto_imagen)]).areas(interior);
+        frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
+        if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
+            crate::ui::images::dibujar_miniatura(
+                frame,
+                imagen_area,
+                &mut app.images,
+                &ruta,
+                &colors,
+            );
+        }
     }
 }
 
 /// Detalle de una camiseta con estadísticas derivadas.
-pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
+pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App, id: i64) {
     let colors = palette(app.settings.theme);
     let Some(camiseta) = &app.camiseta_detail else {
         let paragraph = Paragraph::new(format!("Cargando camiseta {id}…"))
-            .block(Block::bordered().title(" Camiseta "))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title(" Camiseta "),
+            )
             .style(Style::default().fg(colors.fg));
         frame.render_widget(paragraph, area);
         return;
@@ -205,7 +258,15 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     if camiseta.fue_regalo {
         push("Regalo de", &camiseta.regalo_de);
     }
-    push("Imagen", &camiseta.imagen_ruta);
+    if !camiseta.imagen_ruta.trim().is_empty() {
+        let nombre = std::path::Path::new(&camiseta.imagen_ruta)
+            .file_name()
+            .map_or_else(
+                || camiseta.imagen_ruta.clone(),
+                |nombre| nombre.to_string_lossy().into_owned(),
+            );
+        push("Imagen", &nombre);
+    }
     push("Observaciones", &camiseta.observaciones);
     push(
         "Estado",
@@ -251,11 +312,26 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
         Span::styled(ficha.lesiones.to_string(), Style::default().fg(colors.fg)),
     ]));
 
+    let ruta_imagen = crate::ui::images::ImageCache::resolver(
+        &camiseta.imagen_ruta,
+        &app.paths.images_dir,
+        &app.paths.data_dir,
+    );
+    let (texto_area, imagen_area) = if ruta_imagen.is_some() && area.width >= 100 {
+        let [texto, imagen] = Layout::horizontal([Constraint::Min(40), Constraint::Length(34)])
+            .spacing(1)
+            .areas(area);
+        (texto, Some(imagen))
+    } else {
+        (area, None)
+    };
+
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .title(format!(" Camiseta · {} ", camiseta.nombre))
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));
-    let [_, body] = Layout::vertical([Constraint::Length(0), Constraint::Min(0)]).areas(area);
+    let [_, body] = Layout::vertical([Constraint::Length(0), Constraint::Min(0)]).areas(texto_area);
     frame.render_widget(
         Paragraph::new(lines)
             .block(block)
@@ -263,6 +339,9 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
             .style(Style::default().bg(colors.bg)),
         body,
     );
+    if let (Some(area_imagen), Some(ruta)) = (imagen_area, ruta_imagen) {
+        crate::ui::images::dibujar(frame, area_imagen, &mut app.images, &ruta, &colors);
+    }
 }
 
 /// Formulario de alta/edición.

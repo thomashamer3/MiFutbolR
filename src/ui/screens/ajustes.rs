@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, BorderType, Paragraph};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -57,6 +57,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         frame.render_widget(
             Paragraph::new(Line::from(chips)).block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(" Vista previa del tema ")
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),

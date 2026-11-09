@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -30,6 +30,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             )
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(title)
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
@@ -58,7 +59,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.nombre.clone()),
             Cell::from(row.partidos.to_string()),
             Cell::from(if row.sorteada { "Sí" } else { "No" }),
-            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }),
+            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }).style(
+                Style::default()
+                    .fg(if row.activa {
+                        colors.success
+                    } else {
+                        colors.muted
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
         .style(style)
     });
@@ -77,6 +86,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .header(header)
     .block(
         Block::bordered()
+            .border_type(BorderType::Rounded)
             .title(title)
             .border_style(Style::default().fg(colors.border))
             .style(Style::default().bg(colors.bg)),
@@ -92,6 +102,12 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.botines_table);
+    app.table_hits = crate::ui::widgets::hit::table_hits(
+        tabla_area,
+        app.botines_table.offset(),
+        app.botines.len(),
+    );
+    app.table_hit_target = Some(crate::app::TableHitTarget::Botines);
 
     if let Some(panel) = preview_area {
         let seleccionado = app
@@ -144,7 +160,11 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     let Some(botin) = &app.botin_detail else {
         frame.render_widget(
             Paragraph::new(format!("Cargando botín {id}…"))
-                .block(Block::bordered().title(" Botín "))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .title(" Botín "),
+                )
                 .style(Style::default().fg(colors.fg)),
             area,
         );
@@ -209,6 +229,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
         Paragraph::new(lines)
             .block(
                 Block::bordered()
+                    .border_type(BorderType::Rounded)
                     .title(format!(" Botín · {} ", botin.nombre))
                     .border_style(Style::default().fg(colors.border))
                     .style(Style::default().bg(colors.bg)),
