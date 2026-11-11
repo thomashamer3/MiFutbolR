@@ -11,10 +11,10 @@ pub fn normalize(text: &str) -> String {
         let lower = ch.to_lowercase().next().unwrap_or(ch);
         let mapped = match lower {
             'á' | 'à' | 'ä' | 'â' => 'a',
-            'é' | 'è' | 'ë' | 'ê' => 'e',
-            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'è'..='ë' => 'e',
+            'ì'..='ï' => 'i',
             'ó' | 'ò' | 'ö' | 'ô' => 'o',
-            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ù'..='ü' => 'u',
             'ñ' => 'n',
             'ç' => 'c',
             other => other,

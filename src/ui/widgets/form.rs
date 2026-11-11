@@ -9,7 +9,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Padding, Paragraph, Wrap};
 
-use crate::app::{App, FieldKind, Form};
+use crate::app::{App, Field, FieldKind, Form};
 use crate::ui::theme::{Palette, palette};
 use crate::ui::widgets::scroll;
 
@@ -47,70 +47,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, form: &Form) {
         .fields
         .iter()
         .enumerate()
-        .map(|(index, field)| {
-            let focused = index == form.focus;
-            let marker = if focused { "▶" } else { " " };
-            let icono = kind_icon(&field.kind);
-            let etiqueta = format!("{icono} {:<22}", field.label);
-
-            let estilo_etiqueta = if focused {
-                Style::default()
-                    .fg(colors.highlight_fg)
-                    .bg(colors.highlight_bg)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(colors.muted)
-            };
-            let estilo_valor = if focused {
-                Style::default()
-                    .fg(colors.accent)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(colors.fg)
-            };
-
-            let mut valor = field.display_value();
-            if valor.is_empty() {
-                valor = if focused {
-                    "▌".to_string()
-                } else {
-                    String::new()
-                };
-            }
-            if focused {
-                match &field.kind {
-                    FieldKind::Select { .. } => valor.push_str("  ◂ ▸"),
-                    FieldKind::Bool => valor.push_str("  [Espacio]"),
-                    _ => {}
-                }
-            }
-
-            let mut spans = vec![
-                Span::styled(
-                    format!("{marker} "),
-                    Style::default()
-                        .fg(colors.accent)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(etiqueta, estilo_etiqueta),
-                Span::styled(valor, estilo_valor),
-            ];
-            if field.required {
-                spans.push(Span::styled("*", Style::default().fg(colors.warning)));
-            }
-            let contador = match &field.kind {
-                FieldKind::Text { max } | FieldKind::Multiline { max }
-                    if focused && !field.value.is_empty() =>
-                {
-                    Some(format!("  {}/{max}", field.value.chars().count()))
-                }
-                _ => None,
-            };
-            if let Some(contador) = contador {
-                spans.push(Span::styled(contador, Style::default().fg(colors.muted)));
-            }
-            Line::from(spans)
-        })
+        .map(|(index, field)| linea_campo(field, index == form.focus, &colors))
         .collect::<Vec<_>>();
 
     frame.render_widget(
@@ -157,6 +94,70 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, form: &Form) {
             .wrap(Wrap { trim: true }),
         help_area,
     );
+}
+
+fn linea_campo(field: &Field, focused: bool, colors: &Palette) -> Line<'static> {
+    let marker = if focused { "▶" } else { " " };
+    let icono = kind_icon(&field.kind);
+    let etiqueta = format!("{icono} {:<22}", field.label);
+
+    let estilo_etiqueta = if focused {
+        Style::default()
+            .fg(colors.highlight_fg)
+            .bg(colors.highlight_bg)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(colors.muted)
+    };
+    let estilo_valor = if focused {
+        Style::default()
+            .fg(colors.accent)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(colors.fg)
+    };
+
+    let mut valor = field.display_value();
+    if valor.is_empty() {
+        valor = if focused {
+            "▌".to_string()
+        } else {
+            String::new()
+        };
+    }
+    if focused {
+        match &field.kind {
+            FieldKind::Select { .. } => valor.push_str("  ◂ ▸"),
+            FieldKind::Bool => valor.push_str("  [Espacio]"),
+            _ => {}
+        }
+    }
+
+    let mut spans = vec![
+        Span::styled(
+            format!("{marker} "),
+            Style::default()
+                .fg(colors.accent)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(etiqueta, estilo_etiqueta),
+        Span::styled(valor, estilo_valor),
+    ];
+    if field.required {
+        spans.push(Span::styled("*", Style::default().fg(colors.warning)));
+    }
+    let contador = match &field.kind {
+        FieldKind::Text { max } | FieldKind::Multiline { max }
+            if focused && !field.value.is_empty() =>
+        {
+            Some(format!("  {}/{max}", field.value.chars().count()))
+        }
+        _ => None,
+    };
+    if let Some(contador) = contador {
+        spans.push(Span::styled(contador, Style::default().fg(colors.muted)));
+    }
+    Line::from(spans)
 }
 
 fn kind_icon(kind: &FieldKind) -> &'static str {

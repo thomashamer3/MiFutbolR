@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS camiseta (
     imagen_ruta       TEXT    NOT NULL DEFAULT '',
     activa            INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0,1)),
     sorteada          INTEGER NOT NULL DEFAULT 0 CHECK (sorteada IN (0,1)),
-    created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+    created_at        TEXT    NOT NULL DEFAULT (datetime('now','localtime')), -- NOSONAR: datetime repetido por diseño en el esquema
     updated_at        TEXT    NOT NULL DEFAULT ''
 );
 

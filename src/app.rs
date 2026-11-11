@@ -2224,70 +2224,92 @@ impl App {
     fn confirm(&mut self, action: ConfirmAction) {
         match action {
             ConfirmAction::DeleteTorneo(id) => {
-                if let Err(error) = crate::services::torneos_service::eliminar(self.db.conn(), id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    self.go_back();
-                    let _ = self.refresh_torneos();
-                }
+                let resultado = crate::services::torneos_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    app.go_back();
+                    let _ = app.refresh_torneos();
+                });
             }
             ConfirmAction::DeleteTienda(id) => {
-                if let Err(error) = crate::services::tiendas_service::eliminar(self.db.conn(), id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_tiendas();
-                }
+                let resultado = crate::services::tiendas_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_tiendas();
+                });
             }
             ConfirmAction::DeleteProgresion(id) => {
-                if let Err(error) =
-                    crate::services::progresion_service::eliminar(self.db.conn(), id)
-                {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_progresion();
-                }
+                let resultado = crate::services::progresion_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_progresion();
+                });
             }
             ConfirmAction::DeletePlan(id) => {
-                if let Err(error) =
-                    crate::services::progresion_service::eliminar_plan(self.db.conn(), id)
-                {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_planes();
-                }
+                let resultado =
+                    crate::services::progresion_service::eliminar_plan(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_planes();
+                });
             }
             ConfirmAction::DeleteRecordatorio(id) => {
-                if let Err(error) =
-                    crate::services::recordatorios_service::eliminar(self.db.conn(), id)
-                {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_recordatorios();
-                }
+                let resultado =
+                    crate::services::recordatorios_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_recordatorios();
+                });
             }
             ConfirmAction::DeleteMedia(id) => {
-                if let Err(error) = crate::services::media_service::eliminar(self.db.conn(), id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_media();
-                }
+                let resultado = crate::services::media_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_media();
+                });
             }
             ConfirmAction::DeleteAmigo(id) => {
-                if let Err(error) = crate::services::amigos_service::eliminar(self.db.conn(), id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    let _ = self.refresh_amigos();
-                }
+                let resultado = crate::services::amigos_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_amigos();
+                });
             }
             ConfirmAction::DeleteTemporada(id) => {
-                if let Err(error) =
-                    crate::services::temporadas_service::eliminar(self.db.conn(), id)
-                {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    self.go_back();
-                    let _ = self.refresh_temporadas();
-                }
+                let resultado = crate::services::temporadas_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    app.go_back();
+                    let _ = app.refresh_temporadas();
+                });
+            }
+            ConfirmAction::DeleteCamiseta(id) => {
+                let resultado = self.delete_camiseta(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteCancha(id) => {
+                let resultado = self.delete_cancha(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteBotin(id) => {
+                let resultado = self.delete_botin(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteEquipo(id) => {
+                let resultado = self.delete_equipo(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteHito(id) => {
+                let resultado = self.delete_carrera_hito(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteTransaccion(id) => {
+                let resultado = self.delete_transaccion(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteLesion(id) => {
+                let resultado = self.delete_lesion(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeletePartido(id) => {
+                let resultado = self.delete_partido(id);
+                self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::DeleteJugador(id) => {
+                let resultado = self.delete_jugador(id);
+                self.confirmar_eliminacion(resultado, |_| {});
             }
             ConfirmAction::GenerarFixture(id) => {
                 match crate::services::torneos_service::generar_fixture(self.db.conn(), id) {
@@ -2314,75 +2336,37 @@ impl App {
                     }
                 }
             }
-            ConfirmAction::Quit => self.should_quit = true,
-            ConfirmAction::DeleteCamiseta(id) => {
-                if let Err(error) = self.delete_camiseta(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DiscardForm => self.discard_form(),
-            ConfirmAction::DeleteCancha(id) => {
-                if let Err(error) = self.delete_cancha(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteBotin(id) => {
-                if let Err(error) = self.delete_botin(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteEquipo(id) => {
-                if let Err(error) = self.delete_equipo(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
             ConfirmAction::RestoreBackup => {
-                if let Err(error) = self.restaurar_backup() {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteHito(id) => {
-                if let Err(error) = self.delete_carrera_hito(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteTransaccion(id) => {
-                if let Err(error) = self.delete_transaccion(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteLesion(id) => {
-                if let Err(error) = self.delete_lesion(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeletePartido(id) => {
-                if let Err(error) = self.delete_partido(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
-            }
-            ConfirmAction::DeleteJugador(id) => {
-                if let Err(error) = self.delete_jugador(id) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                }
+                let resultado = self.restaurar_backup();
+                self.confirmar_eliminacion(resultado, |_| {});
             }
             ConfirmAction::ResetSorteoBotines => {
-                if let Err(error) = botin_service::reiniciar_sorteo(self.db.conn()) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    self.status = "Sorteo de botines reiniciado".to_string();
-                }
+                let resultado = botin_service::reiniciar_sorteo(self.db.conn());
+                self.confirmar_eliminacion(resultado, |app| {
+                    app.status = "Sorteo de botines reiniciado".to_string();
+                });
             }
             ConfirmAction::ResetSorteo => {
-                if let Err(error) = camiseta_service::reiniciar_sorteo(self.db.conn()) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    self.status = "Sorteo reiniciado".to_string();
-                }
+                let resultado = camiseta_service::reiniciar_sorteo(self.db.conn());
+                self.confirmar_eliminacion(resultado, |app| {
+                    app.status = "Sorteo reiniciado".to_string();
+                });
             }
+            ConfirmAction::Quit => self.should_quit = true,
+            ConfirmAction::DiscardForm => self.discard_form(),
         }
     }
 
+    fn confirmar_eliminacion<T, E, F>(&mut self, resultado: Result<T, E>, despues: F)
+    where
+        E: std::fmt::Display,
+        F: FnOnce(&mut Self),
+    {
+        match resultado {
+            Ok(_) => despues(self),
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+    }
     fn move_menu_selection(&mut self, delta: isize) {
         let len = Module::ALL.len() as isize;
         let current = self.menu_state.selected().unwrap_or(0) as isize;

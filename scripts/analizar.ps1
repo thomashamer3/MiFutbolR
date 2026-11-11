@@ -59,7 +59,7 @@ $watch = Get-Tool "cargo-watch"
 function Invoke-Paso {
     param(
         [Parameter(Mandatory = $true)][string]$Nombre,
-        [Parameter(Mandatory = $true)][string]$Comando,
+        [Parameter(Mandatory = $true)][scriptblock]$Comando,
         [string]$Archivo = "",
         [switch]$Opcional
     )
@@ -70,10 +70,11 @@ function Invoke-Paso {
     $log = Join-Path $Salida "$Archivo.log"
     Write-Host ""
     Write-Host "=== $Nombre ===" -ForegroundColor Cyan
-    Write-Host "> $Comando" -ForegroundColor DarkGray
+    $textoComando = $Comando.ToString().Trim()
+    Write-Host "> $textoComando" -ForegroundColor DarkGray
 
     $reloj = [System.Diagnostics.Stopwatch]::StartNew()
-    Invoke-Expression "$Comando 2>&1" | Tee-Object -FilePath $log
+    & $Comando 2>&1 | Tee-Object -FilePath $log
     if (-not (Test-Path $log)) {
         New-Item -ItemType File -Path $log | Out-Null
     }
@@ -87,7 +88,7 @@ function Invoke-Paso {
 
     $script:resultados.Add([pscustomobject]@{
         Paso    = $Nombre
-        Comando = $Comando
+        Comando = $textoComando
         Estado  = $estado
         Segundos = [math]::Round($reloj.Elapsed.TotalSeconds, 1)
         Log     = $log
@@ -100,55 +101,55 @@ Write-Host "MiFutbolRS - analisis completo" -ForegroundColor Magenta
 Write-Host ("Raiz: {0}" -f $raiz)
 Write-Host ("Salida de logs: {0}" -f (Join-Path $raiz $Salida))
 
-Invoke-Paso -Nombre "Versiones" -Comando "cargo --version; rustc --version" -Archivo "entorno"
-Invoke-Paso -Nombre "Fetch de dependencias" -Comando "cargo fetch" -Archivo "fetch"
+Invoke-Paso -Nombre "Versiones" -Comando { cargo --version; rustc --version } -Archivo "entorno"
+Invoke-Paso -Nombre "Fetch de dependencias" -Comando { cargo fetch } -Archivo "fetch"
 
 if ($Actualizar) {
-    Invoke-Paso -Nombre "Actualizar dependencias" -Comando "cargo update" -Archivo "update"
+    Invoke-Paso -Nombre "Actualizar dependencias" -Comando { cargo update } -Archivo "update"
 } else {
-    Invoke-Paso -Nombre "Actualizar dependencias (dry-run)" -Comando "cargo update --dry-run" -Archivo "update-dry-run"
+    Invoke-Paso -Nombre "Actualizar dependencias (dry-run)" -Comando { cargo update --dry-run } -Archivo "update-dry-run"
 }
 
-Invoke-Paso -Nombre "Check (todos los targets)" -Comando "cargo check --all-targets" -Archivo "check"
-Invoke-Paso -Nombre "Build debug" -Comando "cargo build" -Archivo "build"
-Invoke-Paso -Nombre "Build release" -Comando "cargo build --release" -Archivo "build-release"
+Invoke-Paso -Nombre "Check (todos los targets)" -Comando { cargo check --all-targets } -Archivo "check"
+Invoke-Paso -Nombre "Build debug" -Comando { cargo build } -Archivo "build"
+Invoke-Paso -Nombre "Build release" -Comando { cargo build --release } -Archivo "build-release"
 
 if ($nextest) {
-    Invoke-Paso -Nombre "Pruebas (nextest)" -Comando "cargo nextest run --no-fail-fast" -Archivo "test-nextest"
-    Invoke-Paso -Nombre "Doc-tests" -Comando "cargo test --doc" -Archivo "test-doc"
+    Invoke-Paso -Nombre "Pruebas (nextest)" -Comando { cargo nextest run --no-fail-fast } -Archivo "test-nextest"
+    Invoke-Paso -Nombre "Doc-tests" -Comando { cargo test --doc } -Archivo "test-doc"
 } else {
-    Invoke-Paso -Nombre "Pruebas (cargo test)" -Comando "cargo test --all-targets" -Archivo "test"
+    Invoke-Paso -Nombre "Pruebas (cargo test)" -Comando { cargo test --all-targets } -Archivo "test"
 }
 
-Invoke-Paso -Nombre "Formato" -Comando "cargo fmt --check" -Archivo "fmt-check"
-Invoke-Paso -Nombre "Clippy (warnings = errores)" -Comando "cargo clippy --all-targets -- -D warnings" -Archivo "clippy"
-Invoke-Paso -Nombre "Documentacion" -Comando "cargo doc --no-deps" -Archivo "doc"
+Invoke-Paso -Nombre "Formato" -Comando { cargo fmt --check } -Archivo "fmt-check"
+Invoke-Paso -Nombre "Clippy (warnings = errores)" -Comando { cargo clippy --all-targets -- -D warnings } -Archivo "clippy"
+Invoke-Paso -Nombre "Documentacion" -Comando { cargo doc --no-deps } -Archivo "doc"
 
 if ($AplicarFix) {
-    Invoke-Paso -Nombre "Cargo fix" -Comando "cargo fix --allow-dirty --allow-staged --all-targets" -Archivo "fix"
+    Invoke-Paso -Nombre "Cargo fix" -Comando { cargo fix --allow-dirty --allow-staged --all-targets } -Archivo "fix"
 }
 
 if ($Completo) {
     if ($nextest) {
-        Invoke-Paso -Nombre "Pruebas release (nextest)" -Comando "cargo nextest run --release --no-fail-fast" -Archivo "test-release"
+        Invoke-Paso -Nombre "Pruebas release (nextest)" -Comando { cargo nextest run --release --no-fail-fast } -Archivo "test-release"
     } else {
-        Invoke-Paso -Nombre "Pruebas release" -Comando "cargo test --release" -Archivo "test-release"
+        Invoke-Paso -Nombre "Pruebas release" -Comando { cargo test --release } -Archivo "test-release"
     }
 
     if ($audit) {
-        Invoke-Paso -Nombre "Auditoria de seguridad (cargo audit)" -Comando "cargo audit" -Archivo "audit" -Opcional
+        Invoke-Paso -Nombre "Auditoria de seguridad (cargo audit)" -Comando { cargo audit } -Archivo "audit" -Opcional
     } else {
         Write-Host "cargo-audit no esta instalado: se omite." -ForegroundColor Yellow
     }
 
     if ($deny) {
-        Invoke-Paso -Nombre "Licencias y bans (cargo deny)" -Comando "cargo deny check" -Archivo "deny" -Opcional
+        Invoke-Paso -Nombre "Licencias y bans (cargo deny)" -Comando { cargo deny check } -Archivo "deny" -Opcional
     } else {
         Write-Host "cargo-deny no esta instalado: se omite." -ForegroundColor Yellow
     }
 
     if ($bloat) {
-        Invoke-Paso -Nombre "Tamano del binario (cargo bloat)" -Comando "cargo bloat --release --crates -n 20" -Archivo "bloat" -Opcional
+        Invoke-Paso -Nombre "Tamano del binario (cargo bloat)" -Comando { cargo bloat --release --crates -n 20 } -Archivo "bloat" -Opcional
     } else {
         Write-Host "cargo-bloat no esta instalado: se omite." -ForegroundColor Yellow
     }
@@ -179,7 +180,7 @@ if ($Completo) {
         Write-Host ""
         Write-Host "=== Restaurando binario release (sin simbolos) ===" -ForegroundColor Cyan
         (Get-Item "src\main.rs").LastWriteTime = Get-Date
-        Invoke-Paso -Nombre "Restaurar binario release" -Comando "cargo build --release" -Archivo "build-release-final"
+        Invoke-Paso -Nombre "Restaurar binario release" -Comando { cargo build --release } -Archivo "build-release-final"
     }
 }
 

@@ -245,7 +245,7 @@ pub enum EstadoFisico {
 
 impl EstadoFisico {
     /// Todas las variantes.
-    pub const ALL: &'static [Self] = &[
+    pub const ALL: &[Self] = &[
         Self::Nueva,
         Self::Buena,
         Self::Desgastada,
@@ -311,7 +311,7 @@ pub enum EstadoLesion {
 
 impl EstadoLesion {
     /// Todas las variantes.
-    pub const ALL: &'static [Self] = &[
+    pub const ALL: &[Self] = &[
         Self::Activa,
         Self::EnTratamiento,
         Self::Mejorando,
@@ -374,7 +374,7 @@ pub enum FormatoPartido {
 
 impl FormatoPartido {
     /// Todas las variantes.
-    pub const ALL: &'static [Self] = &[Self::F5, Self::F7, Self::F8, Self::F11];
+    pub const ALL: &[Self] = &[Self::F5, Self::F7, Self::F8, Self::F11];
 
     /// Texto persistido.
     #[must_use]
@@ -913,7 +913,7 @@ pub enum OrdenCamisetas {
 
 impl OrdenCamisetas {
     /// Todos los órdenes disponibles.
-    pub const ALL: &'static [Self] = &[
+    pub const ALL: &[Self] = &[
         Self::Id,
         Self::Nombre,
         Self::Partidos,
@@ -1040,7 +1040,7 @@ pub enum OrdenCanchas {
 
 impl OrdenCanchas {
     /// Todos los órdenes.
-    pub const ALL: &'static [Self] = &[Self::Id, Self::Nombre, Self::Partidos, Self::Rendimiento];
+    pub const ALL: &[Self] = &[Self::Id, Self::Nombre, Self::Partidos, Self::Rendimiento];
 
     /// Fragmento `ORDER BY` estático.
     #[must_use]
@@ -1145,7 +1145,7 @@ pub enum OrdenBotines {
 
 impl OrdenBotines {
     /// Todos los órdenes.
-    pub const ALL: &'static [Self] = &[Self::Id, Self::Nombre, Self::Partidos];
+    pub const ALL: &[Self] = &[Self::Id, Self::Nombre, Self::Partidos];
 
     /// Fragmento `ORDER BY` estático.
     #[must_use]
@@ -1235,7 +1235,7 @@ pub enum OrdenEquipos {
 
 impl OrdenEquipos {
     /// Todos los órdenes.
-    pub const ALL: &'static [Self] = &[Self::Id, Self::Nombre, Self::Jugadores];
+    pub const ALL: &[Self] = &[Self::Id, Self::Nombre, Self::Jugadores];
 
     /// Fragmento `ORDER BY` estático.
     #[must_use]
@@ -1331,7 +1331,7 @@ pub enum OrdenPartidos {
 
 impl OrdenPartidos {
     /// Todos los órdenes.
-    pub const ALL: &'static [Self] = &[Self::FechaDesc, Self::FechaAsc];
+    pub const ALL: &[Self] = &[Self::FechaDesc, Self::FechaAsc];
 
     /// Fragmento `ORDER BY` estático.
     #[must_use]
@@ -1440,7 +1440,7 @@ pub enum OrdenLesiones {
 
 impl OrdenLesiones {
     /// Todos los órdenes.
-    pub const ALL: &'static [Self] = &[Self::FechaDesc, Self::FechaAsc];
+    pub const ALL: &[Self] = &[Self::FechaDesc, Self::FechaAsc];
 
     /// Fragmento `ORDER BY` estático.
     #[must_use]
@@ -1539,7 +1539,7 @@ pub enum EstadisticaKind {
 
 impl EstadisticaKind {
     /// Todas las categorías.
-    pub const ALL: &'static [Self] = &[
+    pub const ALL: &[Self] = &[
         Self::Generales,
         Self::PorMes,
         Self::PorAnio,

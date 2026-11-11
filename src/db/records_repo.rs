@@ -276,145 +276,116 @@ fn ranking_camisetas(conn: &Connection) -> Result<RecordItem, DbError> {
 
 /// Calcula los 16 reportes.
 pub fn todos(conn: &Connection) -> Result<Vec<RecordItem>, DbError> {
-    let mut items = Vec::new();
-    items.push(
-        partido_record(
-            conn,
-            "Récord de goles en un partido",
-            "p.goles DESC, p.fecha_hora DESC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Récord de goles en un partido".to_string(),
-            detalle: "Sin partidos".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(
-        partido_record(
-            conn,
-            "Récord de asistencias en un partido",
-            "p.asistencias DESC, p.fecha_hora DESC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Récord de asistencias en un partido".to_string(),
-            detalle: "Sin partidos".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(
-        partido_record(
-            conn,
-            "Mejor partido por rendimiento",
-            "p.rendimiento_general DESC, p.fecha_hora DESC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Mejor partido por rendimiento".to_string(),
-            detalle: "Sin partidos".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(
-        partido_record(
-            conn,
-            "Peor partido por rendimiento",
-            "p.rendimiento_general ASC, p.fecha_hora DESC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Peor partido por rendimiento".to_string(),
-            detalle: "Sin partidos".to_string(),
-            partido_id: None,
-        }),
-    );
-
-    items.push(
-        combo(
-            conn,
-            "Mejor combinación cancha + camiseta",
-            "AVG(p.rendimiento_general) DESC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Mejor combinación cancha + camiseta".to_string(),
-            detalle: "Hacen falta al menos 2 partidos por combinación".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(
-        combo(
-            conn,
-            "Peor combinación cancha + camiseta",
-            "AVG(p.rendimiento_general) ASC",
-        )?
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Peor combinación cancha + camiseta".to_string(),
-            detalle: "Hacen falta al menos 2 partidos por combinación".to_string(),
-            partido_id: None,
-        }),
-    );
-
-    items.push(
-        temporada(conn, "Mejor temporada", "AVG(rendimiento_general) DESC")?.unwrap_or_else(|| {
-            RecordItem {
-                titulo: "Mejor temporada".to_string(),
-                detalle: "Hacen falta al menos 3 partidos en un año".to_string(),
-                partido_id: None,
-            }
-        }),
-    );
-    items.push(
-        temporada(conn, "Peor temporada", "AVG(rendimiento_general) ASC")?.unwrap_or_else(|| {
-            RecordItem {
-                titulo: "Peor temporada".to_string(),
-                detalle: "Hacen falta al menos 3 partidos en un año".to_string(),
-                partido_id: None,
-            }
-        }),
-    );
-
-    items.push(contar(conn, "Partidos sin goles", "goles = 0")?);
-    items.push(contar(conn, "Partidos sin asistencias", "asistencias = 0")?);
-
     let filas = filas_partidos(conn)?;
-    items.push(
-        detalle_racha("Mejor racha de victorias", &filas, |fila| {
-            fila.resultado == 1
-        })
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Mejor racha de victorias".to_string(),
-            detalle: "Sin victorias".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(
-        detalle_racha("Peor racha de derrotas", &filas, |fila| fila.resultado == 3).unwrap_or_else(
-            || RecordItem {
-                titulo: "Peor racha de derrotas".to_string(),
-                detalle: "Sin derrotas".to_string(),
-                partido_id: None,
-            },
-        ),
-    );
-    items.push(
-        detalle_racha("Mejor racha sin perder", &filas, |fila| fila.resultado != 3).unwrap_or_else(
-            || RecordItem {
-                titulo: "Mejor racha sin perder".to_string(),
+    let items =
+        vec![
+            partido_record(
+                conn,
+                "Récord de goles en un partido",
+                "p.goles DESC, p.fecha_hora DESC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Récord de goles en un partido".to_string(),
                 detalle: "Sin partidos".to_string(),
                 partido_id: None,
-            },
-        ),
-    );
-    items.push(
-        detalle_racha("Partidos consecutivos anotando", &filas, |fila| {
-            fila.goles > 0
-        })
-        .unwrap_or_else(|| RecordItem {
-            titulo: "Partidos consecutivos anotando".to_string(),
-            detalle: "Sin goles".to_string(),
-            partido_id: None,
-        }),
-    );
-    items.push(top_partidos(conn)?);
-    items.push(ranking_camisetas(conn)?);
-
+            }),
+            partido_record(
+                conn,
+                "Récord de asistencias en un partido",
+                "p.asistencias DESC, p.fecha_hora DESC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Récord de asistencias en un partido".to_string(),
+                detalle: "Sin partidos".to_string(),
+                partido_id: None,
+            }),
+            partido_record(
+                conn,
+                "Mejor partido por rendimiento",
+                "p.rendimiento_general DESC, p.fecha_hora DESC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Mejor partido por rendimiento".to_string(),
+                detalle: "Sin partidos".to_string(),
+                partido_id: None,
+            }),
+            partido_record(
+                conn,
+                "Peor partido por rendimiento",
+                "p.rendimiento_general ASC, p.fecha_hora DESC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Peor partido por rendimiento".to_string(),
+                detalle: "Sin partidos".to_string(),
+                partido_id: None,
+            }),
+            combo(
+                conn,
+                "Mejor combinación cancha + camiseta",
+                "AVG(p.rendimiento_general) DESC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Mejor combinación cancha + camiseta".to_string(),
+                detalle: "Hacen falta al menos 2 partidos por combinación".to_string(),
+                partido_id: None,
+            }),
+            combo(
+                conn,
+                "Peor combinación cancha + camiseta",
+                "AVG(p.rendimiento_general) ASC",
+            )?
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Peor combinación cancha + camiseta".to_string(),
+                detalle: "Hacen falta al menos 2 partidos por combinación".to_string(),
+                partido_id: None,
+            }),
+            temporada(conn, "Mejor temporada", "AVG(rendimiento_general) DESC")?.unwrap_or_else(
+                || RecordItem {
+                    titulo: "Mejor temporada".to_string(),
+                    detalle: "Hacen falta al menos 3 partidos en un año".to_string(),
+                    partido_id: None,
+                },
+            ),
+            temporada(conn, "Peor temporada", "AVG(rendimiento_general) ASC")?.unwrap_or_else(
+                || RecordItem {
+                    titulo: "Peor temporada".to_string(),
+                    detalle: "Hacen falta al menos 3 partidos en un año".to_string(),
+                    partido_id: None,
+                },
+            ),
+            contar(conn, "Partidos sin goles", "goles = 0")?,
+            contar(conn, "Partidos sin asistencias", "asistencias = 0")?,
+            detalle_racha("Mejor racha de victorias", &filas, |fila| {
+                fila.resultado == 1
+            })
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Mejor racha de victorias".to_string(),
+                detalle: "Sin victorias".to_string(),
+                partido_id: None,
+            }),
+            detalle_racha("Peor racha de derrotas", &filas, |fila| fila.resultado == 3)
+                .unwrap_or_else(|| RecordItem {
+                    titulo: "Peor racha de derrotas".to_string(),
+                    detalle: "Sin derrotas".to_string(),
+                    partido_id: None,
+                }),
+            detalle_racha("Mejor racha sin perder", &filas, |fila| fila.resultado != 3)
+                .unwrap_or_else(|| RecordItem {
+                    titulo: "Mejor racha sin perder".to_string(),
+                    detalle: "Sin partidos".to_string(),
+                    partido_id: None,
+                }),
+            detalle_racha("Partidos consecutivos anotando", &filas, |fila| {
+                fila.goles > 0
+            })
+            .unwrap_or_else(|| RecordItem {
+                titulo: "Partidos consecutivos anotando".to_string(),
+                detalle: "Sin goles".to_string(),
+                partido_id: None,
+            }),
+            top_partidos(conn)?,
+            ranking_camisetas(conn)?,
+        ];
     Ok(items)
 }
 #[cfg(test)]

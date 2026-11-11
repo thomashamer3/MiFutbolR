@@ -22,11 +22,21 @@ BARRA = 34
 def hexa(c):
     return tuple(c)
 
+def dimension(valor, nombre, maximo):
+    if isinstance(valor, bool) or not isinstance(valor, int) or not 1 <= valor <= maximo:
+        raise ValueError(f"{nombre} inválida: {valor!r}")
+    return valor
+
 for nombre in ["menu", "lista_camisetas", "camiseta", "visor", "partidos", "estadisticas", "financiamiento", "panorama"]:
     with open(os.path.join(SRC, nombre + ".json"), encoding="utf-8") as f:
         data = json.load(f)
-    ancho = data["width"] * CW + MARGEN * 2
-    alto = data["height"] * CH + MARGEN * 2 + BARRA
+    ancho_celdas = dimension(data.get("width"), "width", 400)
+    alto_celdas = dimension(data.get("height"), "height", 200)
+    celdas = data.get("celdas")
+    if not isinstance(celdas, list) or len(celdas) < ancho_celdas * alto_celdas:
+        raise ValueError(f"celdas incompletas para {nombre}: se esperaban {ancho_celdas * alto_celdas}")
+    ancho = ancho_celdas * CW + MARGEN * 2
+    alto = alto_celdas * CH + MARGEN * 2 + BARRA
     img = Image.new("RGB", (ancho, alto), (8, 18, 15))
     d = ImageDraw.Draw(img)
     # Marco tipo terminal
@@ -37,15 +47,15 @@ for nombre in ["menu", "lista_camisetas", "camiseta", "visor", "partidos", "esta
     d.text((80, 8), "MiFutbolRS  ·  TUI  ·  v0.1", font=f_normal, fill=(150, 174, 160))
 
     y0 = MARGEN + BARRA
-    for y in range(data["height"]):
-        for x in range(data["width"]):
-            celda = data["celdas"][y * data["width"] + x]
+    for y in range(alto_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+        for x in range(ancho_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+            celda = celdas[y * ancho_celdas + x]
             px = MARGEN + x * CW
             py = y0 + y * CH
             d.rectangle([px, py, px + CW, py + CH], fill=hexa(celda["bg"]))
-    for y in range(data["height"]):
-        for x in range(data["width"]):
-            celda = data["celdas"][y * data["width"] + x]
+    for y in range(alto_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+        for x in range(ancho_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+            celda = celdas[y * ancho_celdas + x]
             s = celda["s"]
             if not s or s == " ":
                 continue

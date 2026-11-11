@@ -90,30 +90,40 @@ impl Cents {
     /// variantes con signo negativo. Si hay dos separadores, el último es el
     /// decimal; con un solo separador decide por la cantidad de dígitos finales.
     pub fn parse_user_input(input: &str) -> Result<Self, MoneyError> {
+        let cleaned = Self::limpiar_entrada(input)?;
+        let negative = cleaned.starts_with('-');
+        let body = cleaned.trim_start_matches(['-', '+']);
+        if body.is_empty() {
+            return Err(MoneyError::Invalid(cleaned));
+        }
+        if !body
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == ',')
+        {
+            return Err(MoneyError::Invalid(cleaned));
+        }
+        let (int_part, dec_part) = Self::separar_partes(body, &cleaned)?;
+        let total = Self::a_centavos(int_part, dec_part, &cleaned)?;
+        Ok(Self(if negative { -total } else { total }))
+    }
+
+    fn limpiar_entrada(input: &str) -> Result<String, MoneyError> {
         let cleaned: String = input
             .trim()
             .chars()
             .filter(|c| !matches!(c, '$' | ' ' | '_') && !c.is_alphabetic())
             .collect();
         if cleaned.is_empty() {
-            return Err(MoneyError::Empty);
+            Err(MoneyError::Empty)
+        } else {
+            Ok(cleaned)
         }
+    }
 
-        let negative = cleaned.starts_with('-');
-        let body = cleaned.trim_start_matches(['-', '+']);
-        if body.is_empty() {
-            return Err(MoneyError::Invalid(cleaned.clone()));
-        }
-        if !body
-            .chars()
-            .all(|c| c.is_ascii_digit() || c == '.' || c == ',')
-        {
-            return Err(MoneyError::Invalid(cleaned.clone()));
-        }
-
+    fn separar_partes<'a>(body: &'a str, cleaned: &str) -> Result<(&'a str, &'a str), MoneyError> {
         let dots = body.matches('.').count();
         let commas = body.matches(',').count();
-        let (int_part, dec_part) = if dots > 0 && commas > 0 {
+        if dots > 0 && commas > 0 {
             let last_dot = body.rfind('.').unwrap_or(0);
             let last_comma = body.rfind(',').unwrap_or(0);
             let (decimal_sep, thousands_sep) = if last_dot > last_comma {
@@ -123,77 +133,67 @@ impl Cents {
             };
             let (int_text, dec_text) = body.rsplit_once(decimal_sep).unwrap_or((body, ""));
             if !valid_thousands(int_text, thousands_sep) {
-                return Err(MoneyError::Invalid(cleaned));
+                return Err(MoneyError::Invalid(cleaned.to_string()));
             }
-            (int_text, dec_text)
+            Ok((int_text, dec_text))
         } else if dots == 1 && commas == 0 {
             let (a, b) = body.split_once('.').unwrap_or((body, ""));
-            if b.len() == 3
-                && b.chars().all(|c| c.is_ascii_digit())
-                && (1..=3).contains(&a.len())
-                && !a.is_empty()
-            {
-                // "1.500" es miles, no 1.5
+            if es_miles(b, a) {
                 if !valid_thousands(body, '.') {
-                    return Err(MoneyError::Invalid(cleaned));
+                    return Err(MoneyError::Invalid(cleaned.to_string()));
                 }
-                (body, "")
+                Ok((body, ""))
             } else {
-                (a, b)
+                Ok((a, b))
             }
         } else if commas == 1 && dots == 0 {
             let (a, b) = body.split_once(',').unwrap_or((body, ""));
-            if b.len() == 3
-                && b.chars().all(|c| c.is_ascii_digit())
-                && (1..=3).contains(&a.len())
-                && !a.is_empty()
-            {
+            if es_miles(b, a) {
                 if !valid_thousands(body, ',') {
-                    return Err(MoneyError::Invalid(cleaned));
+                    return Err(MoneyError::Invalid(cleaned.to_string()));
                 }
-                (body, "")
+                Ok((body, ""))
             } else {
-                (a, b)
+                Ok((a, b))
             }
         } else if dots > 0 || commas > 0 {
             let sep = if dots > 0 { '.' } else { ',' };
             if !valid_thousands(body, sep) {
-                return Err(MoneyError::Invalid(cleaned));
+                return Err(MoneyError::Invalid(cleaned.to_string()));
             }
-            (body, "")
+            Ok((body, ""))
         } else {
-            (body, "")
-        };
+            Ok((body, ""))
+        }
+    }
 
+    fn a_centavos(int_part: &str, dec_part: &str, cleaned: &str) -> Result<i64, MoneyError> {
         let int_digits: String = int_part.chars().filter(char::is_ascii_digit).collect();
         if int_digits.is_empty() && dec_part.is_empty() {
-            return Err(MoneyError::Invalid(cleaned));
+            return Err(MoneyError::Invalid(cleaned.to_string()));
         }
         let units: i64 = if int_digits.is_empty() {
             0
         } else {
             int_digits
                 .parse::<i64>()
-                .map_err(|_| MoneyError::OutOfRange(cleaned.clone()))?
+                .map_err(|_| MoneyError::OutOfRange(cleaned.to_string()))?
         };
-
         let mut cents: i64 = 0;
         if !dec_part.is_empty() {
             let digits: String = dec_part.chars().filter(char::is_ascii_digit).collect();
             if digits.len() > 2 {
-                return Err(MoneyError::Invalid(cleaned));
+                return Err(MoneyError::Invalid(cleaned.to_string()));
             }
             let padded = format!("{digits:0<2}");
             cents = padded
                 .parse::<i64>()
-                .map_err(|_| MoneyError::Invalid(cleaned.clone()))?;
+                .map_err(|_| MoneyError::Invalid(cleaned.to_string()))?;
         }
-
-        let total = units
+        units
             .checked_mul(100)
             .and_then(|v| v.checked_add(cents))
-            .ok_or_else(|| MoneyError::OutOfRange(cleaned.clone()))?;
-        Ok(Self(if negative { -total } else { total }))
+            .ok_or_else(|| MoneyError::OutOfRange(cleaned.to_string()))
     }
 }
 
@@ -241,6 +241,13 @@ pub enum MoneyError {
 
 /// Valida el agrupamiento de miles: primer grupo de 1 a 3 dígitos y el
 /// resto de exactamente 3.
+fn es_miles(parte_decimal: &str, parte_entera: &str) -> bool {
+    parte_decimal.len() == 3
+        && parte_decimal.chars().all(|c| c.is_ascii_digit())
+        && (1..=3).contains(&parte_entera.len())
+        && !parte_entera.is_empty()
+}
+
 fn valid_thousands(text: &str, separator: char) -> bool {
     let parts: Vec<&str> = text.split(separator).collect();
     if parts.len() == 1 {
