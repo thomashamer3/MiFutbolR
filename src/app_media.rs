@@ -36,15 +36,10 @@ impl App {
     pub(crate) fn handle_media_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.media.len();
-                if total > 0 {
-                    let indice = (self.media_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.media_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.media_table, self.media.len(), 1)
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.media_table.selected().unwrap_or(0).saturating_sub(1);
-                self.media_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.media_table, self.media.len(), -1)
             }
             KeyCode::Char('n') => {
                 self.media_edit_id = None;

@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -44,14 +44,6 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             tabla_area,
         );
     } else {
-        let header = Row::new(vec![
-            "ID", "Fecha", "Jugador", "Tipo", "Estado", "Camiseta", "Partido",
-        ])
-        .style(
-            Style::default()
-                .fg(colors.accent)
-                .add_modifier(Modifier::BOLD),
-        );
         let rows = app.lesiones.iter().map(|row| {
             let style = if row.estado == crate::domain::models::EstadoLesion::Recuperado {
                 Style::default().fg(colors.muted)
@@ -80,9 +72,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             .style(style)
         });
 
-        let table = Table::new(
-            rows,
-            [
+        crate::ui::widgets::lista::render_tabla(
+            frame,
+            tabla_area,
+            &colors,
+            title,
+            vec![
+                "ID", "Fecha", "Jugador", "Tipo", "Estado", "Camiseta", "Partido",
+            ],
+            vec![
                 Constraint::Length(4),
                 Constraint::Length(16),
                 Constraint::Min(12),
@@ -91,26 +89,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Constraint::Min(10),
                 Constraint::Length(18),
             ],
-        )
-        .header(header)
-        .block(
-            Block::bordered()
-                .border_type(BorderType::Rounded)
-                .title(title)
-                .border_style(Style::default().fg(colors.border))
-                .style(Style::default().bg(colors.bg)),
-        )
-        .column_spacing(1)
-        .highlight_spacing(HighlightSpacing::Always)
-        .row_highlight_style(
-            Style::default()
-                .bg(colors.highlight_bg)
-                .fg(colors.highlight_fg)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-        frame.render_stateful_widget(table, tabla_area, &mut app.lesiones_table);
+            rows.collect::<Vec<_>>(),
+            &mut app.lesiones_table,
+        );
         app.table_hits = crate::ui::widgets::hit::table_hits(
             tabla_area,
             app.lesiones_table.offset(),

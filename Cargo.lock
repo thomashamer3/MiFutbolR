@@ -1212,6 +1212,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tachyonfx",
  "tempfile",
  "thiserror 2.0.21",

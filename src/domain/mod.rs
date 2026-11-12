@@ -25,6 +25,7 @@ pub mod temporadas;
 pub mod tiendas;
 pub mod torneos;
 pub mod ultimos;
+pub mod usuario;
 pub mod validation;
 
 pub use dates::{display_date, display_datetime, month_key, parse_date, parse_datetime};

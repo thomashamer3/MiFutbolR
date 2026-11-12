@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -42,11 +42,6 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     }
 
-    let header = Row::new(vec!["★", "ID", "Nombre", "P", "Sorteada", "Estado"]).style(
-        Style::default()
-            .fg(colors.accent)
-            .add_modifier(Modifier::BOLD),
-    );
     let rows = app.botines.iter().map(|row| {
         let style = if row.activa {
             Style::default().fg(colors.fg)
@@ -59,22 +54,18 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.nombre.clone()),
             Cell::from(row.partidos.to_string()),
             Cell::from(if row.sorteada { "Sí" } else { "No" }),
-            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }).style(
-                Style::default()
-                    .fg(if row.activa {
-                        colors.success
-                    } else {
-                        colors.muted
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
+            crate::ui::widgets::lista::celda_activa(row.activa, &colors, "Activo", "INACTIVO"),
         ])
         .style(style)
     });
 
-    let table = Table::new(
-        rows,
-        [
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        tabla_area,
+        &colors,
+        title,
+        vec!["★", "ID", "Nombre", "P", "Sorteada", "Estado"],
+        vec![
             Constraint::Length(2),
             Constraint::Length(5),
             Constraint::Min(18),
@@ -82,26 +73,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(9),
             Constraint::Length(9),
         ],
-    )
-    .header(header)
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(title)
-            .border_style(Style::default().fg(colors.border))
-            .style(Style::default().bg(colors.bg)),
-    )
-    .column_spacing(1)
-    .highlight_spacing(HighlightSpacing::Always)
-    .row_highlight_style(
-        Style::default()
-            .bg(colors.highlight_bg)
-            .fg(colors.highlight_fg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(table, tabla_area, &mut app.botines_table);
+        rows.collect::<Vec<_>>(),
+        &mut app.botines_table,
+    );
     app.table_hits = crate::ui::widgets::hit::table_hits(
         tabla_area,
         app.botines_table.offset(),
@@ -123,28 +97,25 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             )));
             lineas.push(Line::from(""));
-            for (etiqueta, valor) in [
-                ("ID", row.id.to_string()),
-                ("Partidos", row.partidos.to_string()),
-                (
-                    "Sorteada",
-                    if row.sorteada { "Sí" } else { "No" }.to_string(),
-                ),
-                (
-                    "Estado",
-                    if row.activa { "Activo" } else { "INACTIVO" }.to_string(),
-                ),
-                (
-                    "Predeterminado",
-                    if row.predeterminado { "★ Sí" } else { "No" }.to_string(),
-                ),
-            ] {
-                lineas.push(Line::from(vec![
-                    Span::styled(format!("{etiqueta:<16}"), Style::default().fg(colors.muted)),
-                    Span::styled(valor, Style::default().fg(colors.fg)),
-                ]));
-            }
-            lineas.push(Line::from(""));
+            lineas.extend(detail::kv_lineas(
+                &colors,
+                &[
+                    ("ID", row.id.to_string()),
+                    ("Partidos", row.partidos.to_string()),
+                    (
+                        "Sorteada",
+                        if row.sorteada { "Sí" } else { "No" }.to_string(),
+                    ),
+                    (
+                        "Estado",
+                        if row.activa { "Activo" } else { "INACTIVO" }.to_string(),
+                    ),
+                    (
+                        "Predeterminado",
+                        if row.predeterminado { "★ Sí" } else { "No" }.to_string(),
+                    ),
+                ],
+            ));
             lineas.push(Line::from(Span::styled(
                 "Enter: detalle   p: predeterminado   s: sortear",
                 Style::default().fg(colors.muted),

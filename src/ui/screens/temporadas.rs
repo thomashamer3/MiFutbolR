@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -42,9 +42,13 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             ])
         })
         .collect();
-    let tabla = Table::new(
-        filas,
-        [
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        area,
+        &colors,
+        format!(" Temporadas · {} ", app.temporadas.len()),
+        vec!["ID", "Nombre", "Año", "Inicio", "Fin", "Estado"],
+        vec![
             Constraint::Length(4),
             Constraint::Min(22),
             Constraint::Length(6),
@@ -52,28 +56,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(12),
             Constraint::Min(10),
         ],
-    )
-    .header(
-        Row::new(vec!["ID", "Nombre", "Año", "Inicio", "Fin", "Estado"]).style(
-            Style::default()
-                .fg(colors.muted)
-                .add_modifier(Modifier::BOLD),
-        ),
-    )
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(format!(" Temporadas · {} ", app.temporadas.len()))
-            .border_style(Style::default().fg(colors.border)),
-    )
-    .row_highlight_style(
-        Style::default()
-            .fg(colors.highlight_fg)
-            .bg(colors.highlight_bg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
-    frame.render_stateful_widget(tabla, area, &mut app.temporadas_table);
+        filas,
+        &mut app.temporadas_table,
+    );
 }
 
 /// Detalle desplazable.

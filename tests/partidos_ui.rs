@@ -1,21 +1,10 @@
 //! Flujo del módulo Partidos por la TUI (§12.9).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 use mifutbol_rs::app::{App, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
+mod common;
+use common::*;
 
 fn preparar(app: &App) -> (i64, i64) {
     app.db
@@ -29,29 +18,6 @@ fn preparar(app: &App) -> (i64, i64) {
         .unwrap();
     let camiseta_id = app.db.conn().last_insert_rowid();
     (cancha_id, camiseta_id)
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn press_ctrl(app: &mut App, ch: char) {
-    app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL))
-        .expect("handle_key");
-}
-
-fn render(app: &mut App) -> String {
-    let backend = TestBackend::new(130, 34);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
 }
 
 fn open_partidos(app: &mut App) {
@@ -78,7 +44,7 @@ fn create_favorite_and_delete_partido() {
     assert_eq!(app.current_screen(), Screen::PartidosList);
     assert_eq!(count(&app, "SELECT COUNT(*) FROM partido"), 1);
 
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Cancha Sur"), "la cancha no aparece: {text}");
     assert!(text.contains("Victoria"));
 
@@ -92,7 +58,7 @@ fn create_favorite_and_delete_partido() {
     // Detalle.
     press(&mut app, KeyCode::Enter);
     assert!(matches!(app.current_screen(), Screen::PartidoDetail(_)));
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Marcador"));
     assert!(text.contains("Contexto"));
     assert!(text.contains("Estadísticas") || text.contains("Métricas"));
@@ -159,22 +125,22 @@ fn wizard_creates_match_in_four_steps() {
 
     press(&mut app, KeyCode::Char('n'));
     assert_eq!(app.current_screen(), Screen::PartidoWizard);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Paso 1/4"), "{text}");
 
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.partido_wizard_step, 1);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Paso 2/4"), "{text}");
 
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.partido_wizard_step, 2);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Paso 3/4"), "{text}");
 
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.partido_wizard_step, 3);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 34);
     assert!(text.contains("Confirmar"), "{text}");
 
     press(&mut app, KeyCode::Enter);

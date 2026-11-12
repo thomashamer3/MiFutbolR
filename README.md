@@ -28,8 +28,11 @@ Las capturas se generan desde la TUI real con
 
 ## Características
 
-- **12 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
-  Estadísticas, Financiamiento, Carrera, Resumen Compartible, Ajustes y Torneos.
+- **19 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
+  Estadísticas, Financiamiento, Carrera, Resumen Compartible, Ajustes, Torneos,
+  Temporadas, Tiendas, Amigos, Multimedia, Recordatorios, Progresión y Usuario.
+- **Usuario y bienvenida**: cuentas locales con contraseña opcional, sesión persistente
+  y pantalla de bienvenida de MiFutbolR al iniciar.
 - **TUI ratatui**: header con breadcrumb, paneles redondeados con padding,
   tablas con vista previa lateral, formularios con iconos de tipo, wizard de
   partidos en 4 pasos, modales, temas y búsqueda incremental.

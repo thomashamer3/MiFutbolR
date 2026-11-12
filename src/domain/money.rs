@@ -137,25 +137,9 @@ impl Cents {
             }
             Ok((int_text, dec_text))
         } else if dots == 1 && commas == 0 {
-            let (a, b) = body.split_once('.').unwrap_or((body, ""));
-            if es_miles(b, a) {
-                if !valid_thousands(body, '.') {
-                    return Err(MoneyError::Invalid(cleaned.to_string()));
-                }
-                Ok((body, ""))
-            } else {
-                Ok((a, b))
-            }
+            Self::separar_simple(body, '.', cleaned)
         } else if commas == 1 && dots == 0 {
-            let (a, b) = body.split_once(',').unwrap_or((body, ""));
-            if es_miles(b, a) {
-                if !valid_thousands(body, ',') {
-                    return Err(MoneyError::Invalid(cleaned.to_string()));
-                }
-                Ok((body, ""))
-            } else {
-                Ok((a, b))
-            }
+            Self::separar_simple(body, ',', cleaned)
         } else if dots > 0 || commas > 0 {
             let sep = if dots > 0 { '.' } else { ',' };
             if !valid_thousands(body, sep) {
@@ -164,6 +148,22 @@ impl Cents {
             Ok((body, ""))
         } else {
             Ok((body, ""))
+        }
+    }
+
+    fn separar_simple<'a>(
+        body: &'a str,
+        separador: char,
+        cleaned: &str,
+    ) -> Result<(&'a str, &'a str), MoneyError> {
+        let (entera, decimal) = body.split_once(separador).unwrap_or((body, ""));
+        if es_miles(decimal, entera) {
+            if !valid_thousands(body, separador) {
+                return Err(MoneyError::Invalid(cleaned.to_string()));
+            }
+            Ok((body, ""))
+        } else {
+            Ok((entera, decimal))
         }
     }
 

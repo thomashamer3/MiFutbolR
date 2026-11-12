@@ -40,6 +40,7 @@ use crate::domain::temporadas::{ComparacionTemporadas, Temporada, TemporadaFicha
 use crate::domain::tiendas::Tienda;
 use crate::domain::torneos::{Torneo, TorneoFicha};
 use crate::domain::ultimos::UltimoItem;
+use crate::domain::usuario::Usuario;
 use crate::domain::validation::{self, DomainError};
 use crate::domain::{Cents, dates};
 use crate::services::botin_service;
@@ -90,11 +91,13 @@ pub enum Module {
     Recordatorios,
     /// Módulo 18.
     Progresion,
+    /// Módulo 19.
+    Usuario,
 }
 
 impl Module {
     /// Orden del menú principal.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Camisetas,
         Self::Canchas,
         Self::Botines,
@@ -113,6 +116,7 @@ impl Module {
         Self::Media,
         Self::Recordatorios,
         Self::Progresion,
+        Self::Usuario,
     ];
 
     /// Etiqueta del menú.
@@ -137,6 +141,7 @@ impl Module {
             Self::Media => "Multimedia",
             Self::Recordatorios => "Recordatorios",
             Self::Progresion => "Progresión",
+            Self::Usuario => "Usuario",
         }
     }
 
@@ -162,6 +167,7 @@ impl Module {
             Self::Media => "Multimedia",
             Self::Recordatorios => "Recordatorios",
             Self::Progresion => "Progresión",
+            Self::Usuario => "Usuario",
         }
     }
 
@@ -187,6 +193,7 @@ impl Module {
             Self::Media => "media",
             Self::Recordatorios => "recordatorios",
             Self::Progresion => "progresion",
+            Self::Usuario => "usuario",
         }
     }
 
@@ -212,6 +219,7 @@ impl Module {
             Self::Media => "Videos, fotos, artículos y audio asociados a partidos.",
             Self::Recordatorios => "Recordatorios, recurrencias y agenda.",
             Self::Progresion => "Planes de entrenamiento y evolución semanal por jugador.",
+            Self::Usuario => "Cuentas locales, inicio de sesión y bienvenida.",
         }
     }
 }
@@ -374,6 +382,14 @@ pub enum Screen {
     PlanesList,
     /// Formulario de plan.
     PlanForm(FormMode),
+    /// Pantalla de bienvenida.
+    Bienvenida,
+    /// Listado de usuarios.
+    UsuarioList,
+    /// Formulario de usuario.
+    UsuarioForm(FormMode),
+    /// Inicio de sesión.
+    UsuarioLogin,
     /// Ayuda contextual.
     Ayuda,
 }
@@ -427,6 +443,8 @@ pub enum ConfirmAction {
     DeleteProgresion(i64),
     /// Eliminar el plan indicado.
     DeletePlan(i64),
+    /// Eliminar la cuenta indicada.
+    DeleteUsuario(i64),
     /// Salir de la aplicación.
     Quit,
 }
@@ -471,6 +489,11 @@ pub enum FieldKind {
     /// Texto de una línea.
     Text {
         /// Longitud máxima en caracteres.
+        max: usize,
+    },
+    /// Contraseña (se muestra enmascarada).
+    Password {
+        /// Longitud máxima.
         max: usize,
     },
     /// Texto multilínea.
@@ -547,6 +570,19 @@ impl Field {
         }
     }
 
+    /// Crea un campo de contraseña.
+    #[must_use]
+    pub fn password(key: &'static str, label: &str, value: impl Into<String>, max: usize) -> Self {
+        Self {
+            key,
+            label: label.to_string(),
+            value: value.into(),
+            kind: FieldKind::Password { max },
+            required: false,
+            help: None,
+        }
+    }
+
     /// Crea un campo select.
     #[must_use]
     pub fn select(
@@ -589,6 +625,7 @@ impl Field {
     #[must_use]
     pub fn display_value(&self) -> String {
         match &self.kind {
+            FieldKind::Password { .. } => "•".repeat(self.value.chars().count()),
             FieldKind::Select { options } | FieldKind::MultiSelect { options, .. } => options
                 .iter()
                 .find(|(value, _)| value == &self.value)
@@ -603,6 +640,7 @@ impl Field {
         matches!(
             self.kind,
             FieldKind::Text { .. }
+                | FieldKind::Password { .. }
                 | FieldKind::Multiline { .. }
                 | FieldKind::Int { .. }
                 | FieldKind::Decimal { .. }
@@ -715,7 +753,7 @@ impl Field {
                     return Err("Seleccione una opción válida.".to_string());
                 }
             }
-            FieldKind::MultiSelect { .. } => {}
+            FieldKind::MultiSelect { .. } | FieldKind::Password { .. } => {}
         }
         Ok(())
     }
@@ -1009,7 +1047,7 @@ pub enum Overlay {
 }
 
 /// Acciones de la paleta: (etiqueta, id).
-pub const ACCIONES_PALETA: [(&str, &str); 21] = [
+pub const ACCIONES_PALETA: [(&str, &str); 22] = [
     ("Nuevo partido", "nuevo_partido"),
     ("Ir a Partidos", "partidos"),
     ("Ir a Camisetas", "camisetas"),
@@ -1026,6 +1064,7 @@ pub const ACCIONES_PALETA: [(&str, &str); 21] = [
     ("Multimedia", "media"),
     ("Recordatorios", "recordatorios"),
     ("Progresión", "progresion"),
+    ("Usuario", "usuario"),
     ("Notificaciones", "notificaciones"),
     ("Resumen compartible", "resumen"),
     ("Deshacer última acción", "deshacer"),
@@ -1319,6 +1358,18 @@ pub struct App {
     pub planes_table: TableState,
     /// Plan en edición.
     pub plan_edit_id: Option<i64>,
+    /// Cuentas locales.
+    pub usuarios: Vec<Usuario>,
+    /// Selección de cuentas.
+    pub usuarios_table: TableState,
+    /// Cuenta en edición.
+    pub usuario_edit_id: Option<i64>,
+    /// Sesión actual.
+    pub usuario_actual: Option<Usuario>,
+    /// ¿Bienvenida vista?
+    pub bienvenida_vista: bool,
+    /// Nombre precargado en el login.
+    pub usuario_login_nombre: String,
     /// Búsqueda activa.
     pub search: Option<SearchState>,
 }
@@ -1337,10 +1388,16 @@ impl App {
         let no_leidas = notificacion_service::no_leidas(db.conn()).unwrap_or(0);
         let tutorial_completado =
             crate::db::settings_repo::tutorial_completado(db.conn()).unwrap_or(false);
+        let sesion = crate::services::usuario_service::sesion(db.conn()).unwrap_or_default();
+        let stack = if sesion.bienvenida_vista {
+            vec![Screen::MainMenu]
+        } else {
+            vec![Screen::Bienvenida]
+        };
         Ok(Self {
             db,
             paths,
-            stack: vec![Screen::MainMenu],
+            stack,
             active_module: None,
             modal: None,
             status,
@@ -1480,6 +1537,12 @@ impl App {
             planes: Vec::new(),
             planes_table: TableState::default(),
             plan_edit_id: None,
+            usuarios: Vec::new(),
+            usuarios_table: TableState::default(),
+            usuario_edit_id: None,
+            usuario_login_nombre: String::new(),
+            usuario_actual: sesion.usuario,
+            bienvenida_vista: sesion.bienvenida_vista,
             search: None,
         })
     }
@@ -1569,6 +1632,10 @@ impl App {
             Screen::ProgresionForm(_) => "Progresión · formulario".to_string(),
             Screen::PlanesList => "Planes de entrenamiento".to_string(),
             Screen::PlanForm(_) => "Planes · formulario".to_string(),
+            Screen::Bienvenida => "Bienvenida".to_string(),
+            Screen::UsuarioList => "Usuario".to_string(),
+            Screen::UsuarioForm(_) => "Usuario · formulario".to_string(),
+            Screen::UsuarioLogin => "Iniciar sesión".to_string(),
             Screen::Ayuda => "Ayuda".to_string(),
         }
     }
@@ -1606,7 +1673,8 @@ impl App {
             | Screen::MediaForm(_)
             | Screen::RecordatorioForm(_)
             | Screen::ProgresionForm(_)
-            | Screen::PlanForm(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
+            | Screen::PlanForm(_)
+            | Screen::UsuarioForm(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
             Screen::CanchasList => {
                 "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
@@ -1696,6 +1764,11 @@ impl App {
             Screen::Agenda => "j/k: mover  Esc: volver",
             Screen::ProgresionList => "n: nueva  e: editar  d: borrar  p: planes  r: refrescar",
             Screen::PlanesList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::Bienvenida => "n: crear cuenta  l: iniciar sesión  Enter: continuar  q: salir",
+            Screen::UsuarioList => {
+                "n: nueva  l: iniciar  p: contraseña  d: borrar  c: cerrar sesión"
+            }
+            Screen::UsuarioLogin => "Enter: iniciar sesión  Esc: volver",
             Screen::Module(_) | Screen::Ayuda | Screen::ImagenViewer => "Esc: volver",
         }
     }
@@ -1954,6 +2027,8 @@ impl App {
             Screen::Agenda => self.handle_agenda_key(key)?,
             Screen::ProgresionList => self.handle_progresion_list_key(key)?,
             Screen::PlanesList => self.handle_planes_list_key(key)?,
+            Screen::Bienvenida => self.handle_bienvenida_key(key)?,
+            Screen::UsuarioList => self.handle_usuario_list_key(key)?,
             Screen::Ultimos => self.handle_ultimos_key(key)?,
             Screen::Comparador => self.handle_comparador_key(key)?,
             Screen::TiendaForm(_) | Screen::AmigoForm(_) => {
@@ -1972,6 +2047,11 @@ impl App {
                 self.handle_form_key(key)?;
                 true
             }
+            Screen::UsuarioForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
+            Screen::UsuarioLogin => self.handle_usuario_login_key(key)?,
             Screen::Module(_) | Screen::Ayuda => false,
         };
         if !consumed {
@@ -2088,7 +2168,7 @@ impl App {
         Ok(true)
     }
 
-    fn handle_form_key(&mut self, key: KeyEvent) -> Result<()> {
+    pub(crate) fn handle_form_key(&mut self, key: KeyEvent) -> Result<()> {
         if key.code == KeyCode::Esc {
             let dirty = self.form.as_ref().is_some_and(|form| form.dirty);
             if dirty {
@@ -2242,6 +2322,12 @@ impl App {
                     let _ = app.refresh_progresion();
                 });
             }
+            ConfirmAction::DeleteUsuario(id) => {
+                let resultado = crate::services::usuario_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, |app| {
+                    let _ = app.refresh_usuarios();
+                });
+            }
             ConfirmAction::DeletePlan(id) => {
                 let resultado =
                     crate::services::progresion_service::eliminar_plan(self.db.conn(), id);
@@ -2355,6 +2441,17 @@ impl App {
             ConfirmAction::Quit => self.should_quit = true,
             ConfirmAction::DiscardForm => self.discard_form(),
         }
+    }
+
+    /// Mueve la selección de una tabla sin salir de sus límites.
+    pub(crate) fn mover_tabla_seleccion(state: &mut TableState, total: usize, delta: isize) {
+        if total == 0 {
+            state.select(None);
+            return;
+        }
+        let actual = state.selected().unwrap_or(0).min(total - 1) as isize;
+        let siguiente = (actual + delta).clamp(0, total as isize - 1) as usize;
+        state.select(Some(siguiente));
     }
 
     fn confirmar_eliminacion<T, E, F>(&mut self, resultado: Result<T, E>, despues: F)
@@ -2473,6 +2570,10 @@ impl App {
             Module::Progresion => {
                 self.push_screen(Screen::ProgresionList);
                 self.refresh_progresion()?;
+            }
+            Module::Usuario => {
+                self.push_screen(Screen::UsuarioList);
+                self.refresh_usuarios()?;
             }
         }
         Ok(())
@@ -2649,6 +2750,8 @@ impl App {
             Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),
             Screen::ProgresionForm(mode) => self.save_progresion_form(mode),
             Screen::PlanForm(mode) => self.save_plan_form(mode),
+            Screen::UsuarioForm(mode) => self.save_usuario_form(mode),
+            Screen::UsuarioLogin => self.save_usuario_login(),
             Screen::AjustesForm => self.save_ajustes_form(),
             Screen::LegacyImportForm => self.save_legacy_import(),
             Screen::ImagenViewer => Ok(()),

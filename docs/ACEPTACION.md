@@ -112,3 +112,10 @@ Verificación de la checklist global de `ESPECIFICACION_PROYECTO_RUST_TUI.md` §
   cansancio/ánimo, eficiencia y tendencia.
 - Temporadas (E): CRUD, 3 fases por defecto, asociación de torneos, resumen del rango,
   fatiga y comparación con la temporada anterior.
+
+## Usuario y bienvenida
+
+- Pantalla de bienvenida con marca MiFutbolR y opciones de cuenta.
+- Cuentas locales con contraseña opcional (hash SHA-256 + sal).
+- Sesión persistente, cierre de sesión y cambio de contraseña desde el módulo Usuario.
+- Atajos: `n` crear cuenta, `l` iniciar sesión, `Enter` continuar, `c` cerrar sesión.

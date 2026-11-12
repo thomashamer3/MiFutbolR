@@ -1,22 +1,11 @@
 //! Navegación del módulo Estadísticas por la TUI (§14.6).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 use mifutbol_rs::app::{App, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
 use mifutbol_rs::domain::models::EstadisticaKind;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
+mod common;
+use common::*;
 
 fn preparar(app: &App) {
     app.db
@@ -48,24 +37,6 @@ fn preparar(app: &App) {
     }
 }
 
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn render(app: &mut App) -> String {
-    let backend = TestBackend::new(130, 40);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
-
 fn open_estadisticas(app: &mut App) {
     for _ in 0..6 {
         press(app, KeyCode::Down);
@@ -80,7 +51,7 @@ fn hub_lists_categories_and_opens_details() {
     open_estadisticas(&mut app);
     assert_eq!(app.current_screen(), Screen::EstadisticasHub);
 
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 40);
     assert!(text.contains("Generales"));
     assert!(text.contains("Rendimiento"));
     assert!(text.contains("Goles y asistencias"));
@@ -90,7 +61,7 @@ fn hub_lists_categories_and_opens_details() {
         app.current_screen(),
         Screen::EstadisticasDetalle(EstadisticaKind::Generales)
     );
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 40);
     assert!(text.contains("Total de partidos"));
     assert!(text.contains("Récords"));
 
@@ -103,7 +74,7 @@ fn hub_lists_categories_and_opens_details() {
         app.current_screen(),
         Screen::EstadisticasDetalle(EstadisticaKind::PorMes)
     );
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 40);
     assert!(text.contains("2026-03"));
     assert!(text.contains("2026-04"));
 
@@ -119,7 +90,7 @@ fn empty_state_without_matches() {
     let (mut app, _dir) = test_app();
     open_estadisticas(&mut app);
     press(&mut app, KeyCode::Enter);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 130, 40);
     assert!(text.contains("Sin datos suficientes"));
 }
 
@@ -141,7 +112,7 @@ fn rendering_other_categories_does_not_panic() {
                 .unwrap(),
         ));
         press(&mut app, KeyCode::Enter);
-        let text = render(&mut app);
+        let text = render_con(&mut app, 130, 40);
         assert!(!text.is_empty());
         assert!(text.contains(kind.label()));
         press(&mut app, KeyCode::Esc);

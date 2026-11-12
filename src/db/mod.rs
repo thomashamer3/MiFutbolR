@@ -32,6 +32,7 @@ pub mod temporada_repo;
 pub mod tienda_repo;
 pub mod torneo_repo;
 pub mod ultimos_repo;
+pub mod usuario_repo;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -55,6 +56,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/008_ola2.sql"),
     include_str!("../../migrations/009_ola2_recordatorios.sql"),
     include_str!("../../migrations/010_ola2_quimica.sql"),
+    include_str!("../../migrations/011_usuario.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

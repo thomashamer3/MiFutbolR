@@ -163,6 +163,7 @@ fn linea_campo(field: &Field, focused: bool, colors: &Palette) -> Line<'static> 
 fn kind_icon(kind: &FieldKind) -> &'static str {
     match kind {
         FieldKind::Text { .. } => "Aa",
+        FieldKind::Password { .. } => "••",
         FieldKind::Multiline { .. } => "¶",
         FieldKind::Int { .. } => " #",
         FieldKind::Decimal { .. } => "±",

@@ -1,56 +1,16 @@
 //! Flujo del módulo Lesiones por la TUI (§13.6).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 use mifutbol_rs::app::{App, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
+mod common;
+use common::*;
 
 fn preparar(app: &App) {
     app.db
         .conn()
         .execute("INSERT INTO camiseta (nombre) VALUES ('Titular')", [])
         .unwrap();
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn press_ctrl(app: &mut App, ch: char) {
-    app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL))
-        .expect("handle_key");
-}
-
-fn type_text(app: &mut App, text: &str) {
-    for ch in text.chars() {
-        press(app, KeyCode::Char(ch));
-    }
-}
-
-fn render(app: &mut App) -> String {
-    let backend = TestBackend::new(120, 34);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
 }
 
 fn open_lesiones(app: &mut App) {
@@ -87,14 +47,14 @@ fn create_filter_detail_and_delete_lesion() {
     assert_eq!(app.lesion_stats.total, 1);
     assert_eq!(app.lesion_stats.activas, 1);
 
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Ana Gomez"), "la lesión no aparece: {text}");
     assert!(text.contains("Esguince"));
 
     // Detalle.
     press(&mut app, KeyCode::Enter);
     assert!(matches!(app.current_screen(), Screen::LesionDetail(_)));
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Tobillo derecho"));
     press(&mut app, KeyCode::Esc);
 

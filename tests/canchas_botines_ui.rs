@@ -1,50 +1,10 @@
 //! Flujos de Canchas y Botines por la TUI.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 use mifutbol_rs::app::{App, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn press_ctrl(app: &mut App, ch: char) {
-    app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL))
-        .expect("handle_key");
-}
-
-fn type_text(app: &mut App, text: &str) {
-    for ch in text.chars() {
-        press(app, KeyCode::Char(ch));
-    }
-}
-
-fn render(app: &mut App) -> String {
-    let backend = TestBackend::new(120, 34);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
+mod common;
+use common::*;
 
 fn open_module(app: &mut App, downs: usize) {
     for _ in 0..downs {
@@ -75,7 +35,7 @@ fn create_and_delete_cancha_through_the_ui() {
 
     assert_eq!(app.current_screen(), Screen::CanchasList);
     assert_eq!(count(&app, "cancha"), 1);
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(
         text.contains("Complejo Sur"),
         "la cancha no aparece: {text}"
@@ -117,7 +77,7 @@ fn cancha_search_and_detail() {
 
     press(&mut app, KeyCode::Enter);
     assert!(matches!(app.current_screen(), Screen::CanchaDetail(_)));
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Norte"));
     assert!(text.contains("Estadísticas"));
 }
@@ -160,7 +120,7 @@ fn create_set_default_and_draw_botin() {
     press(&mut app, KeyCode::Enter); // cierra el modal
 
     // El listado muestra la estrella del predeterminado.
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("★"));
     assert!(text.contains("Predator"));
 }

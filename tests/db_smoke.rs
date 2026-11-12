@@ -4,6 +4,8 @@ use mifutbol_rs::config::AppPaths;
 use mifutbol_rs::db::Database;
 use mifutbol_rs::domain::models::Theme;
 
+mod common;
+
 #[test]
 fn database_file_survives_reopen_and_backup() {
     let dir = tempfile::tempdir().expect("tempdir");

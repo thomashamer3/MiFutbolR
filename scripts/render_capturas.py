@@ -47,14 +47,14 @@ for nombre in ["menu", "lista_camisetas", "camiseta", "visor", "partidos", "esta
     d.text((80, 8), "MiFutbolRS  ·  TUI  ·  v0.1", font=f_normal, fill=(150, 174, 160))
 
     y0 = MARGEN + BARRA
-    for y in range(alto_celdas):  # NOSONAR: dimensiones validadas antes del bucle
-        for x in range(ancho_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+    for y in range(alto_celdas):
+        for x in range(ancho_celdas):
             celda = celdas[y * ancho_celdas + x]
             px = MARGEN + x * CW
             py = y0 + y * CH
             d.rectangle([px, py, px + CW, py + CH], fill=hexa(celda["bg"]))
-    for y in range(alto_celdas):  # NOSONAR: dimensiones validadas antes del bucle
-        for x in range(ancho_celdas):  # NOSONAR: dimensiones validadas antes del bucle
+    for y in range(alto_celdas):
+        for x in range(ancho_celdas):
             celda = celdas[y * ancho_celdas + x]
             s = celda["s"]
             if not s or s == " ":

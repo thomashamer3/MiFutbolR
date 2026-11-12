@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::domain::models::Camiseta;
@@ -55,23 +55,6 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     }
 
-    let header = Row::new(vec![
-        "ID",
-        "Nombre",
-        "PARTIDOS",
-        "GOLES",
-        "ASISTENCIAS",
-        "VICTORIAS",
-        "EMPATES",
-        "DERROTAS",
-        "Estado",
-    ])
-    .style(
-        Style::default()
-            .fg(colors.accent)
-            .add_modifier(Modifier::BOLD),
-    );
-
     let rows = app.camisetas.iter().map(|row| {
         let row_style = if row.activa {
             Style::default().fg(colors.fg)
@@ -87,51 +70,41 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.victorias.to_string()),
             Cell::from(row.empates.to_string()),
             Cell::from(row.derrotas.to_string()),
-            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }).style(
-                Style::default()
-                    .fg(if row.activa {
-                        colors.success
-                    } else {
-                        colors.muted
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
+            crate::ui::widgets::lista::celda_activa(row.activa, &colors, "Activa", "INACTIVA"),
         ])
         .style(row_style)
     });
 
-    let widths = [
-        Constraint::Length(5),
-        Constraint::Min(18),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(9),
-    ];
-
-    let table = Table::new(rows, widths)
-        .header(header)
-        .block(
-            Block::bordered()
-                .border_type(BorderType::Rounded)
-                .title(title)
-                .border_style(Style::default().fg(colors.border))
-                .style(Style::default().bg(colors.bg)),
-        )
-        .column_spacing(1)
-        .highlight_spacing(HighlightSpacing::Always)
-        .row_highlight_style(
-            Style::default()
-                .bg(colors.highlight_bg)
-                .fg(colors.highlight_fg)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(table, tabla_area, &mut app.camisetas_table);
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        tabla_area,
+        &colors,
+        title,
+        vec![
+            "ID",
+            "Nombre",
+            "PARTIDOS",
+            "GOLES",
+            "ASISTENCIAS",
+            "VICTORIAS",
+            "EMPATES",
+            "DERROTAS",
+            "Estado",
+        ],
+        vec![
+            Constraint::Length(5),
+            Constraint::Min(18),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(9),
+        ],
+        rows.collect::<Vec<_>>(),
+        &mut app.camisetas_table,
+    );
     let offset = app.camisetas_table.offset();
     let visibles = tabla_area.height.saturating_sub(3) as usize;
     app.table_hits = (0..visibles)

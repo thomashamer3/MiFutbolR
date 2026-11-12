@@ -2,8 +2,8 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Table, Wrap};
+use ratatui::style::Style;
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -49,37 +49,22 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             ])
         })
         .collect();
-    let tabla = Table::new(
-        filas,
-        [
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        area,
+        &colors,
+        format!(" Tiendas · {} ", app.tiendas.len()),
+        vec!["ID", "Nombre", "Tipo", "Contacto", "Fav"],
+        vec![
             Constraint::Length(4),
             Constraint::Min(22),
             Constraint::Length(14),
             Constraint::Min(24),
             Constraint::Length(4),
         ],
-    )
-    .header(
-        Row::new(vec!["ID", "Nombre", "Tipo", "Contacto", "Fav"]).style(
-            Style::default()
-                .fg(colors.muted)
-                .add_modifier(Modifier::BOLD),
-        ),
-    )
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(format!(" Tiendas · {} ", app.tiendas.len()))
-            .border_style(Style::default().fg(colors.border)),
-    )
-    .row_highlight_style(
-        Style::default()
-            .fg(colors.highlight_fg)
-            .bg(colors.highlight_bg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
-    frame.render_stateful_widget(tabla, area, &mut app.tiendas_table);
+        filas,
+        &mut app.tiendas_table,
+    );
 }
 
 /// Formulario.

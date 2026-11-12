@@ -156,6 +156,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Screen::ProgresionForm(_) => screens::progresion::draw_form(frame, body, app),
         Screen::PlanesList => screens::progresion::draw_planes(frame, body, app),
         Screen::PlanForm(_) => screens::progresion::draw_form(frame, body, app),
+        Screen::Bienvenida => screens::bienvenida::draw(frame, body, app),
+        Screen::UsuarioList => screens::usuario::draw_list(frame, body, app),
+        Screen::UsuarioForm(_) | Screen::UsuarioLogin => {
+            screens::usuario::draw_form(frame, body, app)
+        }
         Screen::AjustesForm | Screen::LegacyImportForm => {
             screens::ajustes::draw(frame, body, app);
         }

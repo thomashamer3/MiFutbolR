@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -43,39 +43,33 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     }
 
-    let header = Row::new(vec!["ID", "Nombre", "Localidad", "P", "Rend.", "Estado"]).style(
-        Style::default()
-            .fg(colors.accent)
-            .add_modifier(Modifier::BOLD),
-    );
-    let rows = app.canchas.iter().map(|row| {
-        let style = if row.activa {
-            Style::default().fg(colors.fg)
-        } else {
-            Style::default().fg(colors.muted)
-        };
-        Row::new(vec![
-            Cell::from(row.id.to_string()),
-            Cell::from(row.nombre.clone()),
-            Cell::from(row.localidad.clone()),
-            Cell::from(row.partidos.to_string()),
-            Cell::from(format!("{:.1}", row.rendimiento_promedio)),
-            Cell::from(if row.activa { "Activa" } else { "INACTIVA" }).style(
-                Style::default()
-                    .fg(if row.activa {
-                        colors.success
-                    } else {
-                        colors.muted
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])
-        .style(style)
-    });
-
-    let table = Table::new(
-        rows,
-        [
+    let filas = app
+        .canchas
+        .iter()
+        .map(|row| {
+            let style = if row.activa {
+                Style::default().fg(colors.fg)
+            } else {
+                Style::default().fg(colors.muted)
+            };
+            Row::new(vec![
+                Cell::from(row.id.to_string()),
+                Cell::from(row.nombre.clone()),
+                Cell::from(row.localidad.clone()),
+                Cell::from(row.partidos.to_string()),
+                Cell::from(format!("{:.1}", row.rendimiento_promedio)),
+                crate::ui::widgets::lista::celda_activa(row.activa, &colors, "Activa", "INACTIVA"),
+            ])
+            .style(style)
+        })
+        .collect::<Vec<_>>();
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        tabla_area,
+        &colors,
+        title,
+        vec!["ID", "Nombre", "Localidad", "P", "Rend.", "Estado"],
+        vec![
             Constraint::Length(5),
             Constraint::Min(18),
             Constraint::Min(12),
@@ -83,26 +77,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(6),
             Constraint::Length(9),
         ],
-    )
-    .header(header)
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(title)
-            .border_style(Style::default().fg(colors.border))
-            .style(Style::default().bg(colors.bg)),
-    )
-    .column_spacing(1)
-    .highlight_spacing(HighlightSpacing::Always)
-    .row_highlight_style(
-        Style::default()
-            .bg(colors.highlight_bg)
-            .fg(colors.highlight_fg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(table, tabla_area, &mut app.canchas_table);
+        filas,
+        &mut app.canchas_table,
+    );
     app.table_hits = crate::ui::widgets::hit::table_hits(
         tabla_area,
         app.canchas_table.offset(),
@@ -124,28 +101,25 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             )));
             lineas.push(Line::from(""));
-            for (etiqueta, valor) in [
-                ("ID", row.id.to_string()),
-                ("Localidad", row.localidad.clone()),
-                ("Partidos", row.partidos.to_string()),
-                ("Goles", row.goles.to_string()),
-                ("Asistencias", row.asistencias.to_string()),
-                (
-                    "V / E / D",
-                    format!("{} / {} / {}", row.victorias, row.empates, row.derrotas),
-                ),
-                ("Rendimiento", format!("{:.2}", row.rendimiento_promedio)),
-                (
-                    "Estado",
-                    if row.activa { "Activa" } else { "INACTIVA" }.to_string(),
-                ),
-            ] {
-                lineas.push(Line::from(vec![
-                    Span::styled(format!("{etiqueta:<14}"), Style::default().fg(colors.muted)),
-                    Span::styled(valor, Style::default().fg(colors.fg)),
-                ]));
-            }
-            lineas.push(Line::from(""));
+            lineas.extend(detail::kv_lineas(
+                &colors,
+                &[
+                    ("ID", row.id.to_string()),
+                    ("Localidad", row.localidad.clone()),
+                    ("Partidos", row.partidos.to_string()),
+                    ("Goles", row.goles.to_string()),
+                    ("Asistencias", row.asistencias.to_string()),
+                    (
+                        "V / E / D",
+                        format!("{} / {} / {}", row.victorias, row.empates, row.derrotas),
+                    ),
+                    ("Rendimiento", format!("{:.2}", row.rendimiento_promedio)),
+                    (
+                        "Estado",
+                        if row.activa { "Activa" } else { "INACTIVA" }.to_string(),
+                    ),
+                ],
+            ));
             lineas.push(Line::from(Span::styled(
                 "Enter: detalle   e: editar   d: eliminar",
                 Style::default().fg(colors.muted),
@@ -158,25 +132,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 &app.paths.data_dir,
             )
         });
-        let bloque = colors.panel(" Vista previa ");
-        let interior = bloque.inner(panel);
-        frame.render_widget(bloque, panel);
-        let con_imagen = ruta_imagen.is_some() && interior.height >= 16;
-        let [texto_area, imagen_area] = Layout::vertical([
-            Constraint::Min(6),
-            Constraint::Length(if con_imagen { 8 } else { 0 }),
-        ])
-        .areas(interior);
-        frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
-        if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
-            crate::ui::images::dibujar_miniatura(
-                frame,
-                imagen_area,
-                &mut app.images,
-                &ruta,
-                &colors,
-            );
-        }
+        detail::preview_con_imagen(
+            frame,
+            panel,
+            &colors,
+            " Vista previa ",
+            lineas,
+            ruta_imagen,
+            &mut app.images,
+        );
     }
 }
 

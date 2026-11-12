@@ -1,49 +1,15 @@
 //! Pruebas de humo de la Ola 0: dashboard, calendario, logros, avisos y overlays.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use mifutbol_rs::app::{App, Overlay, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
+use crossterm::event::KeyCode;
+use mifutbol_rs::app::{Overlay, Screen};
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn press_ctrl(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::CONTROL))
-        .expect("handle_key");
-}
-
-fn render(app: &mut App, width: u16, height: u16) -> String {
-    let backend = TestBackend::new(width, height);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
+mod common;
+use common::*;
 
 #[test]
 fn main_menu_shows_dashboard_cards() {
     let (mut app, _dir) = test_app();
-    let text = render(&mut app, 120, 40);
+    let text = render_con(&mut app, 120, 40);
     for titulo in ["Próximo partido", "Racha", "Este mes", "Alertas"] {
         assert!(text.contains(titulo), "falta la tarjeta {titulo}");
     }
@@ -54,7 +20,7 @@ fn calendar_opens_navigates_and_closes() {
     let (mut app, _dir) = test_app();
     press(&mut app, KeyCode::Char('c'));
     assert_eq!(app.current_screen(), Screen::Calendario);
-    let text = render(&mut app, 120, 36);
+    let text = render_con(&mut app, 120, 36);
     assert!(
         text.contains("Calendario"),
         "falta el título del calendario"
@@ -77,11 +43,11 @@ fn logros_open_with_catalog_and_tabs() {
     press(&mut app, KeyCode::Char('l'));
     assert_eq!(app.current_screen(), Screen::Logros);
     assert!(app.logros.len() >= 50, "catálogo demasiado corto");
-    let text = render(&mut app, 110, 32);
+    let text = render_con(&mut app, 110, 32);
     assert!(text.contains("Goleador"), "falta un logro");
     press(&mut app, KeyCode::Right);
     assert_eq!(app.logros_tab, mifutbol_rs::app::LogrosTab::Completados);
-    let text = render(&mut app, 110, 32);
+    let text = render_con(&mut app, 110, 32);
     assert!(text.contains("Completados"));
     press(&mut app, KeyCode::Esc);
     assert_eq!(app.current_screen(), Screen::MainMenu);
@@ -92,16 +58,16 @@ fn notifications_open() {
     let (mut app, _dir) = test_app();
     press(&mut app, KeyCode::Char('!'));
     assert_eq!(app.current_screen(), Screen::Notificaciones);
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Avisos") || text.contains("Notificaciones"));
 }
 
 #[test]
 fn global_search_opens_and_closes() {
     let (mut app, _dir) = test_app();
-    press_ctrl(&mut app, KeyCode::Char('f'));
+    press_ctrl_code(&mut app, KeyCode::Char('f'));
     assert!(matches!(app.overlay, Some(Overlay::Busqueda(_))));
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Búsqueda global"));
     press(&mut app, KeyCode::Char('a'));
     press(&mut app, KeyCode::Esc);
@@ -111,15 +77,15 @@ fn global_search_opens_and_closes() {
 #[test]
 fn palette_filters_and_executes_calendar() {
     let (mut app, _dir) = test_app();
-    press_ctrl(&mut app, KeyCode::Char('k'));
+    press_ctrl_code(&mut app, KeyCode::Char('k'));
     assert!(matches!(app.overlay, Some(Overlay::Paleta(_))));
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Paleta de comandos"));
 
     for caracter in "calendario".chars() {
         press(&mut app, KeyCode::Char(caracter));
     }
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Calendario"));
     press(&mut app, KeyCode::Enter);
     assert!(app.overlay.is_none());
@@ -132,7 +98,7 @@ fn tutorial_opens_and_completes() {
     assert!(!app.tutorial_completado);
     press(&mut app, KeyCode::Char('t'));
     assert_eq!(app.current_screen(), Screen::Tutorial);
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Bienvenido a MiFutbolR"));
     for _ in 0..4 {
         press(&mut app, KeyCode::Enter);
@@ -160,7 +126,7 @@ fn records_open_and_close() {
     let (mut app, _dir) = test_app();
     press(&mut app, KeyCode::Char('R'));
     assert_eq!(app.current_screen(), Screen::Records);
-    let text = render(&mut app, 110, 34);
+    let text = render_con(&mut app, 110, 34);
     assert!(text.contains("Récords"));
     assert!(text.contains("Récord de goles"));
     press(&mut app, KeyCode::Esc);
@@ -174,7 +140,7 @@ fn ctrl_z_undoes_last_creation() {
         .conn()
         .execute("INSERT INTO camiseta (nombre) VALUES ('Temporal')", [])
         .unwrap();
-    press_ctrl(&mut app, KeyCode::Char('z'));
+    press_ctrl_code(&mut app, KeyCode::Char('z'));
     assert!(app.modal.is_some(), "debe abrir la confirmación de undo");
     press(&mut app, KeyCode::Enter);
     let total: i64 = app
@@ -228,7 +194,7 @@ fn torneos_open_detail_and_generate_fixture() {
     press(&mut app, KeyCode::Enter);
     let ficha = app.torneo_detail.as_ref().expect("ficha");
     assert_eq!(ficha.partidos.len(), 3);
-    let text = render(&mut app, 130, 38);
+    let text = render_con(&mut app, 130, 38);
     assert!(text.contains("Fixture"));
 }
 
@@ -237,7 +203,7 @@ fn ultimos_open() {
     let (mut app, _dir) = test_app();
     press(&mut app, KeyCode::Char('U'));
     assert_eq!(app.current_screen(), Screen::Ultimos);
-    let text = render(&mut app, 110, 32);
+    let text = render_con(&mut app, 110, 32);
     assert!(text.contains("Última victoria"));
     assert!(text.contains("Último gol"));
     press(&mut app, KeyCode::Esc);
@@ -260,7 +226,7 @@ fn comparador_opens_and_compares() {
     assert_eq!(app.comparador_opciones.len(), 2);
     press(&mut app, KeyCode::Enter);
     assert!(app.comparador_resultado.is_some());
-    let text = render(&mut app, 110, 34);
+    let text = render_con(&mut app, 110, 34);
     assert!(text.contains("Goles"));
     assert!(text.contains("Azul"));
     assert!(text.contains("Roja"));
@@ -291,7 +257,7 @@ fn tiendas_y_amigos_abren() {
 
     press(&mut app, KeyCode::Char('A'));
     assert_eq!(app.current_screen(), Screen::AmigosList);
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Yo"));
 }
 

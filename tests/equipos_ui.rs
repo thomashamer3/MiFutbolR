@@ -1,50 +1,10 @@
 //! Flujo completo del módulo Equipos por la TUI (§11.5).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 use mifutbol_rs::app::{App, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn press_ctrl(app: &mut App, ch: char) {
-    app.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL))
-        .expect("handle_key");
-}
-
-fn type_text(app: &mut App, text: &str) {
-    for ch in text.chars() {
-        press(app, KeyCode::Char(ch));
-    }
-}
-
-fn render(app: &mut App) -> String {
-    let backend = TestBackend::new(120, 34);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
+mod common;
+use common::*;
 
 fn count(app: &App, sql: &str) -> i64 {
     app.db.conn().query_row(sql, [], |row| row.get(0)).unwrap()
@@ -70,7 +30,7 @@ fn create_team_add_players_and_delete_one() {
     // Detalle.
     press(&mut app, KeyCode::Enter);
     assert!(matches!(app.current_screen(), Screen::EquipoDetail(_)));
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Los Pibes"));
     assert!(text.contains("Sin jugadores"));
 
@@ -99,7 +59,7 @@ fn create_team_add_players_and_delete_one() {
         1
     );
 
-    let text = render(&mut app);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Dos"));
     assert!(text.contains("★"));
 

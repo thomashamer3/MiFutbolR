@@ -26,6 +26,7 @@ Este documento resume las mejoras aplicadas siguiendo la documentación de
 | `BarChart` | Financiamiento (gastos por categoría), Estadísticas (rendimiento por clima, goles por franja, partidos por cancha). |
 | `Sparkline` | Estadísticas · Rendimiento | Tendencia de los últimos rendimientos. |
 | `Scrollbar` | Formularios largos, resumen, timeline y estadísticas | Aparece solo si el contenido excede el alto visible. |
+| `BigText` | Bienvenida y menú | Marca MiFutbolR con tipografía grande; en pantallas bajas se reduce el alto. |
 | `List` | Menú principal, carreras, estadísticas | Selección con `▶` y descripción por ítem. |
 
 ## Formularios
@@ -110,6 +111,8 @@ Este documento resume las mejoras aplicadas siguiendo la documentación de
 | Listados | `x` exporta CSV/JSON/HTML/Markdown a `Exportaciones/` |
 | Global | `Ctrl+Z` deshacer la última escritura (con confirmación) |
 | Últimos | `U` abre · `j/k` mueve · `Enter` abre el partido · `r` recalcula |
+| Bienvenida | `n` crear cuenta · `l` iniciar sesión · `Enter` continuar · `q` salir |
+| Usuario | Módulo 19 · `n` crear · `l` iniciar · `p` contraseña · `d` borrar · `c` cerrar sesión |
 | Comparador | `C` abre · `1/2` camisetas/canchas · `Tab` A/B · `j/k` elige · `Enter` compara |
 | Temporadas | `E` abre · `n/e/d` alta/edición/borrado · `Enter` detalle · `c` compara con la anterior |
 | Tiendas | `D` abre · `n/e/d` alta/edición/borrado · `r` refresca |

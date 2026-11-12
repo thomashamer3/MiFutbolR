@@ -24,6 +24,7 @@ mod app_resumen;
 mod app_temporadas;
 mod app_tiendas;
 mod app_torneos;
+mod app_usuario;
 pub mod config;
 pub mod db;
 pub mod domain;

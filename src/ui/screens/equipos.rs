@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::palette;
@@ -42,19 +42,6 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     }
 
-    let header = Row::new(vec![
-        "ID",
-        "Nombre",
-        "Tipo",
-        "Modalidad",
-        "Jugadores",
-        "Estado",
-    ])
-    .style(
-        Style::default()
-            .fg(colors.accent)
-            .add_modifier(Modifier::BOLD),
-    );
     let rows = app.equipos.iter().map(|row| {
         let style = if row.activa {
             Style::default().fg(colors.fg)
@@ -67,22 +54,18 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Cell::from(row.tipo.label()),
             Cell::from(row.tipo_futbol.label()),
             Cell::from(format!("{}/{}", row.jugadores_count, row.num_jugadores)),
-            Cell::from(if row.activa { "Activo" } else { "INACTIVO" }).style(
-                Style::default()
-                    .fg(if row.activa {
-                        colors.success
-                    } else {
-                        colors.muted
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
+            crate::ui::widgets::lista::celda_activa(row.activa, &colors, "Activo", "INACTIVO"),
         ])
         .style(style)
     });
 
-    let table = Table::new(
-        rows,
-        [
+    crate::ui::widgets::lista::render_tabla(
+        frame,
+        tabla_area,
+        &colors,
+        title,
+        vec!["ID", "Nombre", "Tipo", "Modalidad", "Jugadores", "Estado"],
+        vec![
             Constraint::Length(5),
             Constraint::Min(18),
             Constraint::Length(11),
@@ -90,26 +73,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(10),
             Constraint::Length(9),
         ],
-    )
-    .header(header)
-    .block(
-        Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(title)
-            .border_style(Style::default().fg(colors.border))
-            .style(Style::default().bg(colors.bg)),
-    )
-    .column_spacing(1)
-    .highlight_spacing(HighlightSpacing::Always)
-    .row_highlight_style(
-        Style::default()
-            .bg(colors.highlight_bg)
-            .fg(colors.highlight_fg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(table, tabla_area, &mut app.equipos_table);
+        rows.collect::<Vec<_>>(),
+        &mut app.equipos_table,
+    );
     app.table_hits = crate::ui::widgets::hit::table_hits(
         tabla_area,
         app.equipos_table.offset(),
@@ -131,25 +97,22 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                     .add_modifier(Modifier::BOLD),
             )));
             lineas.push(Line::from(""));
-            for (etiqueta, valor) in [
-                ("ID", row.id.to_string()),
-                ("Tipo", row.tipo.label().to_string()),
-                ("Modalidad", row.tipo_futbol.label().to_string()),
-                (
-                    "Jugadores",
-                    format!("{}/{}", row.jugadores_count, row.num_jugadores),
-                ),
-                (
-                    "Estado",
-                    if row.activa { "Activo" } else { "INACTIVO" }.to_string(),
-                ),
-            ] {
-                lineas.push(Line::from(vec![
-                    Span::styled(format!("{etiqueta:<14}"), Style::default().fg(colors.muted)),
-                    Span::styled(valor, Style::default().fg(colors.fg)),
-                ]));
-            }
-            lineas.push(Line::from(""));
+            lineas.extend(detail::kv_lineas(
+                &colors,
+                &[
+                    ("ID", row.id.to_string()),
+                    ("Tipo", row.tipo.label().to_string()),
+                    ("Modalidad", row.tipo_futbol.label().to_string()),
+                    (
+                        "Jugadores",
+                        format!("{}/{}", row.jugadores_count, row.num_jugadores),
+                    ),
+                    (
+                        "Estado",
+                        if row.activa { "Activo" } else { "INACTIVO" }.to_string(),
+                    ),
+                ],
+            ));
             lineas.push(Line::from(Span::styled(
                 "Enter: plantel   e: editar   d: eliminar",
                 Style::default().fg(colors.muted),
@@ -162,25 +125,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 &app.paths.data_dir,
             )
         });
-        let bloque = colors.panel(" Vista previa ");
-        let interior = bloque.inner(panel);
-        frame.render_widget(bloque, panel);
-        let con_imagen = ruta_imagen.is_some() && interior.height >= 16;
-        let [texto_area, imagen_area] = Layout::vertical([
-            Constraint::Min(6),
-            Constraint::Length(if con_imagen { 8 } else { 0 }),
-        ])
-        .areas(interior);
-        frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
-        if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
-            crate::ui::images::dibujar_miniatura(
-                frame,
-                imagen_area,
-                &mut app.images,
-                &ruta,
-                &colors,
-            );
-        }
+        detail::preview_con_imagen(
+            frame,
+            panel,
+            &colors,
+            " Vista previa ",
+            lineas,
+            ruta_imagen,
+            &mut app.images,
+        );
     }
 }
 

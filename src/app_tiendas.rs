@@ -38,15 +38,10 @@ impl App {
     pub(crate) fn handle_tiendas_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.tiendas.len();
-                if total > 0 {
-                    let indice = (self.tiendas_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.tiendas_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.tiendas_table, self.tiendas.len(), 1)
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.tiendas_table.selected().unwrap_or(0).saturating_sub(1);
-                self.tiendas_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.tiendas_table, self.tiendas.len(), -1)
             }
             KeyCode::Char('n') => self.open_tienda_form(FormMode::Create)?,
             KeyCode::Char('e') => {

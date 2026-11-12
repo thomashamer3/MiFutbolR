@@ -3,6 +3,7 @@
 pub mod ajustes;
 pub mod amigos;
 pub mod ayuda;
+pub mod bienvenida;
 pub mod botines;
 pub mod busqueda;
 pub mod calendario;
@@ -29,6 +30,7 @@ pub mod tiendas;
 pub mod torneos;
 pub mod tutorial;
 pub mod ultimos;
+pub mod usuario;
 
 use ratatui::Frame;
 use ratatui::layout::Rect;

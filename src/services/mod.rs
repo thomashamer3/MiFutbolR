@@ -32,3 +32,4 @@ pub mod tiendas_service;
 pub mod torneos_service;
 pub mod ultimos_service;
 pub mod undo_service;
+pub mod usuario_service;

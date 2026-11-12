@@ -4,9 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, Tabs, Wrap,
-};
+use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Tabs, Wrap};
 
 use crate::app::App;
 use crate::ui::theme::{Palette, palette};
@@ -45,14 +43,6 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             tabla_area,
         );
     } else {
-        let header = Row::new(vec![
-            "ID", "Fecha", "Rival", "Cancha", "Camiseta", "G", "A", "Res.", "$", "Tipo", "★",
-        ])
-        .style(
-            Style::default()
-                .fg(colors.accent)
-                .add_modifier(Modifier::BOLD),
-        );
         let rows = app.partidos.iter().map(|row| {
             let rival = if row.rival.trim().is_empty() {
                 "—".to_string()
@@ -84,9 +74,15 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             ])
         });
 
-        let table = Table::new(
-            rows,
-            [
+        crate::ui::widgets::lista::render_tabla(
+            frame,
+            tabla_area,
+            &colors,
+            title,
+            vec![
+                "ID", "Fecha", "Rival", "Cancha", "Camiseta", "G", "A", "Res.", "$", "Tipo", "★",
+            ],
+            vec![
                 Constraint::Length(4),
                 Constraint::Length(16),
                 Constraint::Min(12),
@@ -99,26 +95,9 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Constraint::Length(12),
                 Constraint::Length(2),
             ],
-        )
-        .header(header)
-        .block(
-            Block::bordered()
-                .border_type(BorderType::Rounded)
-                .title(title)
-                .border_style(Style::default().fg(colors.border))
-                .style(Style::default().bg(colors.bg)),
-        )
-        .column_spacing(1)
-        .highlight_spacing(HighlightSpacing::Always)
-        .row_highlight_style(
-            Style::default()
-                .bg(colors.highlight_bg)
-                .fg(colors.highlight_fg)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-        frame.render_stateful_widget(table, tabla_area, &mut app.partidos_table);
+            rows.collect::<Vec<_>>(),
+            &mut app.partidos_table,
+        );
         let offset = app.partidos_table.offset();
         let visibles = tabla_area.height.saturating_sub(3) as usize;
         app.table_hits = (0..visibles)

@@ -1,40 +1,11 @@
 //! Verificación de los widgets de TUI mejorados (vista previa, Gauge,
 //! BarChart, Tabs, scrollbar y muestra de tema).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use mifutbol_rs::app::{App, Module, Screen};
-use mifutbol_rs::config::AppPaths;
-use mifutbol_rs::db::Database;
-use mifutbol_rs::ui;
-use ratatui::Terminal;
-use ratatui::backend::TestBackend;
 
-fn test_app() -> (App, tempfile::TempDir) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let paths = AppPaths::with_root(dir.path());
-    paths.ensure_dirs().expect("dirs");
-    let db = Database::open(&paths.db_file).expect("db");
-    let app = App::new(db, paths).expect("app");
-    (app, dir)
-}
-
-fn press(app: &mut App, code: KeyCode) {
-    app.handle_key(KeyEvent::new(code, KeyModifiers::NONE))
-        .expect("handle_key");
-}
-
-fn render(app: &mut App, width: u16, height: u16) -> String {
-    let backend = TestBackend::new(width, height);
-    let mut terminal = Terminal::new(backend).expect("terminal");
-    terminal.draw(|frame| ui::draw(frame, app)).expect("draw");
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(ratatui::buffer::Cell::symbol)
-        .collect()
-}
+mod common;
+use common::*;
 
 fn abrir_modulo(app: &mut App, indice: usize) {
     app.menu_state.select(Some(indice));
@@ -44,9 +15,9 @@ fn abrir_modulo(app: &mut App, indice: usize) {
 #[test]
 fn wide_main_menu_shows_preview_and_shortcuts() {
     let (mut app, _dir) = test_app();
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
-    assert!(text.contains("Módulo 1 de 18"), "{text}");
+    assert!(text.contains("Módulo 1 de 19"), "{text}");
     assert!(text.contains("Atajos"), "{text}");
     assert!(text.contains("Camisetas"), "{text}");
 }
@@ -63,7 +34,7 @@ fn camisetas_list_shows_side_preview() {
         .unwrap();
     abrir_modulo(&mut app, 0);
     press(&mut app, KeyCode::Down);
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
     assert!(text.contains("Titular"), "{text}");
     assert!(text.contains("Partidos"), "{text}");
@@ -94,7 +65,7 @@ fn financiamiento_uses_gauge_and_barchart() {
         )
         .unwrap();
     abrir_modulo(&mut app, 7);
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("% consumido"), "{text}");
     assert!(text.contains("Gastos por categoría"), "{text}");
     assert!(text.contains("Presupuesto"), "{text}");
@@ -113,7 +84,7 @@ fn wizard_shows_step_tabs() {
         .unwrap();
     abrir_modulo(&mut app, 4);
     press(&mut app, KeyCode::Char('n'));
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Paso 1/4"), "{text}");
     assert!(text.contains("2 · Contexto"), "{text}");
     assert!(text.contains("4 · Confirmar"), "{text}");
@@ -123,7 +94,7 @@ fn wizard_shows_step_tabs() {
 fn ajustes_shows_theme_preview() {
     let (mut app, _dir) = test_app();
     abrir_modulo(&mut app, 10);
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa del tema"), "{text}");
     assert!(text.contains("Éxito"), "{text}");
     assert!(text.contains("Selección"), "{text}");
@@ -133,7 +104,7 @@ fn ajustes_shows_theme_preview() {
 fn module_tabs_show_context() {
     let (mut app, _dir) = test_app();
     abrir_modulo(&mut app, 4);
-    let text = render(&mut app, 120, 34);
+    let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Finanzas"), "{text}");
     assert!(text.contains("Ajustes"), "{text}");
     assert!(text.contains("Camis"), "{text}");
@@ -155,7 +126,7 @@ fn image_viewer_opens_and_closes() {
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('v'));
     assert_eq!(app.current_screen(), Screen::ImagenViewer);
-    let text = render(&mut app, 100, 30);
+    let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Esc para volver"), "{text}");
     press(&mut app, KeyCode::Esc);
     assert!(matches!(app.current_screen(), Screen::CamisetaDetail(_)));
@@ -165,7 +136,7 @@ fn image_viewer_opens_and_closes() {
 fn sidebar_click_switches_module() {
     let (mut app, _dir) = test_app();
     abrir_modulo(&mut app, 4);
-    let _ = render(&mut app, 160, 42);
+    let _ = render_con(&mut app, 160, 42);
     let objetivo = app
         .sidebar_hits
         .iter()
@@ -186,7 +157,7 @@ fn sidebar_click_switches_module() {
 #[test]
 fn main_menu_click_opens_module() {
     let (mut app, _dir) = test_app();
-    let _ = render(&mut app, 120, 34);
+    let _ = render_con(&mut app, 120, 34);
     let objetivo = app
         .menu_hits
         .iter()
@@ -214,7 +185,7 @@ fn table_click_selects_row() {
             .unwrap();
     }
     abrir_modulo(&mut app, 0);
-    let _ = render(&mut app, 120, 34);
+    let _ = render_con(&mut app, 120, 34);
     let objetivo = app
         .table_hits
         .iter()
@@ -241,7 +212,7 @@ fn canchas_table_click_selects_row() {
             .unwrap();
     }
     abrir_modulo(&mut app, 1);
-    let _ = render(&mut app, 120, 34);
+    let _ = render_con(&mut app, 120, 34);
     let objetivo = app
         .table_hits
         .iter()
@@ -268,9 +239,9 @@ fn moving_selection_starts_row_animation() {
             .unwrap();
     }
     abrir_modulo(&mut app, 0);
-    let _ = render(&mut app, 120, 34);
+    let _ = render_con(&mut app, 120, 34);
     app.animations.clear();
     press(&mut app, KeyCode::Down);
-    let _ = render(&mut app, 120, 34);
+    let _ = render_con(&mut app, 120, 34);
     assert!(app.animations.running());
 }
