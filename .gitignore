@@ -5,3 +5,9 @@ datos/
 target/capturas/
 *.db-wal
 *.db-shm
+docs/ANALISIS_MIFUTBOLC.md
+docs/ACEPTACION.md
+docs/MIGRACION_BD.md
+docs/PLAN_IMPLEMENTACION.md
+docs/TUI.md
+docs/IMPLEMENTACION_32.md
