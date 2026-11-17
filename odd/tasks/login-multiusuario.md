@@ -48,7 +48,7 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
   los atajos de la tarjeta para que no se corten.
 - RDD: no disponible (gentle-ai ausente) → disabled/unmanaged. Engram: espejo pendiente.
 - No probado en terminal real (solo TestBackend); ancho del emoji 🔒 puede variar por terminal.
-- Commit: ver `git log` de la rama feature/login-multiusuario (feat(usuario)).
+- Commit: `8414732` feat(usuario): inicio de sesión multiusuario con DB propia por cuenta.
 
 ## Siguiente paso
 Fase siguiente pedida por el usuario: performance y rendimiento del proyecto.
