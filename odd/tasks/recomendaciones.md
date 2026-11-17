@@ -39,6 +39,11 @@ MiFutbolC local (`D:\ANIME\Libros\Lenguaje C\Proyectos\MiFutbolC`).
 - [x] R5c Colecciones. Ruta: delegated.
 - [x] R5d Entrenador IA. Ruta: delegated.
 - [x] R5e Exportación PDF y ODS. Ruta: delegated.
+- [x] R5f Paridad completa (reabierto: R5 quedó parcial). Bienestar restante (objetivos, planes y
+  ejercicios, nutrición diaria, controles médicos, archivos de estudios, imágenes de menú),
+  exportación de Bienestar/Colecciones/IA (como `export_bienestar.c`) en ODS y PDF, alerta del
+  Entrenador IA antes de cargar un partido, deshacer para las tablas nuevas, importación de las
+  tablas nuevas. Ruta: delegated (writer trigger: migración + servicios + UI + tests).
 
 ## Criterios de aceptación
 - Cada tarea con test propio; `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` OK.
@@ -82,6 +87,19 @@ MiFutbolC local (`D:\ANIME\Libros\Lenguaje C\Proyectos\MiFutbolC`).
 
 ## Pendiente (fuera de alcance)
 - Migrar chrono → jiff/time (RUSTSEC-2026-0543 ignorado con motivo).
-- Validar workflows con actionlint (requiere permiso para descargarlo) o en el primer push.
-- Módulos C no portados listados arriba.
+- actionlint no ejecutado (descarga denegada); sustituido por la validación offline descrita arriba.
+- Pantallas de análisis de Bienestar de C (entrenamiento vs rendimiento, estadísticas de alimentación),
+  abrir documentos con la app del sistema y optimizar imágenes al copiarlas.
+- El importador no copia los archivos de `MiFutbolC\images` (en el perfil real esa carpeta está vacía).
+- R5f (`09bb2d6`, delegated): migración 014 con las 8 tablas restantes de Bienestar (mismas columnas
+  que db.c, + ON DELETE CASCADE en hijas), 8 pestañas en el CRUD existente, adjuntos copiados a
+  Imagenes/ como C, nutrición del asistente con la fórmula de C; hojas ODS y secciones PDF de
+  Bienestar/Colecciones/IA (export_bienestar.c / export_pdf.c; bug `partido.fecha` corregido);
+  alerta del Entrenador IA al abrir el asistente de partido (umbrales por nivel, 24 h, crítico);
+  deshacer para 16 tablas nuevas (excluidas ia_config, cola de clima y las 2 sin `id`); importación
+  de las 8 tablas. Verificado por mí: 257 tests OK, fmt, clippy `-D warnings`, cargo deny ok.
+- Workflows (sustituto de actionlint): parseo YAML con serde_yaml offline + chequeo de estructura
+  (on, jobs, runs-on, needs existentes, uses XOR run, claves conocidas; verificado que detecta 4
+  errores en un workflow roto); 15 scripts `run` bash con `bash -n` y 1 PowerShell con el parser
+  de PowerShell: 0 errores.
 
