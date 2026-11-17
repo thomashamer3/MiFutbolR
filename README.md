@@ -28,9 +28,22 @@ Las capturas se generan desde la TUI real con
 
 ## Características
 
-- **19 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
+- **22 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
   Estadísticas, Financiamiento, Carrera, Resumen Compartible, Ajustes, Torneos,
-  Temporadas, Tiendas, Amigos, Multimedia, Recordatorios, Progresión y Usuario.
+  Temporadas, Tiendas, Amigos, Multimedia, Recordatorios, Progresión, Bienestar,
+  Colecciones, Entrenador IA y Usuario.
+- **Bienestar**: hábitos, entrenamientos, comidas, sesiones mentales y perfil de
+  salud; el asistente (`a`) calcula preparación y riesgo de lesión y sugiere una
+  rutina semanal (fórmulas de MiFutbolC).
+- **Colecciones**: inventario de camisetas, botines y accesorios agrupado en
+  colecciones; `s` sincroniza las camisetas cargadas.
+- **Entrenador IA**: consejos por reglas a partir de los últimos 10 partidos,
+  predicción del próximo resultado, formación sugerida, descanso y puntos débiles.
+- **Clima automático**: si la cancha tiene latitud/longitud, el clima histórico
+  del partido se pide a Open-Meteo en segundo plano (hasta 8 reintentos; `c` en
+  Partidos encola los que faltan). Sin conexión, la app funciona igual.
+- **Informes**: en Ajustes, `Ctrl+P` exporta un informe PDF y `Ctrl+O` una hoja
+  de cálculo ODS (LibreOffice/Excel) a la carpeta Exportaciones.
 - **Inicio de sesión multiusuario**: portada de MiFutbolR al iniciar para entrar o
   registrarse con o sin contraseña; cada cuenta usa su propia base de datos
   (también se puede continuar como invitado).

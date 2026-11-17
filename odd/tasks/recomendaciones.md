@@ -29,20 +29,59 @@ MiFutbolC local (`D:\ANIME\Libros\Lenguaje C\Proyectos\MiFutbolC`).
   commits por tarea; la división en PRs la decide el usuario.
 
 ## Tareas
-- [ ] R2 Bandera undo_activo (migración 012 + import/restore). Ruta: inline.
-- [ ] R3 PRAGMA optimize al cerrar. Ruta: inline.
-- [ ] R4 Inicio perezoso. Ruta: inline.
-- [ ] R6 CI deny + release + bench. Ruta: inline.
-- [ ] R1 Importador de perfiles MiFutbolC. Ruta: delegated (writer trigger: servicio + usuario + CLI + portada + tests).
-- [ ] R5a Clima Open-Meteo en segundo plano. Ruta: delegated.
-- [ ] R5b Bienestar. Ruta: delegated.
-- [ ] R5c Colecciones. Ruta: delegated.
-- [ ] R5d Entrenador IA. Ruta: delegated.
-- [ ] R5e Exportación PDF y ODS. Ruta: delegated.
+- [x] R2 Suspender deshacer en la importación (la bandera `undo_control.suspendido` ya existía). Ruta: inline.
+- [x] R3 PRAGMA optimize al cerrar. Ruta: inline.
+- [x] R4 Inicio perezoso. Ruta: inline.
+- [x] R6 CI deny + release + bench. Ruta: inline.
+- [x] R1 Importador de perfiles MiFutbolC. Ruta: delegated (writer trigger: servicio + usuario + CLI + portada + tests).
+- [x] R5a Clima Open-Meteo en segundo plano. Ruta: delegated.
+- [x] R5b Bienestar. Ruta: delegated.
+- [x] R5c Colecciones. Ruta: delegated.
+- [x] R5d Entrenador IA. Ruta: delegated.
+- [x] R5e Exportación PDF y ODS. Ruta: delegated.
 
 ## Criterios de aceptación
 - Cada tarea con test propio; `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` OK.
 - R2: inserción masiva con undo desactivado ≈ sin triggers (medido).
 
 ## Progreso / evidencia
-(pendiente)
+- R2 (`54eec1c`): la bandera ya existía (`undo_control.suspendido`) pero la importación no la usaba;
+  ahora se activa dentro de la transacción. Medido antes: 10k inserts 1,20 s con triggers vs 0,24 s
+  sin ellos. Test verificado en rojo sin el cambio (9 filas de historial) y verde con él.
+- R3 (`54eec1c`): `impl Drop for Database` → `PRAGMA optimize`. Trivial, sin test.
+- R4 (`54eec1c`): bandera `inicio_sucio`; resumen (33 ms con 20k partidos) se recalcula tras la tecla
+  solo con el menú visible. Test `home_summary_refreshes_only_when_menu_is_visible`.
+- 213 tests OK, clippy limpio tras R2–R4.
+- R6 (`c290d95`): job cargo-deny (local: advisories/bans/licenses/sources ok tras ignorar
+  RUSTSEC-2026-0543 chrono sin mantenimiento — migración a jiff/time pendiente), release.yml por tag
+  (instalador probado localmente: `ISCC /DMyAppVersion=0.0.1` → MiFutbolR-Setup-0.0.1.exe, 5,4 MB;
+  la versión debe ser numérica), bench.yml base vs PR. actionlint NO ejecutado (descarga remota
+  denegada por permisos) → validación de workflows pendiente en el primer push.
+- `.claude/` agregado a .gitignore (`fba1b40`).
+- R1 (`8f3f621`, delegated): cuentas desde users.db, hash FNV-1a de C verificado contra el `utils.c`
+  original compilado con gcc y migrado a SHA-256 en el primer login; origen adjunto en solo lectura.
+  `e0e9457`: también importa las tablas de Bienestar/Colecciones/IA. Prueba con COPIA de un perfil
+  real ("Hamer") a destino temporal: 166 filas, conteos idénticos al origen, origen sin cambios
+  (SHA-1); la copia se borró después.
+- R5b–R5d (`0bcb00c` + merge `4e5bdf2`, delegated en worktree): migración 012, módulos Bienestar
+  (5 pestañas + asistente con las fórmulas de C), Colecciones (inventario, colecciones, sync de
+  camisetas), Entrenador IA (reglas R1–R5, predicción, formación, descanso, puntos débiles).
+  Corregidos bugs de C: `partido.fecha` inexistente → `date(fecha_hora)`; derrota = resultado 3.
+  No portado: objetivos/planes, ejercicios, archivos y fotos, nutrición diaria, alerta
+  interactiva antes del partido, deshacer y exportación de estas tablas.
+- R5a (`3786010`, delegated): migración 013, cola con 8 intentos, hilo + mpsc, ureq 3.5.1 (rustls,
+  MIT/Apache-2.0; deny permite CDLA-Permissive-2.0 de webpki-roots). Verificado con respuesta
+  REAL de Open-Meteo (Buenos Aires 2025-06-01: 9,7 °C, WMO 0).
+- R5e (`3786010` + fix `5f89779`): ODS y PDF propios. La validación independiente encontró un bug
+  del ZIP (encabezado central de 48 bytes en vez de 46): Python zipfile lo rechazaba. Corregido
+  con un test que recorre todas las entradas (rojo con el bug). Ahora zipfile: CRC OK, mimetype
+  STORED primero, XML bien formado; poppler (pdftotext UTF-8): acentos, ñ, ¿ ¡ correctos.
+  No probado con LibreOffice (no instalado).
+- Integración: 248 tests OK, clippy `-D warnings` y fmt limpios, cargo deny ok. Binario release
+  en consola real: 0 ms de CPU en 8 s de reposo, proceso vivo, 4 hilos.
+
+## Pendiente (fuera de alcance)
+- Migrar chrono → jiff/time (RUSTSEC-2026-0543 ignorado con motivo).
+- Validar workflows con actionlint (requiere permiso para descargarlo) o en el primer push.
+- Módulos C no portados listados arriba.
+
