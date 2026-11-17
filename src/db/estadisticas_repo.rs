@@ -294,10 +294,12 @@ pub fn canchas(conn: &Connection) -> Result<CanchasStats, DbError> {
 
     let por_techada = grupo_etiquetado(
         conn,
-        "SELECT c.techada_estado_codigo, COUNT(p.id),
-                COALESCE(AVG(p.rendimiento_general), 0.0)
-           FROM cancha c LEFT JOIN partido p ON p.cancha_id = c.id
-          GROUP BY c.techada_estado_codigo ORDER BY c.techada_estado_codigo",
+        &format!(
+            "{POR_CANCHA}
+             SELECT c.techada_estado_codigo, {SUMA_POR_CANCHA}
+               FROM cancha c LEFT JOIN pc ON pc.cancha_id = c.id
+              GROUP BY c.techada_estado_codigo ORDER BY c.techada_estado_codigo"
+        ),
         |codigo| {
             TechadaEstado::try_from(codigo)
                 .map_or_else(|_| "?".into(), |estado| estado.label().to_string())
@@ -306,12 +308,14 @@ pub fn canchas(conn: &Connection) -> Result<CanchasStats, DbError> {
 
     let por_tipo = grupo_etiquetado(
         conn,
-        "SELECT ct.tipo_codigo, COUNT(p.id),
-                COALESCE(AVG(p.rendimiento_general), 0.0)
-           FROM cancha_tipo ct
-           JOIN cancha c ON c.id = ct.cancha_id
-           LEFT JOIN partido p ON p.cancha_id = c.id
-          GROUP BY ct.tipo_codigo ORDER BY ct.tipo_codigo",
+        &format!(
+            "{POR_CANCHA}
+             SELECT ct.tipo_codigo, {SUMA_POR_CANCHA}
+               FROM cancha_tipo ct
+               JOIN cancha c ON c.id = ct.cancha_id
+               LEFT JOIN pc ON pc.cancha_id = c.id
+              GROUP BY ct.tipo_codigo ORDER BY ct.tipo_codigo"
+        ),
         |codigo| {
             TipoCancha::try_from(codigo)
                 .map_or_else(|_| "?".into(), |tipo| tipo.label().to_string())
@@ -320,46 +324,51 @@ pub fn canchas(conn: &Connection) -> Result<CanchasStats, DbError> {
 
     let por_superficie = grupo_etiquetado(
         conn,
-        "SELECT cs.superficie_codigo, COUNT(p.id),
-                COALESCE(AVG(p.rendimiento_general), 0.0)
-           FROM cancha_superficie cs
-           JOIN cancha c ON c.id = cs.cancha_id
-           LEFT JOIN partido p ON p.cancha_id = c.id
-          GROUP BY cs.superficie_codigo ORDER BY cs.superficie_codigo",
+        &format!(
+            "{POR_CANCHA}
+             SELECT cs.superficie_codigo, {SUMA_POR_CANCHA}
+               FROM cancha_superficie cs
+               JOIN cancha c ON c.id = cs.cancha_id
+               LEFT JOIN pc ON pc.cancha_id = c.id
+              GROUP BY cs.superficie_codigo ORDER BY cs.superficie_codigo"
+        ),
         |codigo| {
             Superficie::try_from(codigo)
                 .map_or_else(|_| "?".into(), |superficie| superficie.label().to_string())
         },
     )?;
 
+    // Tramos en Rust: el GROUP BY por CASE ordenaba toda la tabla.
     let mut stmt = conn.prepare(
-        "SELECT CASE
-                    WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 12 THEN 'Mañana'
-                    WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 18 THEN 'Tarde'
-                    ELSE 'Noche'
-                END AS franja,
-                COUNT(*), COALESCE(AVG(p.rendimiento_general), 0.0)
-           FROM partido p
-          GROUP BY franja
-          ORDER BY CASE franja WHEN 'Mañana' THEN 1 WHEN 'Tarde' THEN 2 ELSE 3 END",
+        "SELECT CAST(substr(fecha_hora, 12, 2) AS INTEGER), rendimiento_general FROM partido",
     )?;
-    let por_franja = stmt
-        .query_map([], |row| {
-            Ok(PromedioGrupo {
-                clave: row.get(0)?,
-                partidos: row.get(1)?,
-                promedio: row.get(2)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut tramos = Acumulado::new();
+    let mut filas = stmt.query([])?;
+    while let Some(fila) = filas.next()? {
+        let hora: i64 = fila.get(0)?;
+        let tramo = if hora < 12 {
+            0
+        } else if hora < 18 {
+            1
+        } else {
+            2
+        };
+        let (partidos, suma) = tramos.entry(tramo).or_default();
+        *partidos += 1;
+        *suma += fila.get::<_, i64>(1)?;
+    }
+    let por_franja = promedios(&tramos, |tramo| {
+        ["Mañana", "Tarde", "Noche"][tramo as usize].to_string()
+    });
 
-    let mut stmt = conn.prepare(
-        "SELECT c.localidad, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
-           FROM cancha c LEFT JOIN partido p ON p.cancha_id = c.id
+    let mut stmt = conn.prepare(&format!(
+        "{POR_CANCHA}
+         SELECT c.localidad, {SUMA_POR_CANCHA}
+           FROM cancha c LEFT JOIN pc ON pc.cancha_id = c.id
           WHERE c.localidad <> ''
           GROUP BY c.localidad
-          ORDER BY COUNT(p.id) DESC, c.localidad ASC",
-    )?;
+          ORDER BY COALESCE(SUM(pc.n), 0) DESC, c.localidad ASC"
+    ))?;
     let por_localidad = stmt
         .query_map([], |row| {
             Ok(PromedioGrupo {
@@ -398,23 +407,25 @@ pub fn goles(conn: &Connection) -> Result<GolesStats, DbError> {
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )?;
 
-    let por_clima = grupo_promedio_goles(
-        conn,
-        "SELECT clima, COUNT(*), COALESCE(AVG(goles), 0.0)
-           FROM partido GROUP BY clima ORDER BY clima",
-        |codigo| {
-            Clima::try_from(codigo).map_or_else(|_| "?".into(), |clima| clima.label().to_string())
-        },
-    )?;
-    let por_franja = grupo_promedio_goles(
-        conn,
-        "SELECT dia, COUNT(*), COALESCE(AVG(goles), 0.0)
-           FROM partido GROUP BY dia ORDER BY dia",
-        |codigo| {
-            FranjaHoraria::try_from(codigo)
-                .map_or_else(|_| "?".into(), |franja| franja.label().to_string())
-        },
-    )?;
+    // Un recorrido en lugar de dos GROUP BY (ver `rendimiento`).
+    let mut stmt = conn.prepare("SELECT clima, dia, goles FROM partido")?;
+    let (mut clima, mut dia) = (Acumulado::new(), Acumulado::new());
+    let mut filas = stmt.query([])?;
+    while let Some(fila) = filas.next()? {
+        let goles: i64 = fila.get(2)?;
+        for (columna, grupo) in [&mut clima, &mut dia].into_iter().enumerate() {
+            let (partidos, suma) = grupo.entry(fila.get(columna)?).or_default();
+            *partidos += 1;
+            *suma += goles;
+        }
+    }
+    let por_clima = promedios(&clima, |codigo| {
+        Clima::try_from(codigo).map_or_else(|_| "?".into(), |clima| clima.label().to_string())
+    });
+    let por_franja = promedios(&dia, |codigo| {
+        FranjaHoraria::try_from(codigo)
+            .map_or_else(|_| "?".into(), |franja| franja.label().to_string())
+    });
 
     let goles_cansancio_alto: f64 = conn.query_row(
         "SELECT COALESCE(AVG(goles), 0.0) FROM partido WHERE cansancio > 7",
@@ -572,10 +583,21 @@ where
     Ok(rows)
 }
 
-/// (partidos, suma de rendimiento) por código, ordenado como `ORDER BY código`.
+/// Partidos y suma de rendimiento por cancha, para unir con los atributos de
+/// cancha sin arrastrar cada partido por el JOIN y el GROUP BY posterior.
+const POR_CANCHA: &str = "WITH pc AS (
+    SELECT cancha_id, COUNT(*) AS n, SUM(rendimiento_general) AS s
+      FROM partido GROUP BY cancha_id
+)";
+
+/// Igual que `COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)` sobre el JOIN.
+const SUMA_POR_CANCHA: &str =
+    "COALESCE(SUM(pc.n), 0), COALESCE(CAST(SUM(pc.s) AS REAL) / SUM(pc.n), 0.0)";
+
+/// (partidos, suma de la métrica) por código, ordenado como `ORDER BY código`.
 type Acumulado = std::collections::BTreeMap<i64, (i64, i64)>;
 
-/// Igual que `COUNT(*)` + `AVG(rendimiento_general)` agrupado por código.
+/// Igual que `COUNT(*)` + `AVG(métrica)` agrupado por código.
 fn promedios(acumulado: &Acumulado, etiqueta: impl Fn(i64) -> String) -> Vec<PromedioGrupo> {
     acumulado
         .iter()
@@ -585,28 +607,6 @@ fn promedios(acumulado: &Acumulado, etiqueta: impl Fn(i64) -> String) -> Vec<Pro
             promedio: suma as f64 / partidos as f64,
         })
         .collect()
-}
-
-fn grupo_promedio_goles<F>(
-    conn: &Connection,
-    sql: &str,
-    etiqueta: F,
-) -> Result<Vec<PromedioGrupo>, DbError>
-where
-    F: Fn(i64) -> String,
-{
-    let mut stmt = conn.prepare(sql)?;
-    let rows = stmt
-        .query_map([], |row| {
-            let codigo: i64 = row.get(0)?;
-            Ok(PromedioGrupo {
-                clave: etiqueta(codigo),
-                partidos: row.get(1)?,
-                promedio: row.get(2)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
 }
 
 fn dia_semana(codigo: i64) -> String {
@@ -840,5 +840,143 @@ mod rendimiento_tests {
         }
         assert_eq!(stats.por_cansancio[0].clave, "0");
         assert_eq!(stats.por_dia_semana.len(), 7);
+    }
+
+    /// Filas (clave, partidos, promedio) de una consulta de referencia.
+    fn referencia(conn: &Connection, sql: &str) -> Vec<(String, i64, f64)> {
+        let mut stmt = conn.prepare(sql).unwrap();
+        stmt.query_map([], |row| {
+            let clave: rusqlite::types::Value = row.get(0)?;
+            Ok((format!("{clave:?}"), row.get(1)?, row.get(2)?))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+    }
+
+    fn comparar(nombre: &str, obtenido: &[PromedioGrupo], esperado: &[(String, i64, f64)]) {
+        assert_eq!(obtenido.len(), esperado.len(), "{nombre}");
+        for (fila, (_, partidos, promedio)) in obtenido.iter().zip(esperado) {
+            assert_eq!(fila.partidos, *partidos, "{nombre}");
+            assert!((fila.promedio - promedio).abs() < 1e-12, "{nombre}");
+        }
+    }
+
+    #[test]
+    fn goles_y_canchas_match_original_queries() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+        conn.execute("INSERT INTO camiseta (nombre) VALUES ('Azul')", [])
+            .unwrap();
+        // 5 canchas; la última sin partidos. Localidades repetidas y vacías.
+        for (i, localidad) in ["Lanús", "Quilmes", "Lanús", "", "Bernal"]
+            .iter()
+            .enumerate()
+        {
+            conn.execute(
+                "INSERT INTO cancha (nombre, localidad, techada_estado_codigo) VALUES (?1, ?2, ?3)",
+                params![format!("C{i}"), localidad, i as i64 % 3],
+            )
+            .unwrap();
+            let id = conn.last_insert_rowid();
+            for tipo in [[5, 7], [7, 7], [11, 99], [8, 8], [5, 5]][i]
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+            {
+                conn.execute(
+                    "INSERT INTO cancha_tipo (cancha_id, tipo_codigo) VALUES (?1, ?2)",
+                    params![id, tipo],
+                )
+                .unwrap();
+            }
+            conn.execute(
+                "INSERT INTO cancha_superficie (cancha_id, superficie_codigo) VALUES (?1, ?2)",
+                params![id, i as i64 % 2],
+            )
+            .unwrap();
+        }
+        for i in 0..83_i64 {
+            let fecha = format!("2025-03-{:02} {:02}:30:00", 1 + i % 28, i * 5 % 24);
+            conn.execute(
+                "INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, goles, rendimiento_general,
+                                      clima, dia)
+                 VALUES (?1, 1, ?2, ?3, ?4, ?5, ?6)",
+                params![1 + i % 4, fecha, i % 5, i * 7 % 11, i % 13, i % 7],
+            )
+            .unwrap();
+        }
+
+        let goles_stats = goles(conn).unwrap();
+        for (grupo, columna) in [
+            (&goles_stats.por_clima, "clima"),
+            (&goles_stats.por_franja, "dia"),
+        ] {
+            let sql = format!(
+                "SELECT {columna}, COUNT(*), COALESCE(AVG(goles), 0.0)
+                   FROM partido GROUP BY {columna} ORDER BY {columna}"
+            );
+            comparar(columna, grupo, &referencia(conn, &sql));
+        }
+
+        let c = canchas(conn).unwrap();
+        comparar("techada", &c.por_techada, &referencia(conn,
+            "SELECT c.techada_estado_codigo, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
+               FROM cancha c LEFT JOIN partido p ON p.cancha_id = c.id
+              GROUP BY c.techada_estado_codigo ORDER BY c.techada_estado_codigo"));
+        comparar(
+            "tipo",
+            &c.por_tipo,
+            &referencia(
+                conn,
+                "SELECT ct.tipo_codigo, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
+               FROM cancha_tipo ct JOIN cancha c ON c.id = ct.cancha_id
+               LEFT JOIN partido p ON p.cancha_id = c.id
+              GROUP BY ct.tipo_codigo ORDER BY ct.tipo_codigo",
+            ),
+        );
+        comparar("superficie", &c.por_superficie, &referencia(conn,
+            "SELECT cs.superficie_codigo, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
+               FROM cancha_superficie cs JOIN cancha c ON c.id = cs.cancha_id
+               LEFT JOIN partido p ON p.cancha_id = c.id
+              GROUP BY cs.superficie_codigo ORDER BY cs.superficie_codigo"));
+        let localidad = referencia(
+            conn,
+            "SELECT c.localidad, COUNT(p.id), COALESCE(AVG(p.rendimiento_general), 0.0)
+               FROM cancha c LEFT JOIN partido p ON p.cancha_id = c.id
+              WHERE c.localidad <> '' GROUP BY c.localidad
+              ORDER BY COUNT(p.id) DESC, c.localidad ASC",
+        );
+        comparar("localidad", &c.por_localidad, &localidad);
+        let claves: Vec<_> = c
+            .por_localidad
+            .iter()
+            .map(|g| format!("{:?}", rusqlite::types::Value::Text(g.clave.clone())))
+            .collect();
+        assert_eq!(
+            claves,
+            localidad
+                .iter()
+                .map(|(k, _, _)| k.clone())
+                .collect::<Vec<_>>()
+        );
+        let franja = referencia(
+            conn,
+            "SELECT CASE WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 12 THEN 'Mañana'
+                         WHEN CAST(substr(p.fecha_hora, 12, 2) AS INTEGER) < 18 THEN 'Tarde'
+                         ELSE 'Noche' END AS franja,
+                    COUNT(*), COALESCE(AVG(p.rendimiento_general), 0.0)
+               FROM partido p GROUP BY franja
+              ORDER BY CASE franja WHEN 'Mañana' THEN 1 WHEN 'Tarde' THEN 2 ELSE 3 END",
+        );
+        comparar("franja", &c.por_franja, &franja);
+        assert_eq!(
+            c.por_franja
+                .iter()
+                .map(|g| g.clave.as_str())
+                .collect::<Vec<_>>(),
+            ["Mañana", "Tarde", "Noche"]
+        );
+        // La cancha sin partidos aporta su grupo con 0 partidos y promedio 0.
+        assert!(c.por_techada.iter().any(|g| g.partidos > 0));
     }
 }

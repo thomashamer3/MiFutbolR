@@ -2991,8 +2991,8 @@ impl Camiseta {
 
 /// Bucle principal: dibuja, espera teclado y repite (§19.10).
 pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
-    // Solo se redibuja si llegó un evento o hay una animación en curso: en
-    // reposo la app no consume CPU (antes redibujaba cada 120 ms).
+    // Solo se redibuja si llegó un evento que cambió algo o hay una animación
+    // en curso: en reposo la app no consume CPU (antes redibujaba cada 120 ms).
     let mut redibujar = true;
     loop {
         if redibujar || app.animations.running() {
@@ -3005,31 +3005,48 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
             Duration::from_secs(1)
         };
         if event::poll(espera)? {
-            // Se procesan todos los eventos pendientes antes del siguiente frame:
-            // una ráfaga de teclas repetidas o del mouse cuesta un solo dibujo.
-            // Tope de 64 por frame para que un flujo continuo no congele la pantalla.
-            for _ in 0..64 {
-                match event::read()? {
-                    Event::Key(key) => {
-                        app.handle_key(key)?;
-                        redibujar = true;
-                    }
-                    // Mover el mouse no cambia el estado: no merece un frame.
-                    Event::Mouse(mouse) if mouse.kind == MouseEventKind::Moved => {}
-                    Event::Mouse(mouse) => {
-                        app.handle_mouse(mouse)?;
-                        redibujar = true;
-                    }
-                    // Resize, foco, pegado: redibujar por las dudas.
-                    _ => redibujar = true,
-                }
-                if app.should_quit || !event::poll(Duration::ZERO)? {
-                    break;
-                }
-            }
+            redibujar = procesar_eventos(app, || {
+                Ok(if event::poll(Duration::ZERO)? {
+                    Some(event::read()?)
+                } else {
+                    None
+                })
+            })?;
         }
         if app.should_quit {
             return Ok(());
         }
     }
+}
+
+/// Máximo de eventos procesados entre dos frames: un flujo continuo de
+/// eventos no puede dejar la pantalla sin actualizar.
+pub const EVENTOS_POR_FRAME: usize = 64;
+
+/// Procesa los eventos ya disponibles (`siguiente` devuelve `None` cuando no
+/// queda ninguno) para dibujar una sola vez por ráfaga. Devuelve `true` si
+/// alguno puede haber cambiado lo que se ve.
+pub fn procesar_eventos(
+    app: &mut App,
+    mut siguiente: impl FnMut() -> Result<Option<Event>>,
+) -> Result<bool> {
+    let mut cambio = false;
+    for _ in 0..EVENTOS_POR_FRAME {
+        let Some(evento) = siguiente()? else {
+            break;
+        };
+        match evento {
+            Event::Key(key) => app.handle_key(key)?,
+            // Mover el mouse no cambia el estado: no merece un frame.
+            Event::Mouse(mouse) if mouse.kind == MouseEventKind::Moved => continue,
+            Event::Mouse(mouse) => app.handle_mouse(mouse)?,
+            // Resize, foco, pegado: ratatui no redibuja solo al cambiar el tamaño.
+            _ => {}
+        }
+        cambio = true;
+        if app.should_quit {
+            break;
+        }
+    }
+    Ok(cambio)
 }
