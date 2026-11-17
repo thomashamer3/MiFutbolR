@@ -237,7 +237,9 @@ impl Module {
             Self::Media => "Videos, fotos, artículos y audio asociados a partidos.",
             Self::Recordatorios => "Recordatorios, recurrencias y agenda.",
             Self::Progresion => "Planes de entrenamiento y evolución semanal por jugador.",
-            Self::Bienestar => "Hábitos, entrenamientos, comidas, mente, salud y asistente.",
+            Self::Bienestar => {
+                "Hábitos, entrenamientos, nutrición, mente, salud, objetivos y asistente."
+            }
             Self::Colecciones => "Inventario de equipamiento y colecciones.",
             Self::EntrenadorIa => "Consejos, predicción, táctica y descanso según tus partidos.",
             Self::Usuario => "Cuentas locales, inicio de sesión y bienvenida.",
@@ -1871,7 +1873,7 @@ impl App {
             }
             Screen::TiendasList => "n: nueva  e: editar  d: borrar  r: refrescar  Esc: volver",
             Screen::BienestarList => {
-                "Tab/←→: sección  n: nuevo  e: editar  d: borrar  o: omitido  a: asistente  r: refrescar"
+                "Tab/←→: sección  n: nuevo  e: editar  d: borrar  o: omitido  v: ver archivo  a: asistente  r: refrescar"
             }
             Screen::BienestarAsistente => "s: guardar recomendación  r: recalcular  Esc: volver",
             Screen::ColeccionesList => {

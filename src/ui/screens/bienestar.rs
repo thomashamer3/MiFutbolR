@@ -4,31 +4,37 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Cell, Paragraph, Row, Tabs, Wrap};
+use ratatui::widgets::{Cell, Paragraph, Row, Wrap};
 
 use crate::app::App;
-use crate::domain::bienestar::Seccion;
+use crate::domain::bienestar::{Seccion, TipoDato};
 use crate::ui::theme::palette;
 use crate::ui::widgets::{form, lista};
 
 /// Listado con pestañas por sección.
 pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let colors = palette(app.settings.theme);
+    // 13 pestañas no entran en una línea: se reparten en dos.
     let [pestanas, cuerpo] =
-        Layout::vertical([Constraint::Length(1), Constraint::Min(3)]).areas(area);
-    let indice = Seccion::ALL
-        .iter()
-        .position(|seccion| *seccion == app.bienestar_seccion)
-        .unwrap_or(0);
-    frame.render_widget(
-        Tabs::new(Seccion::ALL.iter().map(|seccion| seccion.label()))
-            .select(indice)
-            .style(Style::default().fg(colors.muted))
-            .highlight_style(
+        Layout::vertical([Constraint::Length(2), Constraint::Min(3)]).areas(area);
+    let mut spans = Vec::new();
+    for seccion in Seccion::ALL {
+        if !spans.is_empty() {
+            spans.push(Span::styled(" │ ", Style::default().fg(colors.muted)));
+        }
+        spans.push(if seccion == app.bienestar_seccion {
+            Span::styled(
+                seccion.label(),
                 Style::default()
                     .fg(colors.accent)
                     .add_modifier(Modifier::BOLD),
-            ),
+            )
+        } else {
+            Span::styled(seccion.label(), Style::default().fg(colors.muted))
+        });
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).wrap(Wrap { trim: true }),
         pestanas,
     );
 
@@ -50,7 +56,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .map(|registro| {
             Row::new(
                 registro
-                    .valores
+                    .vista
                     .iter()
                     .take(columnas.len())
                     .map(|valor| Cell::from(valor.clone()))
@@ -71,8 +77,14 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let anchos = columnas
         .iter()
         .map(|columna| match columna.clave {
-            "fecha" | "ultima_revision" => Constraint::Length(11),
-            "notas" | "descripcion" | "estado_animico" => Constraint::Min(16),
+            _ if matches!(columna.tipo, TipoDato::Referencia(_)) => Constraint::Min(22),
+            "fecha" | "ultima_revision" | "fecha_inicio" | "fecha_fin" | "fecha_subida" => {
+                Constraint::Length(11)
+            }
+            "notas" | "descripcion" | "estado_animico" | "nombre" | "rutina_semanal"
+            | "nombre_original" | "ruta_archivo" | "imagen_ruta" | "resultado" => {
+                Constraint::Min(16)
+            }
             _ => Constraint::Min(8),
         })
         .collect();

@@ -1,6 +1,6 @@
 //! Historial de escrituras y deshacer (IMP-07).
 //!
-//! Los triggers de la migración 005 guardan el JSON anterior/posterior de las
+//! Los triggers de las migraciones 005 y 014 guardan el JSON anterior/posterior de las
 //! tablas principales. Deshacer aplica la operación inversa con los triggers
 //! suspendidos para no realimentar el historial.
 
@@ -20,6 +20,23 @@ pub const TABLAS: &[&str] = &[
     "partido",
     "lesion",
     "financiamiento",
+    // Triggers de la migración 014 (tablas de 012 y 014).
+    "bienestar_habito",
+    "bienestar_entrenamiento",
+    "bienestar_comida",
+    "bienestar_sesion_mental",
+    "bienestar_salud",
+    "bienestar_recomendacion",
+    "coleccion",
+    "inventario_item",
+    "consejos_historial",
+    "bienestar_objetivo",
+    "bienestar_plan_entrenamiento",
+    "bienestar_ejercicio",
+    "bienestar_entrenamiento_ejercicio",
+    "bienestar_dia_nutricional",
+    "bienestar_control_medico",
+    "bienestar_estudio_archivo",
 ];
 
 /// Entrada del historial.
@@ -305,5 +322,50 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM undo_historial", [], |row| row.get(0))
             .unwrap();
         assert!(total <= 2, "entradas: {total}");
+    }
+
+    #[test]
+    fn ported_tables_have_undo_triggers() {
+        let db = db();
+        let c = db.conn();
+        // Todas las tablas declaradas tienen sus tres triggers.
+        for tabla in TABLAS {
+            let triggers: i64 = c
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?1
+                       AND name LIKE 'undo_%'",
+                    [tabla],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(triggers, 3, "{tabla}");
+        }
+        c.execute(
+            "INSERT INTO bienestar_objetivo (nombre, fecha_inicio, fecha_fin) VALUES ('10k', '2026-01-01', '2026-06-01')",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "UPDATE bienestar_salud SET tipo_sangre = 'O+' WHERE id = 1",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            deshacer_ultima(c).unwrap().as_deref(),
+            Some("bienestar_salud #1")
+        );
+        let sangre: String = c
+            .query_row("SELECT tipo_sangre FROM bienestar_salud", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(sangre, "");
+        deshacer_ultima(c).unwrap();
+        let objetivos: i64 = c
+            .query_row("SELECT COUNT(*) FROM bienestar_objetivo", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(objetivos, 0);
     }
 }

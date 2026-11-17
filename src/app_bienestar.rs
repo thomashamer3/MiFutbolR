@@ -2,8 +2,10 @@
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
+use rusqlite::Connection;
 
 use crate::app::{App, ConfirmAction, Field, FieldKind, Form, Modal, Screen};
+use crate::db::bienestar_repo;
 use crate::domain::bienestar::{Registro, Seccion, TipoDato};
 use crate::domain::dates;
 use crate::domain::models::FormMode;
@@ -67,13 +69,13 @@ impl App {
             KeyCode::BackTab | KeyCode::Left => self.cambiar_seccion_bienestar(-1)?,
             KeyCode::Char('n') if seccion != Seccion::Salud => {
                 self.bienestar_edit_id = None;
-                self.form = Some(bienestar_form(seccion, None));
+                self.form = Some(bienestar_form(self.db.conn(), seccion, None));
                 self.push_screen(Screen::BienestarForm(FormMode::Create));
             }
             KeyCode::Char('e') | KeyCode::Enter => {
                 if let Some(registro) = self.bienestar_seleccionado() {
                     self.bienestar_edit_id = Some(registro.id);
-                    self.form = Some(bienestar_form(seccion, Some(&registro)));
+                    self.form = Some(bienestar_form(self.db.conn(), seccion, Some(&registro)));
                     self.push_screen(Screen::BienestarForm(FormMode::Edit));
                 }
             }
@@ -95,6 +97,20 @@ impl App {
                             self.bienestar_table.select(indice);
                         }
                         Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                    }
+                }
+            }
+            KeyCode::Char('v') => {
+                if let (Some(indice), Some(registro)) =
+                    (seccion.columna_archivo(), self.bienestar_seleccionado())
+                {
+                    let ruta = registro.valores[indice].clone();
+                    if bienestar_service::es_imagen(&ruta) {
+                        self.abrir_imagen(&ruta);
+                    } else {
+                        // shortcut: los documentos no se abren con la app del sistema; se muestra la ruta.
+                        self.status =
+                            format!("Archivo: {}", self.paths.data_dir.join(&ruta).display());
                     }
                 }
             }
@@ -167,11 +183,18 @@ impl App {
             return Ok(());
         }
         let seccion = self.bienestar_seccion;
-        let textos = seccion
+        let mut textos = seccion
             .columnas()
             .iter()
             .map(|columna| form.value(columna.clave).unwrap_or("").to_string())
             .collect::<Vec<_>>();
+        if let Err(error) =
+            bienestar_service::adjuntar(seccion, &mut textos, &self.paths.images_dir)
+        {
+            self.form = Some(form);
+            self.modal = Some(Modal::Error(error.to_string()));
+            return Ok(());
+        }
         match bienestar_service::guardar(
             self.db.conn(),
             seccion,
@@ -194,7 +217,7 @@ impl App {
     }
 }
 
-fn bienestar_form(seccion: Seccion, registro: Option<&Registro>) -> Form {
+fn bienestar_form(conn: &Connection, seccion: Seccion, registro: Option<&Registro>) -> Form {
     let campos = seccion
         .columnas()
         .iter()
@@ -251,6 +274,23 @@ fn bienestar_form(seccion: Seccion, registro: Option<&Registro>) -> Form {
                     actual.unwrap_or_default(),
                     max,
                 ),
+                TipoDato::Referencia(referencia) => {
+                    let opciones = bienestar_repo::opciones(conn, referencia).unwrap_or_default();
+                    let valor = actual
+                        .or_else(|| opciones.first().map(|(id, _)| id.clone()))
+                        .unwrap_or_default();
+                    Field::select(columna.clave, columna.etiqueta, valor, opciones)
+                }
+                TipoDato::Archivo => {
+                    let mut field = Field::text(
+                        columna.clave,
+                        columna.etiqueta,
+                        actual.unwrap_or_default(),
+                        400,
+                    );
+                    field.help = Some("Ruta del archivo; se copia a Imagenes/".to_string());
+                    field
+                }
             }
         })
         .collect();

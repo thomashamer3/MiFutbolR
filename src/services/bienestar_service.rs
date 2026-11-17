@@ -1,6 +1,8 @@
 //! Bienestar: CRUD por sección y asistente de preparación (fórmulas de
 //! MiFutbolC, `bienestar.c`).
 
+use std::path::Path;
+
 use chrono::NaiveDate;
 use rusqlite::Connection;
 use rusqlite::types::Value;
@@ -105,7 +107,105 @@ fn convertir(
             }
             Value::Text(texto.to_string())
         }
+        TipoDato::Referencia(_) if texto.is_empty() => {
+            return Err(ServiceError::Message(format!(
+                "{etiqueta}: primero cargá uno en su pestaña"
+            )));
+        }
+        TipoDato::Referencia(_) => Value::Integer(texto.parse().map_err(|_| invalido())?),
+        TipoDato::Archivo if texto.is_empty() => {
+            return Err(ServiceError::Message(format!("{etiqueta}: obligatorio")));
+        }
+        TipoDato::Archivo => Value::Text(texto.to_string()),
     })
+}
+
+/// Extensiones de imagen aceptadas (MiFutbolC, `bienestar.c`).
+const EXT_IMAGEN: &[&str] = &["jpg", "jpeg", "png", "bmp", "webp"];
+/// Documentos aceptados además de imágenes en los estudios médicos.
+const EXT_DOCUMENTO: &[&str] = &["pdf", "docx", "doc", "txt", "xlsx", "csv"];
+
+/// `true` si la ruta tiene extensión de imagen.
+#[must_use]
+pub fn es_imagen(ruta: &str) -> bool {
+    extension(ruta).is_some_and(|ext| EXT_IMAGEN.contains(&ext.as_str()))
+}
+
+fn extension(ruta: &str) -> Option<String> {
+    Path::new(ruta)
+        .extension()
+        .map(|ext| ext.to_string_lossy().to_lowercase())
+}
+
+fn posicion(seccion: Seccion, clave: &str) -> Option<usize> {
+    seccion
+        .columnas()
+        .iter()
+        .position(|columna| columna.clave == clave)
+}
+
+/// Copia el archivo elegido a `imagenes` como MiFutbolC y deja en `textos`
+/// la ruta relativa `Imagenes/<nombre>`; en los estudios completa también el
+/// nombre original y el tipo (imagen/documento). Una ruta que ya apunta a
+/// `Imagenes/` (registro existente o importado) se deja tal cual.
+pub fn adjuntar(
+    seccion: Seccion,
+    textos: &mut [String],
+    imagenes: &Path,
+) -> Result<(), ServiceError> {
+    let Some(indice) = seccion.columna_archivo() else {
+        return Ok(());
+    };
+    let estudio = seccion == Seccion::Estudios;
+    let ruta = textos[indice].trim().to_string();
+    let ya_copiado = ruta.starts_with("Imagenes/") || ruta.starts_with("imagenes/");
+    if !ruta.is_empty() && !ya_copiado {
+        let origen = Path::new(&ruta);
+        if !origen.is_file() {
+            return Err(ServiceError::Message(format!(
+                "No existe el archivo: {ruta}"
+            )));
+        }
+        let ext = extension(&ruta).unwrap_or_default();
+        let permitido = EXT_IMAGEN.contains(&ext.as_str())
+            || (estudio && EXT_DOCUMENTO.contains(&ext.as_str()));
+        if !permitido {
+            return Err(ServiceError::Message(format!(
+                "Formato no soportado: .{ext}"
+            )));
+        }
+        let (prefijo, clave) = if estudio {
+            ("estudio", "control_id")
+        } else {
+            ("bienestar", "menu_key")
+        };
+        let destino = format!(
+            "{prefijo}_{}_{}.{ext}",
+            posicion(seccion, clave).map_or("", |i| textos[i].trim()),
+            chrono::Local::now().format("%Y%m%d_%H%M%S_%3f")
+        );
+        std::fs::create_dir_all(imagenes)
+            .and_then(|()| std::fs::copy(origen, imagenes.join(&destino)))
+            .map_err(|error| ServiceError::Message(format!("No se pudo copiar: {error}")))?;
+        if let Some(i) =
+            posicion(seccion, "nombre_original").filter(|i| textos[*i].trim().is_empty())
+        {
+            textos[i] = origen
+                .file_name()
+                .map(|nombre| nombre.to_string_lossy().into_owned())
+                .unwrap_or_default();
+        }
+        textos[indice] = format!("Imagenes/{destino}");
+    }
+    if let Some(i) = posicion(seccion, "tipo_archivo") {
+        textos[i] = if es_imagen(&textos[indice]) {
+            "imagen"
+        } else {
+            "documento"
+        }
+        .to_string();
+    }
+    Ok(())
 }
 
 /// Elimina un registro (el perfil de salud no se elimina).
@@ -128,7 +228,16 @@ pub fn alternar_omitido(conn: &Connection, id: i64) -> Result<(), ServiceError> 
 /// Calcula el asistente con los datos actuales.
 pub fn asistente(conn: &Connection, hoy: NaiveDate) -> Result<Asistente, ServiceError> {
     let entradas = bienestar_repo::entradas_asistente(conn, &dates::to_iso_date(hoy))?;
-    Ok(calcular(&entradas))
+    let mut asistente = calcular(&entradas);
+    let objetivo = bienestar_repo::objetivo_activo(conn)?
+        .filter(|nombre| !nombre.is_empty())
+        .unwrap_or_else(|| "Sin objetivo activo".to_string());
+    asistente.rutina = format!(
+        "Objetivo: {objetivo}
+{}",
+        asistente.rutina
+    );
+    Ok(asistente)
 }
 
 /// Guarda el resultado del asistente en el historial.
@@ -157,12 +266,9 @@ fn clamp(valor: f64) -> f64 {
     valor.clamp(0.0, 100.0)
 }
 
-/// Fórmulas del asistente de MiFutbolC (`bienestar.c`).
-///
-/// Diferencia documentada: MiFutbolC promedia comidas y "día nutricional"
-/// (hidratación + alcohol) para la nutrición; ese registro no se portó, así que
-/// la nutrición usa solo la calidad de las comidas (el alcohol ya penaliza en
-/// hábitos).
+/// Fórmulas del asistente de MiFutbolC (`bienestar.c`). La nutrición promedia
+/// la calidad de las comidas y la hidratación del día nutricional, y resta el
+/// alcohol de esos días; sin días nutricionales la hidratación cuenta 0, como allá.
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]
 pub fn calcular(e: &EntradasAsistente) -> Asistente {
@@ -176,7 +282,11 @@ pub fn calcular(e: &EntradasAsistente) -> Asistente {
             / 5.0
             - e.alcohol * 15.0,
     );
-    let nutricion = clamp((e.comida - 1.0) / 2.0 * 100.0);
+    let nutricion = clamp(
+        (clamp((e.comida - 1.0) / 2.0 * 100.0) + clamp((e.dia_hidratacion - 1.0) / 2.0 * 100.0))
+            / 2.0
+            - e.dia_alcohol * 15.0,
+    );
     let mut entrenamiento: f64 = if e.entrenamientos <= 0 {
         40.0
     } else if e.intensidad >= 8.0 {
@@ -363,6 +473,7 @@ mod tests {
             confianza_habito: 8.0,
             motivacion_habito: 8.0,
             comida: 3.0,
+            dia_hidratacion: 3.0,
             entrenamientos: 4,
             intensidad: 6.5,
             duracion: 60.0,
@@ -438,5 +549,168 @@ mod tests {
         assert!(a.alerta_intensidad.unwrap().contains("7 días: 4"));
         guardar_recomendacion(db.conn(), hoy(), &asistente(db.conn(), hoy()).unwrap()).unwrap();
         assert_eq!(recomendaciones(db.conn()).unwrap().len(), 1);
+    }
+
+    fn t(v: &[&str]) -> Vec<String> {
+        v.iter().map(|x| (*x).to_string()).collect()
+    }
+
+    #[test]
+    fn nutrition_averages_meals_and_daily_hydration_minus_alcohol() {
+        let base = EntradasAsistente {
+            comida: 3.0,
+            ..EntradasAsistente::default()
+        };
+        // Sin días nutricionales la hidratación cuenta 0 (como MiFutbolC): (100 + 0) / 2.
+        assert_eq!(calcular(&base).parciales[2], 50);
+        // Comidas 100, hidratación media 50 → 75; alcohol la mitad de los días → -7.5.
+        let con_dias = EntradasAsistente {
+            dia_hidratacion: 2.0,
+            dia_alcohol: 0.5,
+            ..base
+        };
+        assert_eq!(calcular(&con_dias).parciales[2], 67);
+    }
+
+    #[test]
+    fn references_daily_upsert_and_active_goal() {
+        let db = Database::open_in_memory().unwrap();
+        let c = db.conn();
+        assert!(
+            guardar(
+                c,
+                Seccion::Planes,
+                None,
+                &t(&["", "3", "Lunes fuerza", ""]),
+                hoy()
+            )
+            .is_err(),
+            "sin objetivo no hay plan"
+        );
+        let objetivo = guardar(
+            c,
+            Seccion::Objetivos,
+            None,
+            &t(&["Correr 10k", "", "31/12/2026", "Activo", ""]),
+            hoy(),
+        )
+        .unwrap();
+        guardar(
+            c,
+            Seccion::Planes,
+            None,
+            &t(&[&objetivo.to_string(), "3", "Lunes fuerza", ""]),
+            hoy(),
+        )
+        .unwrap();
+        let plan = &listar(c, Seccion::Planes).unwrap()[0];
+        assert_eq!(
+            plan.valores[0],
+            objetivo.to_string(),
+            "el formulario edita el id"
+        );
+        assert_eq!(plan.vista[0], "Correr 10k", "el listado muestra el nombre");
+        assert_eq!(
+            bienestar_repo::opciones(c, crate::domain::bienestar::Referencia::Objetivo).unwrap(),
+            vec![(objetivo.to_string(), "Correr 10k".to_string())]
+        );
+        let a = asistente(c, hoy()).unwrap();
+        assert!(
+            a.rutina.starts_with("Objetivo: Correr 10k\n"),
+            "{}",
+            a.rutina
+        );
+        // Borrar el objetivo borra sus planes en cascada.
+        eliminar(c, Seccion::Objetivos, objetivo).unwrap();
+        assert!(listar(c, Seccion::Planes).unwrap().is_empty());
+
+        // Un día nutricional por fecha: repetirla actualiza (ON CONFLICT de MiFutbolC).
+        guardar(
+            c,
+            Seccion::Nutricion,
+            None,
+            &t(&["", "Baja", "No", "", ""]),
+            hoy(),
+        )
+        .unwrap();
+        guardar(
+            c,
+            Seccion::Nutricion,
+            None,
+            &t(&["", "Alta", "Sí", "72,5", "ok"]),
+            hoy(),
+        )
+        .unwrap();
+        let dias = listar(c, Seccion::Nutricion).unwrap();
+        assert_eq!(dias.len(), 1);
+        assert_eq!(dias[0].valores[1..4], t(&["Alta", "Sí", "72.5"]));
+        assert!(
+            guardar(
+                c,
+                Seccion::Nutricion,
+                None,
+                &t(&["", "Mucha", "No", "", ""]),
+                hoy()
+            )
+            .is_err()
+        );
+        let e = bienestar_repo::entradas_asistente(c, "2026-11-17").unwrap();
+        assert!((e.dia_hidratacion - 3.0).abs() < 1e-9 && (e.dia_alcohol - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn attachments_are_copied_to_images_dir() {
+        let db = Database::open_in_memory().unwrap();
+        let c = db.conn();
+        let dir = tempfile::tempdir().unwrap();
+        let imagenes = dir.path().join("Imagenes");
+        let pdf = dir.path().join("analisis sangre.pdf");
+        std::fs::write(&pdf, b"%PDF").unwrap();
+        let control = guardar(
+            c,
+            Seccion::Controles,
+            None,
+            &t(&["", "Clínico", "Dra. Pérez", "OK", ""]),
+            hoy(),
+        )
+        .unwrap();
+
+        let mut textos = t(&[&control.to_string(), "", "", "", pdf.to_str().unwrap()]);
+        adjuntar(Seccion::Estudios, &mut textos, &imagenes).unwrap();
+        assert_eq!(textos[1], "analisis sangre.pdf");
+        assert_eq!(textos[2], "documento");
+        let copia = textos[4].strip_prefix("Imagenes/").unwrap();
+        assert!(copia.starts_with(&format!("estudio_{control}_")) && copia.ends_with(".pdf"));
+        assert_eq!(std::fs::read(imagenes.join(copia)).unwrap(), b"%PDF");
+        guardar(c, Seccion::Estudios, None, &textos, hoy()).unwrap();
+        let estudio = &listar(c, Seccion::Estudios).unwrap()[0];
+        assert_eq!(estudio.vista[0], "2026-11-17 · Clínico");
+        assert_eq!(estudio.valores[3], "17/11/2026");
+
+        // Una ruta ya copiada se conserva; formatos y rutas inexistentes se rechazan.
+        let mut otra = textos.clone();
+        adjuntar(Seccion::Estudios, &mut otra, &imagenes).unwrap();
+        assert_eq!(otra[4], textos[4]);
+        let exe = dir.path().join("x.exe");
+        std::fs::write(&exe, b"MZ").unwrap();
+        let mut mala = t(&[&control.to_string(), "", "", "", exe.to_str().unwrap()]);
+        assert!(adjuntar(Seccion::Estudios, &mut mala, &imagenes).is_err());
+        let mut falta = t(&["1", "", "", "", "C:/no/existe.png"]);
+        assert!(adjuntar(Seccion::Estudios, &mut falta, &imagenes).is_err());
+
+        // Imagen de menú: solo imágenes, una por menú (clave de texto, sin id).
+        let png = dir.path().join("menu.PNG");
+        std::fs::write(&png, b"png").unwrap();
+        let mut menu = t(&["salud", png.to_str().unwrap()]);
+        adjuntar(Seccion::Imagenes, &mut menu, &imagenes).unwrap();
+        assert!(menu[1].starts_with("Imagenes/bienestar_salud_") && menu[1].ends_with(".png"));
+        guardar(c, Seccion::Imagenes, None, &menu, hoy()).unwrap();
+        guardar(c, Seccion::Imagenes, None, &menu, hoy()).unwrap();
+        let menus = listar(c, Seccion::Imagenes).unwrap();
+        assert_eq!(menus.len(), 1);
+        let mut pdf_menu = t(&["salud", pdf.to_str().unwrap()]);
+        assert!(adjuntar(Seccion::Imagenes, &mut pdf_menu, &imagenes).is_err());
+        eliminar(c, Seccion::Imagenes, menus[0].id).unwrap();
+        assert!(listar(c, Seccion::Imagenes).unwrap().is_empty());
     }
 }

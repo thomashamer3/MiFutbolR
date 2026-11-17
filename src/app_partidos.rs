@@ -819,6 +819,16 @@ impl App {
             form.focus = wizard_field_indices(form, 0).first().copied().unwrap_or(0);
         }
         self.push_screen(Screen::PartidoWizard);
+        // Aviso del Entrenador IA (MiFutbolC `activar_ia_antes_partido`); se acepta y se sigue.
+        match crate::services::entrenador_service::alerta_antes_partido(
+            self.db.conn(),
+            crate::domain::dates::today(),
+            chrono::Local::now().timestamp(),
+        ) {
+            Ok(Some(aviso)) => self.modal = Some(Modal::Info(aviso)),
+            Ok(None) => {}
+            Err(error) => self.status = format!("Entrenador IA no disponible: {error}"),
+        }
         Ok(())
     }
 

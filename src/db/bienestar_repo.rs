@@ -2,10 +2,12 @@
 //! [`Seccion::columnas`] (listas cerradas): nunca se interpola texto del usuario.
 
 use rusqlite::types::Value;
-use rusqlite::{Connection, params, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
 use super::error::DbError;
-use crate::domain::bienestar::{EntradasAsistente, Recomendacion, Registro, Seccion, TipoDato};
+use crate::domain::bienestar::{
+    EntradasAsistente, Recomendacion, Referencia, Registro, Seccion, TipoDato,
+};
 use crate::domain::dates;
 
 fn lista_columnas(seccion: Seccion) -> String {
@@ -34,42 +36,103 @@ fn a_texto(tipo: TipoDato, valor: Value) -> String {
 
 /// Registros de una sección, más recientes primero.
 pub fn list(conn: &Connection, seccion: Seccion) -> Result<Vec<Registro>, DbError> {
-    let orden = if seccion == Seccion::Salud {
-        "id"
-    } else {
-        "fecha DESC, id DESC"
-    };
+    let tabla = seccion.tabla();
+    let columnas = seccion.columnas();
+    // Una etiqueta por columna: la de la fila apuntada para las referencias.
+    let etiquetas = columnas
+        .iter()
+        .map(|columna| match columna.tipo {
+            TipoDato::Referencia(referencia) => format!(
+                "(SELECT {} FROM {} WHERE id = {tabla}.{})",
+                referencia.etiqueta_sql(),
+                referencia.tabla(),
+                columna.clave
+            ),
+            _ => "NULL".to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     let sql = format!(
-        "SELECT id, {} FROM {} ORDER BY {orden}",
+        "SELECT {}, {}, {etiquetas} FROM {tabla} ORDER BY {}",
+        seccion.clave(),
         lista_columnas(seccion),
-        seccion.tabla()
+        seccion.orden()
     );
     let mut stmt = conn.prepare(&sql)?;
-    let columnas = seccion.columnas();
     let filas = stmt.query_map([], |row| {
         let mut valores = Vec::with_capacity(columnas.len());
+        let mut vista = Vec::with_capacity(columnas.len());
         for (indice, columna) in columnas.iter().enumerate() {
-            valores.push(a_texto(columna.tipo, row.get(indice + 1)?));
+            let valor = a_texto(columna.tipo, row.get(indice + 1)?);
+            let etiqueta: Option<String> = row.get(indice + 1 + columnas.len())?;
+            vista.push(etiqueta.unwrap_or_else(|| valor.clone()));
+            valores.push(valor);
         }
         Ok(Registro {
             id: row.get(0)?,
             valores,
+            vista,
         })
     })?;
     Ok(filas.collect::<Result<Vec<_>, _>>()?)
 }
 
-/// Inserta un registro (valores en el orden de las columnas).
+/// Opciones `(id, etiqueta)` para elegir un registro referenciado.
+pub fn opciones(
+    conn: &Connection,
+    referencia: Referencia,
+) -> Result<Vec<(String, String)>, DbError> {
+    let sql = format!(
+        "SELECT id, {} FROM {} ORDER BY id DESC",
+        referencia.etiqueta_sql(),
+        referencia.tabla()
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let filas = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?.to_string(),
+            row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+        ))
+    })?;
+    Ok(filas.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// Objetivo activo más reciente (por fecha de fin), como en MiFutbolC.
+pub fn objetivo_activo(conn: &Connection) -> Result<Option<String>, DbError> {
+    Ok(conn
+        .query_row(
+            "SELECT nombre FROM bienestar_objetivo WHERE estado = 'Activo'
+              ORDER BY fecha_fin DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+/// Inserta un registro (valores en el orden de las columnas). En las secciones
+/// con columna única, repetir el valor actualiza la fila existente.
 pub fn insert(conn: &Connection, seccion: Seccion, valores: &[Value]) -> Result<i64, DbError> {
     let marcas = (1..=valores.len())
         .map(|indice| format!("?{indice}"))
         .collect::<Vec<_>>()
         .join(", ");
-    let sql = format!(
+    let mut sql = format!(
         "INSERT INTO {} ({}) VALUES ({marcas})",
         seccion.tabla(),
         lista_columnas(seccion)
     );
+    if let Some(unica) = seccion.unica() {
+        let asignaciones = seccion
+            .columnas()
+            .iter()
+            .filter(|columna| columna.clave != unica)
+            .map(|columna| format!("{0} = excluded.{0}", columna.clave))
+            .collect::<Vec<_>>()
+            .join(", ");
+        sql.push_str(&format!(
+            " ON CONFLICT({unica}) DO UPDATE SET {asignaciones}"
+        ));
+    }
     conn.execute(&sql, params_from_iter(valores))?;
     Ok(conn.last_insert_rowid())
 }
@@ -89,8 +152,9 @@ pub fn update(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
-        "UPDATE {} SET {asignaciones} WHERE id = ?{}",
+        "UPDATE {} SET {asignaciones} WHERE {} = ?{}",
         seccion.tabla(),
+        seccion.clave(),
         valores.len() + 1
     );
     let mut todos = valores.to_vec();
@@ -108,7 +172,11 @@ pub fn update(
 /// Borra un registro.
 pub fn delete(conn: &Connection, seccion: Seccion, id: i64) -> Result<(), DbError> {
     conn.execute(
-        &format!("DELETE FROM {} WHERE id = ?1", seccion.tabla()),
+        &format!(
+            "DELETE FROM {} WHERE {} = ?1",
+            seccion.tabla(),
+            seccion.clave()
+        ),
         params![id],
     )?;
     Ok(())
@@ -168,6 +236,14 @@ pub fn entradas_asistente(conn: &Connection, hoy: &str) -> Result<EntradasAsiste
            FROM (SELECT calidad FROM bienestar_comida ORDER BY fecha DESC, id DESC LIMIT 14)",
         [],
         |row| row.get(0),
+    )?;
+    (e.dia_hidratacion, e.dia_alcohol) = conn.query_row(
+        "SELECT COALESCE(AVG(CASE hidratacion WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 ELSE 1 END), 0.0),
+                COALESCE(AVG(alcohol), 0.0)
+           FROM (SELECT hidratacion, alcohol FROM bienestar_dia_nutricional
+                  ORDER BY fecha DESC LIMIT 14)",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     (e.entrenamientos, e.intensidad, e.duracion) = conn.query_row(
         "SELECT COUNT(*), COALESCE(AVG(intensidad), 0.0), COALESCE(AVG(duracion_min), 0.0)

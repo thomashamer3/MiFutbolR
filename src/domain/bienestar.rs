@@ -1,5 +1,6 @@
-//! Bienestar (paridad con MiFutbolC): hábitos, entrenamientos, comidas,
-//! sesiones mentales, perfil de salud y asistente de preparación.
+//! Bienestar (paridad con MiFutbolC): hábitos, entrenamientos y ejercicios,
+//! comidas y día nutricional, sesiones mentales, salud (perfil, controles y
+//! estudios), objetivos y planes, imágenes de menú y asistente de preparación.
 //!
 //! Las secciones son tablas planas; se describen con columnas para compartir
 //! un único CRUD, formulario y tabla.
@@ -19,6 +20,48 @@ pub enum TipoDato {
     Opcion(&'static [&'static str]),
     /// Texto libre con longitud máxima.
     Texto(usize),
+    /// Id de un registro de otra sección (se elige de una lista).
+    Referencia(Referencia),
+    /// Ruta de un archivo; al guardar se copia a `Imagenes/` como MiFutbolC.
+    Archivo,
+}
+
+/// Tabla a la que apunta una [`TipoDato::Referencia`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Referencia {
+    /// `bienestar_objetivo`.
+    Objetivo,
+    /// `bienestar_entrenamiento`.
+    Entrenamiento,
+    /// `bienestar_ejercicio`.
+    Ejercicio,
+    /// `bienestar_control_medico`.
+    Control,
+}
+
+impl Referencia {
+    /// Tabla referenciada.
+    #[must_use]
+    pub const fn tabla(self) -> &'static str {
+        match self {
+            Self::Objetivo => "bienestar_objetivo",
+            Self::Entrenamiento => "bienestar_entrenamiento",
+            Self::Ejercicio => "bienestar_ejercicio",
+            Self::Control => "bienestar_control_medico",
+        }
+    }
+
+    /// Expresión SQL (sobre la tabla referenciada) con la etiqueta visible.
+    #[must_use]
+    pub const fn etiqueta_sql(self) -> &'static str {
+        match self {
+            Self::Objetivo => "nombre",
+            Self::Entrenamiento | Self::Control => "fecha || ' · ' || tipo",
+            Self::Ejercicio => {
+                "nombre || CASE WHEN grupo_muscular <> '' THEN ' (' || grupo_muscular || ')' ELSE '' END"
+            }
+        }
+    }
 }
 
 /// Columna editable de una sección.
@@ -52,6 +95,12 @@ pub const CALIDADES: &[&str] = &["Mala", "Regular", "Buena"];
 pub const TIPOS_MENTAL: &[&str] = &["Charla", "Visualizacion", "Reflexion"];
 /// Momento de la sesión mental respecto de un partido.
 pub const MOMENTOS: &[&str] = &["N/A", "Antes", "Despues"];
+/// Estados de un objetivo.
+pub const ESTADOS_OBJETIVO: &[&str] = &["Activo", "Logrado", "Abandonado"];
+/// Hidratación del día nutricional.
+pub const HIDRATACIONES: &[&str] = &["Baja", "Media", "Alta"];
+/// Menús con imagen propia (claves de MiFutbolC).
+pub const MENUS_IMAGEN: &[&str] = &["entrenamiento", "alimentacion", "salud"];
 
 /// Sección del módulo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,22 +109,46 @@ pub enum Seccion {
     Habitos,
     /// Entrenamientos.
     Entrenamientos,
+    /// Catálogo de ejercicios.
+    Ejercicios,
+    /// Ejercicios asociados a un entrenamiento (series/repeticiones).
+    Series,
     /// Comidas.
     Comidas,
+    /// Día nutricional (uno por fecha).
+    Nutricion,
     /// Sesiones mentales.
     Mental,
     /// Perfil de salud (una sola fila).
     Salud,
+    /// Controles médicos.
+    Controles,
+    /// Archivos de estudios adjuntos a un control.
+    Estudios,
+    /// Objetivos personales.
+    Objetivos,
+    /// Planes de entrenamiento por objetivo.
+    Planes,
+    /// Imagen de cada menú (entrenamiento, alimentación, salud).
+    Imagenes,
 }
 
 impl Seccion {
     /// Orden de las pestañas.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 13] = [
         Self::Habitos,
         Self::Entrenamientos,
+        Self::Ejercicios,
+        Self::Series,
         Self::Comidas,
+        Self::Nutricion,
         Self::Mental,
         Self::Salud,
+        Self::Controles,
+        Self::Estudios,
+        Self::Objetivos,
+        Self::Planes,
+        Self::Imagenes,
     ];
 
     /// Etiqueta de la pestaña.
@@ -84,9 +157,17 @@ impl Seccion {
         match self {
             Self::Habitos => "Hábitos",
             Self::Entrenamientos => "Entrenamientos",
+            Self::Ejercicios => "Ejercicios",
+            Self::Series => "Series",
             Self::Comidas => "Comidas",
+            Self::Nutricion => "Nutrición",
             Self::Mental => "Mental",
             Self::Salud => "Salud",
+            Self::Controles => "Controles",
+            Self::Estudios => "Estudios",
+            Self::Objetivos => "Objetivos",
+            Self::Planes => "Planes",
+            Self::Imagenes => "Imágenes",
         }
     }
 
@@ -96,9 +177,48 @@ impl Seccion {
         match self {
             Self::Habitos => "bienestar_habito",
             Self::Entrenamientos => "bienestar_entrenamiento",
+            Self::Ejercicios => "bienestar_ejercicio",
+            Self::Series => "bienestar_entrenamiento_ejercicio",
             Self::Comidas => "bienestar_comida",
+            Self::Nutricion => "bienestar_dia_nutricional",
             Self::Mental => "bienestar_sesion_mental",
             Self::Salud => "bienestar_salud",
+            Self::Controles => "bienestar_control_medico",
+            Self::Estudios => "bienestar_estudio_archivo",
+            Self::Objetivos => "bienestar_objetivo",
+            Self::Planes => "bienestar_plan_entrenamiento",
+            Self::Imagenes => "bienestar_menu_imagen",
+        }
+    }
+
+    /// Columna que identifica la fila (`bienestar_menu_imagen` no tiene `id`).
+    #[must_use]
+    pub const fn clave(self) -> &'static str {
+        match self {
+            Self::Imagenes => "rowid",
+            _ => "id",
+        }
+    }
+
+    /// Orden del listado.
+    #[must_use]
+    pub const fn orden(self) -> &'static str {
+        match self {
+            Self::Salud => "id",
+            Self::Ejercicios | Self::Series | Self::Objetivos | Self::Planes => "id DESC",
+            Self::Estudios => "fecha_subida DESC, id DESC",
+            Self::Imagenes => "menu_key",
+            _ => "fecha DESC, id DESC",
+        }
+    }
+
+    /// Columna única: guardar un valor repetido actualiza esa fila (upsert de MiFutbolC).
+    #[must_use]
+    pub const fn unica(self) -> Option<&'static str> {
+        match self {
+            Self::Nutricion => Some("fecha"),
+            Self::Imagenes => Some("menu_key"),
+            _ => None,
         }
     }
 
@@ -169,6 +289,111 @@ impl Seccion {
                 ];
                 C
             }
+            Self::Ejercicios => {
+                const C: &[Columna] = &[
+                    col("nombre", "Ejercicio", TipoDato::Texto(120)),
+                    col("grupo_muscular", "Grupo muscular", TipoDato::Texto(120)),
+                ];
+                C
+            }
+            Self::Series => {
+                const C: &[Columna] = &[
+                    col(
+                        "entrenamiento_id",
+                        "Entrenamiento",
+                        TipoDato::Referencia(Referencia::Entrenamiento),
+                    ),
+                    col(
+                        "ejercicio_id",
+                        "Ejercicio",
+                        TipoDato::Referencia(Referencia::Ejercicio),
+                    ),
+                    col("series", "Series (0-100)", TipoDato::Entero(0, 100)),
+                    col(
+                        "repeticiones",
+                        "Repeticiones (0-500)",
+                        TipoDato::Entero(0, 500),
+                    ),
+                    col("tiempo_min", "Tiempo (min)", TipoDato::Entero(0, 600)),
+                ];
+                C
+            }
+            Self::Nutricion => {
+                const C: &[Columna] = &[
+                    col("fecha", "Fecha", TipoDato::Fecha),
+                    col(
+                        "hidratacion",
+                        "Hidratación",
+                        TipoDato::Opcion(HIDRATACIONES),
+                    ),
+                    col("alcohol", "Alcohol", TipoDato::Booleano),
+                    col(
+                        "peso_corporal",
+                        "Peso corporal (kg)",
+                        TipoDato::Decimal(0.0, 500.0),
+                    ),
+                    col("notas", "Notas", TipoDato::Texto(240)),
+                ];
+                C
+            }
+            Self::Controles => {
+                const C: &[Columna] = &[
+                    col("fecha", "Fecha", TipoDato::Fecha),
+                    col("tipo", "Tipo", TipoDato::Texto(60)),
+                    col("profesional", "Profesional", TipoDato::Texto(60)),
+                    col("resultado", "Resultado", TipoDato::Texto(120)),
+                    col("notas", "Notas", TipoDato::Texto(240)),
+                ];
+                C
+            }
+            Self::Estudios => {
+                const C: &[Columna] = &[
+                    col(
+                        "control_id",
+                        "Control médico",
+                        TipoDato::Referencia(Referencia::Control),
+                    ),
+                    col("nombre_original", "Nombre", TipoDato::Texto(255)),
+                    col("tipo_archivo", "Tipo", TipoDato::Texto(20)),
+                    col("fecha_subida", "Fecha", TipoDato::Fecha),
+                    col("ruta_archivo", "Archivo", TipoDato::Archivo),
+                ];
+                C
+            }
+            Self::Objetivos => {
+                const C: &[Columna] = &[
+                    col("nombre", "Objetivo", TipoDato::Texto(120)),
+                    col("fecha_inicio", "Inicio", TipoDato::Fecha),
+                    col("fecha_fin", "Fin", TipoDato::Fecha),
+                    col("estado", "Estado", TipoDato::Opcion(ESTADOS_OBJETIVO)),
+                    col("notas", "Notas", TipoDato::Texto(240)),
+                ];
+                C
+            }
+            Self::Planes => {
+                const C: &[Columna] = &[
+                    col(
+                        "objetivo_id",
+                        "Objetivo",
+                        TipoDato::Referencia(Referencia::Objetivo),
+                    ),
+                    col(
+                        "frecuencia_semanal",
+                        "Frecuencia semanal (1-14)",
+                        TipoDato::Entero(1, 14),
+                    ),
+                    col("rutina_semanal", "Rutina semanal", TipoDato::Texto(250)),
+                    col("notas", "Notas", TipoDato::Texto(250)),
+                ];
+                C
+            }
+            Self::Imagenes => {
+                const C: &[Columna] = &[
+                    col("menu_key", "Menú", TipoDato::Opcion(MENUS_IMAGEN)),
+                    col("imagen_ruta", "Imagen", TipoDato::Archivo),
+                ];
+                C
+            }
         }
     }
 
@@ -176,11 +401,19 @@ impl Seccion {
     #[must_use]
     pub const fn columnas_listado(self) -> usize {
         match self {
-            Self::Habitos => 8,
-            Self::Entrenamientos | Self::Salud => 5,
-            Self::Comidas => 4,
-            Self::Mental => 8,
+            Self::Habitos | Self::Mental => 8,
+            Self::Imagenes | Self::Ejercicios => 2,
+            Self::Comidas | Self::Planes => 4,
+            _ => 5,
         }
+    }
+
+    /// Índice de la columna de archivo, si la sección adjunta archivos.
+    #[must_use]
+    pub fn columna_archivo(self) -> Option<usize> {
+        self.columnas()
+            .iter()
+            .position(|columna| columna.tipo == TipoDato::Archivo)
     }
 }
 
@@ -190,8 +423,12 @@ impl Seccion {
 pub struct Registro {
     /// Id.
     pub id: i64,
-    /// Valores como texto (fechas `DD/MM/AAAA`, booleanos `Sí`/`No`).
+    /// Valores como texto (fechas `DD/MM/AAAA`, booleanos `Sí`/`No`,
+    /// referencias como id) para editar.
     pub valores: Vec<String>,
+    /// Lo que muestra el listado: igual a `valores`, salvo las referencias,
+    /// que muestran la etiqueta del registro apuntado.
+    pub vista: Vec<String>,
 }
 
 /// Entradas del asistente (promedios de los registros recientes).
@@ -215,6 +452,10 @@ pub struct EntradasAsistente {
     pub motivacion_habito: f64,
     /// Calidad de comida promedio de las últimas 14 (Buena=3, Regular=2, Mala=1; 0 sin datos).
     pub comida: f64,
+    /// Hidratación promedio de los últimos 14 días nutricionales (Alta=3, Media=2, Baja=1; 0 sin datos).
+    pub dia_hidratacion: f64,
+    /// Fracción de días nutricionales con alcohol (0-1).
+    pub dia_alcohol: f64,
     /// Entrenamientos no omitidos entre los últimos 14.
     pub entrenamientos: i64,
     /// Intensidad promedio de esos entrenamientos.

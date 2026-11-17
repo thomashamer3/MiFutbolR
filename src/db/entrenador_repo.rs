@@ -63,6 +63,27 @@ pub fn set_nivel(conn: &Connection, nivel: i64) -> Result<(), DbError> {
     Ok(())
 }
 
+/// (ultima_alerta unix, ultimo_riesgo) del último aviso previo a un partido.
+pub fn ultima_alerta(conn: &Connection) -> Result<(i64, f64), DbError> {
+    Ok(conn.query_row(
+        "SELECT COALESCE((SELECT ultima_alerta FROM ia_config WHERE id = 1), 0),
+                COALESCE((SELECT ultimo_riesgo FROM ia_config WHERE id = 1), 0.0)",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?)
+}
+
+/// Guarda el momento y el riesgo del aviso mostrado.
+pub fn registrar_alerta(conn: &Connection, cuando: i64, riesgo: f64) -> Result<(), DbError> {
+    conn.execute(
+        "INSERT INTO ia_config (id, ultima_alerta, ultimo_riesgo) VALUES (1, ?1, ?2)
+         ON CONFLICT(id) DO UPDATE SET ultima_alerta = excluded.ultima_alerta,
+                                       ultimo_riesgo = excluded.ultimo_riesgo",
+        params![cuando, riesgo],
+    )?;
+    Ok(())
+}
+
 /// Registra si se siguió un consejo.
 pub fn registrar_consejo(conn: &Connection, consejo: &str, seguido: bool) -> Result<(), DbError> {
     conn.execute(

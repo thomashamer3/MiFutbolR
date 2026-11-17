@@ -78,6 +78,14 @@ const TABLAS: &[&str] = &[
     "bienestar_sesion_mental",
     "bienestar_salud",
     "bienestar_recomendacion",
+    "bienestar_ejercicio",
+    "bienestar_entrenamiento_ejercicio",
+    "bienestar_dia_nutricional",
+    "bienestar_objetivo",
+    "bienestar_plan_entrenamiento",
+    "bienestar_control_medico",
+    "bienestar_estudio_archivo",
+    "bienestar_menu_imagen",
     "coleccion",
     "inventario_item",
     "coleccion_inventario",
@@ -599,6 +607,72 @@ mod tests {
             consulta("SELECT nivel_intervencion FROM ia_config WHERE id = 1"),
             3
         );
+    }
+
+    #[test]
+    fn imports_remaining_wellness_tables() {
+        let dir = tempfile::tempdir().unwrap();
+        let ruta = dir.path().join("legacy.db");
+        crear_legacy(&ruta);
+        // SQL exacto de db.c (MiFutbolC).
+        Connection::open(&ruta)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS bienestar_objetivo ( id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, fecha_inicio TEXT NOT NULL, fecha_fin TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'Activo', notas TEXT DEFAULT '');
+                 CREATE TABLE IF NOT EXISTS bienestar_plan_entrenamiento ( id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo_id INTEGER NOT NULL, frecuencia_semanal INTEGER NOT NULL, rutina_semanal TEXT NOT NULL, notas TEXT DEFAULT '', FOREIGN KEY(objetivo_id) REFERENCES bienestar_objetivo(id));
+                 CREATE TABLE IF NOT EXISTS bienestar_entrenamiento ( id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, duracion_min INTEGER NOT NULL, intensidad INTEGER NOT NULL, omitido INTEGER DEFAULT 0, notas TEXT DEFAULT '');
+                 CREATE TABLE IF NOT EXISTS bienestar_ejercicio ( id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, grupo_muscular TEXT NOT NULL);
+                 CREATE TABLE IF NOT EXISTS bienestar_entrenamiento_ejercicio ( id INTEGER PRIMARY KEY AUTOINCREMENT, entrenamiento_id INTEGER NOT NULL, ejercicio_id INTEGER NOT NULL, series INTEGER DEFAULT 0, repeticiones INTEGER DEFAULT 0, tiempo_min INTEGER DEFAULT 0, FOREIGN KEY(entrenamiento_id) REFERENCES bienestar_entrenamiento(id), FOREIGN KEY(ejercicio_id) REFERENCES bienestar_ejercicio(id));
+                 CREATE TABLE IF NOT EXISTS bienestar_dia_nutricional ( id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL UNIQUE, hidratacion TEXT NOT NULL, alcohol INTEGER DEFAULT 0, peso_corporal REAL DEFAULT NULL, notas TEXT DEFAULT '');
+                 CREATE TABLE IF NOT EXISTS bienestar_control_medico ( id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, profesional TEXT DEFAULT '', resultado TEXT DEFAULT '', notas TEXT DEFAULT '');
+                 CREATE TABLE IF NOT EXISTS bienestar_estudio_archivo ( id INTEGER PRIMARY KEY AUTOINCREMENT, control_id INTEGER NOT NULL, nombre_original TEXT NOT NULL, ruta_archivo TEXT NOT NULL, tipo_archivo TEXT DEFAULT '', fecha_subida TEXT NOT NULL, FOREIGN KEY(control_id) REFERENCES bienestar_control_medico(id));
+                 CREATE TABLE IF NOT EXISTS bienestar_menu_imagen ( menu_key TEXT PRIMARY KEY, imagen_ruta TEXT DEFAULT '');
+                 INSERT INTO bienestar_objetivo VALUES (3, 'Correr 10k', '2026-01-01', '2026-06-01', 'Activo', '');
+                 INSERT INTO bienestar_plan_entrenamiento VALUES (1, 3, 4, 'Lunes fuerza', '');
+                 INSERT INTO bienestar_entrenamiento VALUES (7, '2026-03-02', 'Fuerza', 60, 7, 0, '');
+                 INSERT INTO bienestar_ejercicio VALUES (2, 'Sentadilla', 'Piernas');
+                 INSERT INTO bienestar_entrenamiento_ejercicio VALUES (1, 7, 2, 4, 12, 0);
+                 INSERT INTO bienestar_dia_nutricional VALUES (1, '2026-03-02', 'Alta', 0, 74.5, '');
+                 INSERT INTO bienestar_control_medico VALUES (5, '2026-02-10', 'Clínico', 'Dra. Pérez', 'OK', '');
+                 INSERT INTO bienestar_estudio_archivo VALUES (1, 5, 'sangre.pdf', 'Imagenes/estudio_5_20260210.pdf', 'documento', '2026-02-10');
+                 INSERT INTO bienestar_menu_imagen VALUES ('salud', 'imagenes/bienestar_salud_20260210.png');",
+            )
+            .unwrap();
+
+        let mut db = Database::open_in_memory().unwrap();
+        let resumen = importar(db.conn_mut(), &ruta).unwrap();
+        assert!(
+            resumen.advertencias.is_empty(),
+            "{:?}",
+            resumen.advertencias
+        );
+        for tabla in [
+            "bienestar_objetivo",
+            "bienestar_plan_entrenamiento",
+            "bienestar_entrenamiento",
+            "bienestar_ejercicio",
+            "bienestar_entrenamiento_ejercicio",
+            "bienestar_dia_nutricional",
+            "bienestar_control_medico",
+            "bienestar_estudio_archivo",
+            "bienestar_menu_imagen",
+        ] {
+            assert!(
+                resumen.tablas.contains(&(tabla.to_string(), 1)),
+                "{tabla}: {:?}",
+                resumen.tablas
+            );
+        }
+        let plan: String = db
+            .conn()
+            .query_row(
+                "SELECT o.nombre FROM bienestar_plan_entrenamiento p
+                   JOIN bienestar_objetivo o ON o.id = p.objetivo_id",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(plan, "Correr 10k");
     }
 
     #[test]

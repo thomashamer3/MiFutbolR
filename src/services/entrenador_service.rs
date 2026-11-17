@@ -2,8 +2,7 @@
 //!
 //! Correcciones respecto de MiFutbolC: la derrota es `resultado = 3` (allá se
 //! contaba el 0, "sin cargar") y las fechas se comparan con `fecha_hora` ISO.
-//! No se portó la alerta interactiva previa a crear un partido: el nivel de
-//! intervención se refleja como aviso en la pantalla del entrenador.
+//! El aviso previo a crear un partido es [`alerta_antes_partido`].
 
 use chrono::NaiveDate;
 use rusqlite::Connection;
@@ -251,6 +250,49 @@ pub fn analizar(conn: &Connection, hoy: NaiveDate) -> Result<Analisis, ServiceEr
     })
 }
 
+/// Horas mínimas entre avisos previos a un partido (`IA_HORAS_ENFRIAMIENTO`).
+const ENFRIAMIENTO_SEG: i64 = 24 * 60 * 60;
+/// Margen sobre el umbral a partir del cual el riesgo es crítico y se avisa siempre.
+const MARGEN_CRITICO: f64 = 1.0;
+
+/// Aviso del Entrenador IA al empezar a cargar un partido
+/// (`activar_ia_antes_partido` de MiFutbolC): riesgo sobre el umbral del nivel
+/// de intervención o fatiga extrema. Como máximo uno cada 24 h salvo riesgo
+/// crítico; cuando avisa, guarda `ultima_alerta` y `ultimo_riesgo`.
+pub fn alerta_antes_partido(
+    conn: &Connection,
+    hoy: NaiveDate,
+    ahora: i64,
+) -> Result<Option<String>, ServiceError> {
+    let analisis = analizar(conn, hoy)?;
+    let Some(umbral) = umbral(analisis.nivel).filter(|_| analisis.alerta_previa) else {
+        return Ok(None);
+    };
+    let riesgo = analisis.estado.riesgo;
+    let (ultima, previo) = entrenador_repo::ultima_alerta(conn)?;
+    let critico = riesgo >= umbral + MARGEN_CRITICO;
+    if !critico && ultima > 0 && ahora - ultima < ENFRIAMIENTO_SEG {
+        return Ok(None);
+    }
+    crate::util::logging::info(&format!(
+        "Aviso IA antes de partido: riesgo {riesgo:.2} (umbral {umbral:.2}, nivel {}, aviso previo {previo:.2})",
+        analisis.nivel
+    ));
+    entrenador_repo::registrar_alerta(conn, ahora, riesgo)?;
+    let mut texto = format!(
+        "Entrenador IA: alto riesgo detectado (riesgo {riesgo:.2}, umbral {umbral:.2}).
+         Consejos antes de continuar:"
+    );
+    for consejo in &analisis.consejos {
+        texto.push_str(&format!(
+            "
+• {}",
+            consejo.texto
+        ));
+    }
+    Ok(Some(texto))
+}
+
 /// Registra si se siguieron los consejos mostrados.
 pub fn registrar(
     conn: &Connection,
@@ -437,5 +479,63 @@ mod tests {
         assert_eq!(ciclar_nivel(conn).unwrap(), 3);
         assert_eq!(ciclar_nivel(conn).unwrap(), 0);
         assert!(!analizar(conn, hoy()).unwrap().alerta_previa);
+    }
+
+    #[test]
+    fn pre_match_alert_respects_level_cooldown_and_critical_risk() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+        conn.execute_batch(
+            "INSERT INTO cancha (nombre) VALUES ('Sur');
+             INSERT INTO camiseta (nombre) VALUES ('Azul');",
+        )
+        .unwrap();
+        let cargar = |fechas: &[&str]| {
+            for fecha in fechas {
+                conn.execute(
+                    "INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, rendimiento_general,
+                                          cansancio, estado_animo, resultado)
+                     VALUES (1, 1, ?1, 5, 8, 5, 3)",
+                    [fecha],
+                )
+                .unwrap();
+            }
+        };
+        let ahora = 1_800_000_000;
+        assert_eq!(alerta_antes_partido(conn, hoy(), ahora).unwrap(), None);
+
+        // 2 derrotas (hoy y ayer), cansancio 8: 0.8 + 2/3 + 1 = 2.47 → bajo el umbral moderado (3).
+        cargar(&["2026-11-16 20:00:00", "2026-11-17 10:00:00"]);
+        assert_eq!(alerta_antes_partido(conn, hoy(), ahora).unwrap(), None);
+        // Nivel agresivo (umbral 2): avisa y guarda el aviso.
+        entrenador_repo::set_nivel(conn, 3).unwrap();
+        let aviso = alerta_antes_partido(conn, hoy(), ahora).unwrap().unwrap();
+        assert!(aviso.contains("umbral 2.00"), "{aviso}");
+        let (ultima, riesgo) = entrenador_repo::ultima_alerta(conn).unwrap();
+        assert_eq!(ultima, ahora);
+        assert!((riesgo - (0.8 + 2.0 / 3.0 + 1.0)).abs() < 1e-9);
+        // Dentro de las 24 h no se repite; después sí.
+        assert_eq!(
+            alerta_antes_partido(conn, hoy(), ahora + 3600).unwrap(),
+            None
+        );
+        assert!(
+            alerta_antes_partido(conn, hoy(), ahora + 25 * 3600)
+                .unwrap()
+                .is_some()
+        );
+        // Riesgo crítico (0.8 + 4/3 + 2 ≥ umbral + 1): avisa aunque haya un aviso reciente.
+        cargar(&["2026-11-15 20:00:00", "2026-11-14 20:00:00"]);
+        assert!(
+            alerta_antes_partido(conn, hoy(), ahora + 25 * 3600 + 60)
+                .unwrap()
+                .is_some()
+        );
+        // Silencioso: nunca avisa.
+        entrenador_repo::set_nivel(conn, 0).unwrap();
+        assert_eq!(
+            alerta_antes_partido(conn, hoy(), ahora + 90 * 3600).unwrap(),
+            None
+        );
     }
 }

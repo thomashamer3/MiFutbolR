@@ -58,6 +58,33 @@ const FINANZAS: &str =
         categoria AS Categoría, descripcion AS Descripción, monto_centavos / 100.0 AS Monto
    FROM financiamiento ORDER BY fecha DESC";
 
+// Bienestar como `export_bienestar.c`: objetivos, planes, comidas, hábitos y salud.
+const BIENESTAR: &str = "SELECT 'objetivo' AS Tipo, o.nombre AS Nombre, COALESCE(o.notas, '') AS Descripción,
+        o.fecha_inicio AS Fecha, o.estado AS Valor FROM bienestar_objetivo o
+ UNION ALL SELECT 'plan', p.rutina_semanal, COALESCE(p.notas, ''), '', CAST(p.frecuencia_semanal AS TEXT)
+   FROM bienestar_plan_entrenamiento p
+ UNION ALL SELECT 'comida', c.descripcion, c.calidad, c.fecha, c.tipo FROM bienestar_comida c
+ UNION ALL SELECT 'habito', COALESCE(h.notas, ''), COALESCE(h.estado_animico, ''), h.fecha,
+        CAST(h.dormi_bien AS TEXT) FROM bienestar_habito h
+ UNION ALL SELECT 'salud', COALESCE(s.tipo_sangre, ''), COALESCE(s.notas, ''),
+        COALESCE(s.ultima_revision, ''), CAST(COALESCE(s.peso_kg, 0) AS TEXT) FROM bienestar_salud s
+ ORDER BY 1, 4";
+// Colecciones e inventario como `export_colecciones.c` (con etiquetas en vez de códigos).
+const COLECCIONES: &str = "SELECT id AS Id, nombre AS Nombre, descripcion AS Descripción,
+        COALESCE(fecha_creacion, '') AS Creada FROM coleccion ORDER BY id";
+const INVENTARIO: &str =
+    "SELECT i.id AS Id, COALESCE(NULLIF(i.nombre, ''), cam.nombre, '') AS Nombre,
+        CASE i.tipo WHEN 1 THEN 'Camiseta' WHEN 2 THEN 'Botines' ELSE 'Accesorio' END AS Tipo,
+        CASE i.estado WHEN 1 THEN 'Usado' ELSE 'Nuevo' END AS Estado, i.valor AS Valor,
+        COALESCE(i.fecha_compra, '') AS Compra,
+        (SELECT group_concat(c.nombre, ', ') FROM coleccion_inventario ci
+           JOIN coleccion c ON c.id = ci.coleccion_id WHERE ci.inventario_id = i.id) AS Colecciones
+   FROM inventario_item i LEFT JOIN camiseta cam ON cam.id = i.camiseta_id ORDER BY i.id";
+const CONSEJOS_IA: &str =
+    "SELECT datetime(fecha, 'unixepoch', 'localtime') AS Fecha, consejo AS Consejo,
+        CASE seguido WHEN 1 THEN 'Sí' ELSE 'No' END AS Seguido
+   FROM consejos_historial ORDER BY fecha DESC, id DESC";
+
 fn sello() -> String {
     chrono::Local::now().format("%Y%m%d-%H%M%S").to_string()
 }
@@ -78,6 +105,10 @@ pub fn ods_bytes(conn: &Connection) -> Result<Vec<u8>, ExportError> {
         ("Camisetas", CAMISETAS),
         ("Lesiones", LESIONES),
         ("Finanzas", FINANZAS),
+        ("Bienestar", BIENESTAR),
+        ("Colecciones", COLECCIONES),
+        ("Inventario", INVENTARIO),
+        ("Entrenador IA", CONSEJOS_IA),
     ] {
         let (cabeceras, filas) = tabla(conn, sql)?;
         hojas.push(Hoja {
@@ -95,7 +126,7 @@ pub fn exportar_ods(conn: &Connection, dir: &Path) -> Result<PathBuf, ExportErro
 }
 
 /// Líneas "Col: valor · Col: valor" de las primeras `limite` filas.
-fn lineas(conn: &Connection, sql: &str, limite: usize) -> Result<Vec<String>, ExportError> {
+fn lineas_sql(conn: &Connection, sql: &str, limite: usize) -> Result<Vec<String>, ExportError> {
     let (cabeceras, filas) = tabla(conn, sql)?;
     if filas.is_empty() {
         return Ok(vec!["Sin registros.".into()]);
@@ -115,6 +146,119 @@ fn lineas(conn: &Connection, sql: &str, limite: usize) -> Result<Vec<String>, Ex
         .collect())
 }
 
+/// Resumen mensual de Bienestar (`mes` = `YYYY-MM`), como el informe personal
+/// de `export_pdf.c`. Allá la tendencia comparaba `partido.fecha`, columna que
+/// no existe; acá se usa `date(fecha_hora)`.
+#[allow(clippy::cast_precision_loss)]
+fn bienestar_mes(conn: &Connection, mes: &str) -> Result<Vec<String>, ExportError> {
+    let (sesiones, minutos, intensidad, omitidos): (i64, i64, f64, i64) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(duracion_min), 0), COALESCE(AVG(intensidad), 0.0),
+                    COALESCE(SUM(omitido), 0)
+               FROM bienestar_entrenamiento WHERE substr(fecha, 1, 7) = ?1",
+            [mes],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .map_err(db)?;
+    let (comidas, buenas, regulares, malas): (i64, i64, i64, i64) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(calidad = 'Buena'), 0),
+                    COALESCE(SUM(calidad = 'Regular'), 0), COALESCE(SUM(calidad = 'Mala'), 0)
+               FROM bienestar_comida WHERE substr(fecha, 1, 7) = ?1",
+            [mes],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .map_err(db)?;
+    let (baja, media, alta): (i64, i64, i64) = conn
+        .query_row(
+            "SELECT COALESCE(SUM(hidratacion = 'Baja'), 0), COALESCE(SUM(hidratacion = 'Media'), 0),
+                    COALESCE(SUM(hidratacion = 'Alta'), 0)
+               FROM bienestar_dia_nutricional WHERE substr(fecha, 1, 7) = ?1",
+            [mes],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(db)?;
+    let mental: (i64, f64, f64, f64, f64, f64) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(AVG(confianza), 0.0), COALESCE(AVG(estres), 0.0),
+                    COALESCE(AVG(motivacion), 0.0), COALESCE(AVG(presion), 0.0),
+                    COALESCE(AVG(concentracion), 0.0)
+               FROM bienestar_sesion_mental WHERE substr(fecha, 1, 7) = ?1",
+            [mes],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .map_err(db)?;
+    let tendencia = |condicion: &str| -> Result<f64, ExportError> {
+        conn.query_row(
+            &format!(
+                "SELECT COALESCE(AVG(rendimiento_general), 0.0) FROM partido
+                  WHERE substr(fecha_hora, 1, 7) = ?1 AND date(fecha_hora) IN
+                        (SELECT fecha FROM bienestar_sesion_mental
+                          WHERE {condicion} AND substr(fecha, 1, 7) = ?1)"
+            ),
+            [mes],
+            |row| row.get(0),
+        )
+        .map_err(db)
+    };
+    let (alta_conf, baja_conf) = (tendencia("confianza >= 8")?, tendencia("confianza <= 4")?);
+    let pct_buenas = if comidas > 0 {
+        buenas as f64 / comidas as f64 * 100.0
+    } else {
+        0.0
+    };
+    let mut lineas = vec![
+        format!(
+            "Entrenamiento: {sesiones} sesiones | minutos: {minutos} | intensidad promedio: {intensidad:.2}"
+        ),
+        format!("Entrenamientos omitidos: {omitidos}"),
+        format!("Comidas: {comidas} | Buenas: {buenas} | Regulares: {regulares} | Malas: {malas}"),
+        format!("% de comidas buenas: {pct_buenas:.1}%"),
+        format!("Hidratación: baja {baja} | media {media} | alta {alta}"),
+        format!(
+            "Mental: {} sesiones | confianza {:.2} | estrés {:.2}",
+            mental.0, mental.1, mental.2
+        ),
+        format!(
+            "Motivación {:.2} | presión {:.2} | concentración {:.2}",
+            mental.3, mental.4, mental.5
+        ),
+        format!("Rendimiento con confianza alta: {alta_conf:.2} | baja: {baja_conf:.2}"),
+    ];
+    if alta_conf > baja_conf {
+        lineas.push("Tendencia: jugás mejor cuando la confianza está alta.".to_string());
+    }
+    Ok(lineas)
+}
+
+/// Totales del Entrenador IA y últimos consejos.
+fn entrenador_ia(conn: &Connection) -> Result<Vec<String>, ExportError> {
+    let (nivel, riesgo, seguidos, total): (i64, f64, i64, i64) = conn
+        .query_row(
+            "SELECT COALESCE((SELECT nivel_intervencion FROM ia_config WHERE id = 1), 2),
+                    COALESCE((SELECT ultimo_riesgo FROM ia_config WHERE id = 1), 0.0),
+                    (SELECT COALESCE(SUM(seguido = 1), 0) FROM consejos_historial),
+                    (SELECT COUNT(*) FROM consejos_historial)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .map_err(db)?;
+    let mut lineas = vec![format!(
+        "Nivel de intervención: {nivel} | último riesgo avisado: {riesgo:.2} | consejos: {total} (seguidos {seguidos})"
+    )];
+    lineas.extend(lineas_sql(conn, CONSEJOS_IA, 10)?);
+    Ok(lineas)
+}
+
 /// Bytes del informe PDF.
 pub fn pdf_bytes(conn: &Connection, usuario: Option<&str>) -> Result<Vec<u8>, ExportError> {
     let mut encabezado = vec!["Informe MiFutbolR".to_string()];
@@ -126,6 +270,7 @@ pub fn pdf_bytes(conn: &Connection, usuario: Option<&str>) -> Result<Vec<u8>, Ex
         chrono::Local::now().format("%d/%m/%Y %H:%M")
     ));
 
+    let mes = chrono::Local::now().format("%Y-%m").to_string();
     let resumen = match resumen_service::generar(conn) {
         Ok(datos) => datos.to_text().lines().map(str::to_string).collect(),
         Err(_) => vec!["Todavía no hay partidos registrados.".to_string()],
@@ -137,15 +282,33 @@ pub fn pdf_bytes(conn: &Connection, usuario: Option<&str>) -> Result<Vec<u8>, Ex
         },
         Seccion {
             titulo: "Partidos recientes".into(),
-            lineas: lineas(conn, PARTIDOS, 20)?,
+            lineas: lineas_sql(conn, PARTIDOS, 20)?,
         },
         Seccion {
             titulo: "Lesiones".into(),
-            lineas: lineas(conn, LESIONES, 50)?,
+            lineas: lineas_sql(conn, LESIONES, 50)?,
         },
         Seccion {
             titulo: "Finanzas".into(),
-            lineas: lineas(conn, FINANZAS, 50)?,
+            lineas: lineas_sql(conn, FINANZAS, 50)?,
+        },
+        Seccion {
+            titulo: format!("Bienestar del mes ({mes})"),
+            lineas: bienestar_mes(conn, &mes)?,
+        },
+        Seccion {
+            titulo: "Colecciones".into(),
+            lineas: lineas_sql(
+                conn,
+                "SELECT c.nombre AS Colección, COUNT(ci.inventario_id) AS Ítems
+                   FROM coleccion c LEFT JOIN coleccion_inventario ci ON ci.coleccion_id = c.id
+                  GROUP BY c.id ORDER BY c.nombre",
+                50,
+            )?,
+        },
+        Seccion {
+            titulo: "Entrenador IA".into(),
+            lineas: entrenador_ia(conn)?,
         },
     ];
     Ok(informe("MiFutbolR", &encabezado, &secciones))
@@ -176,7 +339,11 @@ mod tests {
                 "INSERT INTO cancha (id, nombre) VALUES (1, 'La Bombonera');
                  INSERT INTO camiseta (id, nombre) VALUES (1, 'Azul');
                  INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, rival_nombre, goles, resultado)
-                    VALUES (1, 1, '2025-03-10 20:00:00', 'Los Ñandúes', 2, 1);",
+                    VALUES (1, 1, '2025-03-10 20:00:00', 'Los Ñandúes', 2, 1);
+                 INSERT INTO bienestar_objetivo (nombre, fecha_inicio, fecha_fin)
+                    VALUES ('Correr 10k', '2025-03-01', '2025-06-01');
+                 INSERT INTO inventario_item (tipo, nombre) VALUES (3, 'Canilleras');
+                 INSERT INTO consejos_historial (fecha, consejo, seguido) VALUES (1741600000, 'Descansar', 1);",
             )
             .unwrap();
         db
@@ -187,11 +354,69 @@ mod tests {
         let db = base();
         let bytes = ods_bytes(db.conn()).unwrap();
         let texto = String::from_utf8_lossy(&bytes);
-        for hoja in ["Partidos", "Canchas", "Camisetas", "Lesiones", "Finanzas"] {
+        for hoja in [
+            "Partidos",
+            "Canchas",
+            "Camisetas",
+            "Lesiones",
+            "Finanzas",
+            "Bienestar",
+            "Colecciones",
+            "Inventario",
+            "Entrenador IA",
+        ] {
             assert!(texto.contains(&format!("table:name=\"{hoja}\"")), "{hoja}");
         }
         assert!(texto.contains("Los Ñandúes"));
         assert!(texto.contains("<text:p>Victoria</text:p>"));
+        // Bienestar como export_bienestar.c, colecciones sembradas e inventario con etiquetas.
+        assert!(texto.contains("<text:p>Correr 10k</text:p>"));
+        assert!(texto.contains("<text:p>objetivo</text:p>"));
+        assert!(texto.contains("<text:p>Equipamiento actual</text:p>"));
+        assert!(texto.contains("<text:p>Accesorio</text:p>"));
+        assert!(texto.contains("<text:p>Descansar</text:p>"));
+    }
+
+    #[test]
+    fn monthly_wellness_summary_matches_export_pdf() {
+        let db = base();
+        db.conn()
+            .execute_batch(
+                "INSERT INTO bienestar_entrenamiento (fecha, tipo, duracion_min, intensidad, omitido)
+                    VALUES ('2025-03-02', 'Fuerza', 60, 8, 0), ('2025-03-05', 'Tecnica', 30, 4, 1),
+                           ('2025-04-01', 'Fuerza', 90, 9, 0);
+                 INSERT INTO bienestar_comida (fecha, tipo, calidad) VALUES
+                    ('2025-03-02', 'Cena', 'Buena'), ('2025-03-03', 'Cena', 'Mala'),
+                    ('2025-03-04', 'Cena', 'Buena'), ('2025-03-05', 'Cena', 'Regular');
+                 INSERT INTO bienestar_dia_nutricional (fecha, hidratacion) VALUES
+                    ('2025-03-02', 'Alta'), ('2025-03-03', 'Baja');
+                 INSERT INTO bienestar_sesion_mental (fecha, tipo, confianza, estres) VALUES
+                    ('2025-03-10', 'Charla', 9, 2), ('2025-03-11', 'Charla', 3, 6);
+                 UPDATE partido SET rendimiento_general = 8;",
+            )
+            .unwrap();
+        let lineas = bienestar_mes(db.conn(), "2025-03").unwrap();
+        assert_eq!(
+            lineas[0],
+            "Entrenamiento: 2 sesiones | minutos: 90 | intensidad promedio: 6.00"
+        );
+        assert_eq!(lineas[1], "Entrenamientos omitidos: 1");
+        assert_eq!(
+            lineas[2],
+            "Comidas: 4 | Buenas: 2 | Regulares: 1 | Malas: 1"
+        );
+        assert_eq!(lineas[3], "% de comidas buenas: 50.0%");
+        assert_eq!(lineas[4], "Hidratación: baja 1 | media 0 | alta 1");
+        assert_eq!(
+            lineas[5],
+            "Mental: 2 sesiones | confianza 6.00 | estrés 4.00"
+        );
+        // El partido del 10/03 coincide con la sesión de confianza alta.
+        assert_eq!(
+            lineas[7],
+            "Rendimiento con confianza alta: 8.00 | baja: 0.00"
+        );
+        assert!(lineas[8].starts_with("Tendencia"));
     }
 
     #[test]
@@ -203,5 +428,8 @@ mod tests {
         assert!(pdf.contains("(Usuario: Ana)"));
         assert!(pdf.contains("(Estad\\355sticas generales)"));
         assert!(pdf.contains("Los \\321and\\372es"));
+        assert!(pdf.contains("(Bienestar del mes"));
+        assert!(pdf.contains("(Colecciones)"));
+        assert!(pdf.contains("(Entrenador IA)"));
     }
 }
