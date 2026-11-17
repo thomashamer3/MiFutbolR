@@ -70,6 +70,28 @@ const TABLAS: &[&str] = &[
     "partido_torneo",
     "equipo_historial",
     "temporada",
+    // Módulos portados de MiFutbolC (mismas tablas y columnas); después de
+    // camiseta y partido por sus claves foráneas.
+    "bienestar_habito",
+    "bienestar_entrenamiento",
+    "bienestar_comida",
+    "bienestar_sesion_mental",
+    "bienestar_salud",
+    "bienestar_recomendacion",
+    "coleccion",
+    "inventario_item",
+    "coleccion_inventario",
+    "consejos_historial",
+    "ia_config",
+];
+
+/// Tablas con filas sembradas por las migraciones: se vacían antes de copiar
+/// para que los datos legacy las reemplacen en vez de chocar (UNIQUE / id = 1).
+const SEMBRADAS: &[&str] = &[
+    "carrera_identidad",
+    "bienestar_salud",
+    "coleccion",
+    "ia_config",
 ];
 
 /// Importa una base legacy sobre una conexión destino vacía.
@@ -169,8 +191,15 @@ fn importar_adjunta(conn: &mut Connection) -> Result<ImportResumen, ImportError>
             continue;
         }
         // Las tablas singleton sembradas se reemplazan con los datos legacy.
-        if *tabla == "carrera_identidad" {
-            tx.execute("DELETE FROM main.carrera_identidad", [])?;
+        if SEMBRADAS.contains(tabla) {
+            let filas_legacy: i64 = tx.query_row(
+                &format!("SELECT COUNT(*) FROM legacy.\"{tabla}\""),
+                [],
+                |row| row.get(0),
+            )?;
+            if filas_legacy > 0 {
+                tx.execute(&format!("DELETE FROM main.\"{tabla}\""), [])?;
+            }
         }
         let lista_destino = columnas_destino
             .iter()
@@ -516,5 +545,77 @@ mod tests {
             importar(db.conn_mut(), &ruta),
             Err(ImportError::DestinoConDatos)
         ));
+    }
+
+    #[test]
+    fn imports_ported_modules_and_replaces_seeded_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let ruta = dir.path().join("legacy.db");
+        crear_legacy(&ruta);
+        // Tablas tal como las crea MiFutbolC (db.c).
+        Connection::open(&ruta)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE bienestar_habito (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, dormi_bien INTEGER DEFAULT 0, hidratacion INTEGER DEFAULT 0, alcohol INTEGER DEFAULT 0, estado_animico TEXT DEFAULT '', nervios INTEGER DEFAULT 0, confianza INTEGER DEFAULT 0, motivacion INTEGER DEFAULT 0, notas TEXT DEFAULT '', tipo_diario TEXT DEFAULT '');
+                 CREATE TABLE bienestar_salud (id INTEGER PRIMARY KEY CHECK (id = 1), altura_cm REAL DEFAULT NULL, peso_kg REAL DEFAULT NULL, tipo_sangre TEXT DEFAULT '', ultima_revision TEXT DEFAULT '', medidas TEXT DEFAULT '', notas TEXT DEFAULT '');
+                 CREATE TABLE coleccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, descripcion TEXT DEFAULT '', fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+                 CREATE TABLE inventario_item (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo INTEGER NOT NULL, nombre TEXT DEFAULT '', estado INTEGER NOT NULL DEFAULT 0, valor REAL DEFAULT 0, fecha_compra TEXT DEFAULT '', camiseta_id INTEGER UNIQUE);
+                 CREATE TABLE coleccion_inventario (coleccion_id INTEGER NOT NULL, inventario_id INTEGER NOT NULL, fecha_asociacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(coleccion_id, inventario_id));
+                 CREATE TABLE ia_config (id INTEGER PRIMARY KEY, nivel_intervencion INTEGER NOT NULL DEFAULT 2, ultima_alerta INTEGER NOT NULL DEFAULT 0, ultimo_riesgo REAL NOT NULL DEFAULT 0);
+                 INSERT INTO bienestar_habito (fecha, dormi_bien, confianza) VALUES ('2026-03-02', 1, 8);
+                 INSERT INTO bienestar_salud (id, altura_cm, peso_kg, tipo_sangre) VALUES (1, 178, 74.5, 'O+');
+                 INSERT INTO coleccion (id, nombre) VALUES (1, 'Equipamiento actual'), (2, 'Historico'), (3, 'Vendidos'), (4, 'Retro');
+                 INSERT INTO inventario_item (id, tipo, nombre, estado, valor, camiseta_id) VALUES (1, 1, '', 1, 0, 1), (2, 3, 'Canilleras', 0, 2500, NULL);
+                 INSERT INTO coleccion_inventario (coleccion_id, inventario_id) VALUES (4, 1), (1, 2);
+                 INSERT INTO ia_config (id, nivel_intervencion) VALUES (1, 3);",
+            )
+            .unwrap();
+
+        let mut db = Database::open_in_memory().unwrap();
+        let resumen = importar(db.conn_mut(), &ruta).unwrap();
+        assert!(
+            resumen.advertencias.is_empty(),
+            "{:?}",
+            resumen.advertencias
+        );
+        let consulta =
+            |sql: &str| -> i64 { db.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(
+            consulta("SELECT COUNT(*) FROM bienestar_habito WHERE confianza = 8"),
+            1
+        );
+        assert_eq!(
+            consulta("SELECT COUNT(*) FROM bienestar_salud WHERE tipo_sangre = 'O+'"),
+            1
+        );
+        // Las 3 colecciones sembradas se reemplazan por las 4 del origen, sin duplicar.
+        assert_eq!(consulta("SELECT COUNT(*) FROM coleccion"), 4);
+        assert_eq!(consulta("SELECT COUNT(*) FROM coleccion_inventario"), 2);
+        assert_eq!(
+            consulta("SELECT camiseta_id FROM inventario_item WHERE id = 1"),
+            1
+        );
+        assert_eq!(
+            consulta("SELECT nivel_intervencion FROM ia_config WHERE id = 1"),
+            3
+        );
+    }
+
+    #[test]
+    fn keeps_seeded_rows_when_legacy_table_is_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let ruta = dir.path().join("legacy.db");
+        crear_legacy(&ruta);
+        Connection::open(&ruta)
+            .unwrap()
+            .execute_batch("CREATE TABLE coleccion (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, descripcion TEXT DEFAULT '', fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);")
+            .unwrap();
+        let mut db = Database::open_in_memory().unwrap();
+        importar(db.conn_mut(), &ruta).unwrap();
+        let total: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM coleccion", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(total, 3, "las colecciones por defecto siguen");
     }
 }
