@@ -60,7 +60,7 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
 - T3: `rendimiento` 29 → 11,5 ms; bench `estadisticas_completas` 79,4 → 62,0 ms (−22,8 %, p<0,05);
   resto de benches sin cambio significativo.
 - T2: no medible con TestBackend; en reposo pasa de ~8 frames/s a 0. No probado en terminal real.
-- `cargo test`: 207 OK, 0 fallos. Clippy `-D warnings` limpio.
+- `cargo test`: 207 OK, 0 fallos. Clippy `-D warnings` limpio. Commit T2+T3: `d437ebb`.
 
 ## Siguiente paso
 Opcional: llevar `canchas` (13 ms) y `goles` (10 ms) al mismo patrón de una pasada si se usan bases
