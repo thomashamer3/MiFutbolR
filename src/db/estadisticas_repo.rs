@@ -173,58 +173,46 @@ pub fn rendimiento(conn: &Connection) -> Result<RendimientoStats, DbError> {
         |row| row.get(0),
     )?;
 
-    let por_clima = grupo_etiquetado(
-        conn,
-        "SELECT clima, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY clima ORDER BY clima",
-        |codigo| {
-            Clima::try_from(codigo).map_or_else(|_| "?".into(), |clima| clima.label().to_string())
-        },
+    // Un solo recorrido en lugar de 8 GROUP BY: cada uno ordenaba la tabla
+    // entera en un árbol temporal (~3 ms por consulta con 10k partidos).
+    let mut stmt = conn.prepare(
+        "SELECT clima, CAST(strftime('%w', fecha_hora) AS INTEGER), dia, cansancio,
+                estado_animo, intensidad, dolor_fisico, arbitraje_score, rendimiento_general
+           FROM partido",
     )?;
-
-    let por_dia_semana = grupo_etiquetado(
-        conn,
-        "SELECT CAST(strftime('%w', fecha_hora) AS INTEGER) AS dia_semana, COUNT(*),
-                COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY dia_semana ORDER BY dia_semana",
-        dia_semana,
-    )?;
-
-    let por_franja = grupo_etiquetado(
-        conn,
-        "SELECT dia, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY dia ORDER BY dia",
-        |codigo| {
-            FranjaHoraria::try_from(codigo)
-                .map_or_else(|_| "?".into(), |franja| franja.label().to_string())
-        },
-    )?;
-
-    let por_cansancio = grupo_numerico(
-        conn,
-        "SELECT cansancio, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY cansancio ORDER BY cansancio",
-    )?;
-    let por_animo = grupo_numerico(
-        conn,
-        "SELECT estado_animo, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY estado_animo ORDER BY estado_animo",
-    )?;
-    let por_intensidad = grupo_numerico(
-        conn,
-        "SELECT intensidad, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY intensidad ORDER BY intensidad",
-    )?;
-    let por_dolor = grupo_numerico(
-        conn,
-        "SELECT dolor_fisico, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY dolor_fisico ORDER BY dolor_fisico",
-    )?;
-    let por_arbitraje = grupo_numerico(
-        conn,
-        "SELECT arbitraje_score, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
-           FROM partido GROUP BY arbitraje_score ORDER BY arbitraje_score",
-    )?;
+    let mut grupos: [Acumulado; 8] = Default::default();
+    let mut filas = stmt.query([])?;
+    while let Some(fila) = filas.next()? {
+        let rendimiento: i64 = fila.get(8)?;
+        for (columna, grupo) in grupos.iter_mut().enumerate() {
+            let (partidos, suma) = grupo.entry(fila.get(columna)?).or_default();
+            *partidos += 1;
+            *suma += rendimiento;
+        }
+    }
+    let [
+        clima,
+        dia_sem,
+        dia,
+        cansancio,
+        animo,
+        intensidad,
+        dolor,
+        arbitraje,
+    ] = &grupos;
+    let por_clima = promedios(clima, |codigo| {
+        Clima::try_from(codigo).map_or_else(|_| "?".into(), |clima| clima.label().to_string())
+    });
+    let por_dia_semana = promedios(dia_sem, dia_semana);
+    let por_franja = promedios(dia, |codigo| {
+        FranjaHoraria::try_from(codigo)
+            .map_or_else(|_| "?".into(), |franja| franja.label().to_string())
+    });
+    let por_cansancio = promedios(cansancio, |valor| valor.to_string());
+    let por_animo = promedios(animo, |valor| valor.to_string());
+    let por_intensidad = promedios(intensidad, |valor| valor.to_string());
+    let por_dolor = promedios(dolor, |valor| valor.to_string());
+    let por_arbitraje = promedios(arbitraje, |valor| valor.to_string());
 
     let mut stmt = conn.prepare(
         "SELECT CASE
@@ -584,19 +572,19 @@ where
     Ok(rows)
 }
 
-fn grupo_numerico(conn: &Connection, sql: &str) -> Result<Vec<PromedioGrupo>, DbError> {
-    let mut stmt = conn.prepare(sql)?;
-    let rows = stmt
-        .query_map([], |row| {
-            let valor: i64 = row.get(0)?;
-            Ok(PromedioGrupo {
-                clave: valor.to_string(),
-                partidos: row.get(1)?,
-                promedio: row.get(2)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
+/// (partidos, suma de rendimiento) por código, ordenado como `ORDER BY código`.
+type Acumulado = std::collections::BTreeMap<i64, (i64, i64)>;
+
+/// Igual que `COUNT(*)` + `AVG(rendimiento_general)` agrupado por código.
+fn promedios(acumulado: &Acumulado, etiqueta: impl Fn(i64) -> String) -> Vec<PromedioGrupo> {
+    acumulado
+        .iter()
+        .map(|(&codigo, &(partidos, suma))| PromedioGrupo {
+            clave: etiqueta(codigo),
+            partidos,
+            promedio: suma as f64 / partidos as f64,
+        })
+        .collect()
 }
 
 fn grupo_promedio_goles<F>(
@@ -778,5 +766,79 @@ mod canchas_extra_tests {
         assert_eq!(stats.por_franja.len(), 1);
         assert!(stats.por_franja[0].clave.contains("Noche"));
         assert_eq!(stats.por_localidad[0].clave, "Lanús");
+    }
+}
+
+#[cfg(test)]
+mod rendimiento_tests {
+    use super::*;
+    use crate::db::Database;
+    use rusqlite::params;
+
+    /// Lo que devolvía la versión con `GROUP BY` (clave numérica cruda).
+    fn sql_group_by(conn: &Connection, columna: &str) -> Vec<(i64, i64, f64)> {
+        let sql = format!(
+            "SELECT {columna} AS k, COUNT(*), COALESCE(AVG(rendimiento_general), 0.0)
+               FROM partido GROUP BY k ORDER BY k"
+        );
+        let mut stmt = conn.prepare(&sql).unwrap();
+        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn single_pass_matches_group_by_queries() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+        conn.execute("INSERT INTO cancha (nombre) VALUES ('Sur')", [])
+            .unwrap();
+        conn.execute("INSERT INTO camiseta (nombre) VALUES ('Azul')", [])
+            .unwrap();
+        for i in 0..97_i64 {
+            let fecha = format!("2025-{:02}-{:02} 1{}:00:00", 1 + i % 12, 1 + i % 28, i % 10);
+            conn.execute(
+                "INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, rendimiento_general,
+                                      cansancio, estado_animo, clima, dia, intensidad,
+                                      dolor_fisico, arbitraje_score)
+                 VALUES (1, 1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    fecha,
+                    i * 7 % 11,
+                    i % 11,
+                    i * 3 % 11,
+                    i % 13,
+                    i % 7,
+                    i * 5 % 11,
+                    i % 4,
+                    i % 6
+                ],
+            )
+            .unwrap();
+        }
+        let stats = rendimiento(conn).unwrap();
+        for (grupo, columna) in [
+            (&stats.por_clima, "clima"),
+            (
+                &stats.por_dia_semana,
+                "CAST(strftime('%w', fecha_hora) AS INTEGER)",
+            ),
+            (&stats.por_franja, "dia"),
+            (&stats.por_cansancio, "cansancio"),
+            (&stats.por_animo, "estado_animo"),
+            (&stats.por_intensidad, "intensidad"),
+            (&stats.por_dolor, "dolor_fisico"),
+            (&stats.por_arbitraje, "arbitraje_score"),
+        ] {
+            let esperado = sql_group_by(conn, columna);
+            assert_eq!(grupo.len(), esperado.len(), "{columna}");
+            for (fila, (_, partidos, promedio)) in grupo.iter().zip(&esperado) {
+                assert_eq!(fila.partidos, *partidos, "{columna}");
+                assert!((fila.promedio - promedio).abs() < 1e-12, "{columna}");
+            }
+        }
+        assert_eq!(stats.por_cansancio[0].clave, "0");
+        assert_eq!(stats.por_dia_semana.len(), 7);
     }
 }

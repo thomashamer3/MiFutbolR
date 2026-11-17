@@ -2991,18 +2991,41 @@ impl Camiseta {
 
 /// Bucle principal: dibuja, espera teclado y repite (§19.10).
 pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
+    // Solo se redibuja si llegó un evento o hay una animación en curso: en
+    // reposo la app no consume CPU (antes redibujaba cada 120 ms).
+    let mut redibujar = true;
     loop {
-        terminal.draw(|frame| crate::ui::draw(frame, app))?;
+        if redibujar || app.animations.running() {
+            terminal.draw(|frame| crate::ui::draw(frame, app))?;
+        }
+        redibujar = false;
         let espera = if app.animations.running() {
             Duration::from_millis(16)
         } else {
-            Duration::from_millis(120)
+            Duration::from_secs(1)
         };
         if event::poll(espera)? {
-            match event::read()? {
-                Event::Key(key) => app.handle_key(key)?,
-                Event::Mouse(mouse) => app.handle_mouse(mouse)?,
-                _ => {}
+            // Se procesan todos los eventos pendientes antes del siguiente frame:
+            // una ráfaga de teclas repetidas o del mouse cuesta un solo dibujo.
+            // Tope de 64 por frame para que un flujo continuo no congele la pantalla.
+            for _ in 0..64 {
+                match event::read()? {
+                    Event::Key(key) => {
+                        app.handle_key(key)?;
+                        redibujar = true;
+                    }
+                    // Mover el mouse no cambia el estado: no merece un frame.
+                    Event::Mouse(mouse) if mouse.kind == MouseEventKind::Moved => {}
+                    Event::Mouse(mouse) => {
+                        app.handle_mouse(mouse)?;
+                        redibujar = true;
+                    }
+                    // Resize, foco, pegado: redibujar por las dudas.
+                    _ => redibujar = true,
+                }
+                if app.should_quit || !event::poll(Duration::ZERO)? {
+                    break;
+                }
             }
         }
         if app.should_quit {

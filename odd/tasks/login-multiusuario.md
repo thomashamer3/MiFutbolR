@@ -30,6 +30,10 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
 ## Tareas
 - [x] T1 Registro `cuentas.db` + rutas por usuario + cambio de DB en App + portada rediseñada + tests.
   - Ruta: delegated direct (writer trigger: 5+ archivos no triviales: config.rs, db/mod.rs, app.rs, app_usuario.rs, bienvenida.rs, main.rs, tests).
+- [x] T2 Rendimiento: bucle de eventos sin redibujado en reposo, vaciado de eventos por frame
+  (tope 64) e ignorar movimiento del mouse. Ruta: inline (1 archivo, src/app.rs::run).
+- [x] T3 Rendimiento: `estadisticas_repo::rendimiento` con una sola pasada en lugar de 8 GROUP BY
+  + test de equivalencia contra SQL. Ruta: inline (1 archivo).
 
 ## Criterios de aceptación
 - Crear cuenta (con/sin contraseña) abre el menú usando `usuarios/<id>/mifutbol.db`.
@@ -50,5 +54,14 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
 - No probado en terminal real (solo TestBackend); ancho del emoji 🔒 puede variar por terminal.
 - Commit: `8414732` feat(usuario): inicio de sesión multiusuario con DB propia por cuenta.
 
+- Perfilado (release, 10k partidos): frame 0,2–0,3 ms; abrir BD existente 5,7 ms (migraciones ya se
+  saltan); App::new 10 ms; `estadisticas_completas` 79 ms → cuello: GROUP BY con árbol temporal
+  (~3,5 ms c/u, 7,5 ms con strftime). ANALYZE y transacción de lectura: sin mejora (<5 %), descartados.
+- T3: `rendimiento` 29 → 11,5 ms; bench `estadisticas_completas` 79,4 → 62,0 ms (−22,8 %, p<0,05);
+  resto de benches sin cambio significativo.
+- T2: no medible con TestBackend; en reposo pasa de ~8 frames/s a 0. No probado en terminal real.
+- `cargo test`: 207 OK, 0 fallos. Clippy `-D warnings` limpio.
+
 ## Siguiente paso
-Fase siguiente pedida por el usuario: performance y rendimiento del proyecto.
+Opcional: llevar `canchas` (13 ms) y `goles` (10 ms) al mismo patrón de una pasada si se usan bases
+muy grandes; con datos realistas (cientos de partidos) ya cargan en pocos ms.
