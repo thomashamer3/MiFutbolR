@@ -10,6 +10,7 @@ mod app_amigos;
 mod app_botines;
 mod app_canchas;
 mod app_carrera;
+mod app_clima;
 mod app_comparador;
 mod app_equipos;
 mod app_estadisticas;

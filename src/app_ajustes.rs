@@ -229,6 +229,29 @@ impl App {
         Ok(())
     }
 
+    /// Exporta el informe PDF (Ctrl+P en Ajustes).
+    pub fn exportar_pdf_ajustes(&mut self) {
+        let usuario = self.usuario_actual.as_ref().map(|u| u.nombre.clone());
+        let dir = self.exportaciones_dir();
+        match crate::services::informe_service::exportar_pdf(
+            self.db.conn(),
+            usuario.as_deref(),
+            &dir,
+        ) {
+            Ok(ruta) => self.status = format!("Informe PDF: {}", ruta.display()),
+            Err(error) => self.modal = Some(Modal::Error(error.0)),
+        }
+    }
+
+    /// Exporta partidos, canchas, camisetas, lesiones y finanzas a ODS (Ctrl+O en Ajustes).
+    pub fn exportar_ods_ajustes(&mut self) {
+        let dir = self.exportaciones_dir();
+        match crate::services::informe_service::exportar_ods(self.db.conn(), &dir) {
+            Ok(ruta) => self.status = format!("Planilla ODS: {}", ruta.display()),
+            Err(error) => self.modal = Some(Modal::Error(error.0)),
+        }
+    }
+
     /// Comprueba la integridad de la base.
     pub fn integridad_ajustes(&mut self) -> Result<()> {
         match self.db.integrity() {

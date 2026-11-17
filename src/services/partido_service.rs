@@ -132,6 +132,8 @@ pub fn crear(conn: &mut Connection, partido: &mut Partido) -> Result<i64, Servic
     derivar(partido)?;
     validar(partido)?;
     let id = partido_repo::insert(conn, partido)?;
+    // El clima se completa en segundo plano si la cancha tiene coordenadas.
+    crate::services::clima_service::encolar(conn, id)?;
     Ok(id)
 }
 

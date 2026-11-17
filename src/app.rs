@@ -1376,6 +1376,10 @@ pub struct App {
     pub search: Option<SearchState>,
     /// El resumen de Inicio quedó desactualizado; se recalcula al verse el menú.
     pub inicio_sucio: bool,
+    /// Consultas de clima en segundo plano (Open-Meteo).
+    pub clima: crate::services::clima_service::ClimaWorker,
+    /// Próxima revisión de la cola de clima.
+    pub clima_proxima_consulta: std::time::Instant,
 }
 
 impl App {
@@ -1551,6 +1555,8 @@ impl App {
             bienvenida_vista: sesion.bienvenida_vista,
             search: None,
             inicio_sucio: false,
+            clima: crate::services::clima_service::ClimaWorker::default(),
+            clima_proxima_consulta: std::time::Instant::now(),
         };
         let _ = app.refresh_usuarios();
         Ok(app)
@@ -1701,7 +1707,7 @@ impl App {
                 "a: agregar jugador  e: editar jugador  d: borrar jugador  Esc: volver"
             }
             Screen::PartidosList => {
-                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar  x: exportar"
+                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar  c: clima  x: exportar"
             }
             Screen::PartidoDetail(_) => "e: editar  d: borrar  F: favorito  Esc: volver",
             Screen::PartidoWizard => {
@@ -1734,7 +1740,7 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+L: importar legacy  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -1956,6 +1962,14 @@ impl App {
                 }
                 KeyCode::Char('l') => {
                     self.open_legacy_import_form()?;
+                    return Ok(());
+                }
+                KeyCode::Char('p') => {
+                    self.exportar_pdf_ajustes();
+                    return Ok(());
+                }
+                KeyCode::Char('o') => {
+                    self.exportar_ods_ajustes();
                     return Ok(());
                 }
                 _ => {}
@@ -3007,6 +3021,7 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     // en curso: en reposo la app no consume CPU (antes redibujaba cada 120 ms).
     let mut redibujar = true;
     loop {
+        redibujar |= app.tick_clima();
         if redibujar || app.animations.running() {
             terminal.draw(|frame| crate::ui::draw(frame, app))?;
         }

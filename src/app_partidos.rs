@@ -28,6 +28,7 @@ impl App {
             KeyCode::PageUp => self.cambiar_pagina(-1)?,
             KeyCode::Enter => self.open_partido_detail()?,
             KeyCode::Char('n') => self.open_partido_wizard()?,
+            KeyCode::Char('c') => self.encolar_clima_pendiente(),
             KeyCode::Char('e') => {
                 if let Some(id) = self.selected_partido_id() {
                     self.open_partido_form_for(id)?;
