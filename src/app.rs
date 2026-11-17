@@ -1374,6 +1374,8 @@ pub struct App {
     pub usuario_login_nombre: String,
     /// Búsqueda activa.
     pub search: Option<SearchState>,
+    /// El resumen de Inicio quedó desactualizado; se recalcula al verse el menú.
+    pub inicio_sucio: bool,
 }
 
 impl App {
@@ -1548,6 +1550,7 @@ impl App {
             usuario_actual: None,
             bienvenida_vista: sesion.bienvenida_vista,
             search: None,
+            inicio_sucio: false,
         };
         let _ = app.refresh_usuarios();
         Ok(app)
@@ -1900,6 +1903,15 @@ impl App {
 
     /// Procesa una tecla.
     pub fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
+        let resultado = self.procesar_tecla(key);
+        // Recalcular el Inicio (33 ms con 20k partidos) solo si se está viendo.
+        if self.inicio_sucio && self.current_screen() == Screen::MainMenu {
+            let _ = self.refrescar_inicio();
+        }
+        resultado
+    }
+
+    fn procesar_tecla(&mut self, key: KeyEvent) -> Result<()> {
         if key.kind != KeyEventKind::Press {
             return Ok(());
         }

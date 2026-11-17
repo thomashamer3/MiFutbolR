@@ -147,3 +147,25 @@ fn wizard_creates_match_in_four_steps() {
     assert_eq!(app.current_screen(), Screen::PartidosList);
     assert_eq!(count(&app, "SELECT COUNT(*) FROM partido"), 1);
 }
+
+#[test]
+fn home_summary_refreshes_only_when_menu_is_visible() {
+    let (mut app, _dir) = test_app();
+    preparar(&app);
+    assert!(app.inicio.ultimo.is_none());
+    open_partidos(&mut app);
+    press(&mut app, KeyCode::Char('n'));
+    press_ctrl(&mut app, 's');
+    assert_eq!(count(&app, "SELECT COUNT(*) FROM partido"), 1);
+    // Guardado fuera del menú: el Inicio queda pendiente, sin recalcular.
+    assert!(app.inicio_sucio);
+    assert!(app.inicio.ultimo.is_none());
+
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.current_screen(), Screen::MainMenu);
+    assert!(!app.inicio_sucio);
+    assert!(
+        app.inicio.ultimo.is_some(),
+        "el Inicio muestra el partido nuevo"
+    );
+}

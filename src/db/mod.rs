@@ -68,6 +68,14 @@ pub struct Database {
     path: Option<PathBuf>,
 }
 
+/// Al cerrar, SQLite actualiza las estadísticas del planificador solo si
+/// alguna consulta las necesitó (recomendación oficial de `PRAGMA optimize`).
+impl Drop for Database {
+    fn drop(&mut self) {
+        let _ = self.conn.execute_batch("PRAGMA optimize;");
+    }
+}
+
 impl Database {
     /// Abre (o crea) la base de datos en `path` y aplica migraciones.
     pub fn open(path: &Path) -> Result<Self, DbError> {

@@ -18,7 +18,10 @@ impl App {
     /// Recarga el panel "Hoy".
     pub(crate) fn refrescar_inicio(&mut self) -> Result<()> {
         match crate::services::inicio_service::resumen(self.db.conn()) {
-            Ok(resumen) => self.inicio = resumen,
+            Ok(resumen) => {
+                self.inicio = resumen;
+                self.inicio_sucio = false;
+            }
             Err(error) => self.status = format!("No se pudo cargar el inicio: {error}"),
         }
         self.no_leidas = notificacion_service::no_leidas(self.db.conn()).unwrap_or(0);
@@ -317,7 +320,7 @@ impl App {
             self.status = format!("{} logro(s) desbloqueado(s)", nuevos.len());
         }
         self.no_leidas = notificacion_service::no_leidas(self.db.conn()).unwrap_or(0);
-        let _ = self.refrescar_inicio();
+        self.inicio_sucio = true;
     }
 
     // ------------------------------------------------------------------
@@ -707,7 +710,7 @@ impl App {
             Screen::Notificaciones => self.refrescar_notificaciones(),
             _ => {}
         }
-        let _ = self.refrescar_inicio();
+        self.inicio_sucio = true;
     }
 
     // ------------------------------------------------------------------

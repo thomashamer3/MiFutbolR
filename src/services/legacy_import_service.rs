@@ -127,6 +127,10 @@ fn importar_adjunta(conn: &mut Connection) -> Result<ImportResumen, ImportError>
     let mut resumen = ImportResumen::default();
 
     let tx = conn.transaction()?;
+    // Sin historial de deshacer durante la copia masiva: cada fila dispararía un
+    // trigger con json_object de toda la fila (~5x más lento). Va dentro de la
+    // transacción, así un error deja la bandera como estaba.
+    tx.execute("UPDATE undo_control SET suspendido = 1 WHERE id = 1", [])?;
     for tabla in TABLAS {
         if !tablas_legacy.iter().any(|legacy| legacy == tabla) {
             continue;
@@ -180,6 +184,7 @@ fn importar_adjunta(conn: &mut Connection) -> Result<ImportResumen, ImportError>
 
     preferencias_legacy(&tx, &tablas_legacy)?;
     poblar_canchas_hijas(&tx)?;
+    tx.execute("UPDATE undo_control SET suspendido = 0 WHERE id = 1", [])?;
     tx.commit()?;
     Ok(resumen)
 }
@@ -394,6 +399,16 @@ mod tests {
         let mut db = Database::open_in_memory().unwrap();
         let resumen = importar(db.conn_mut(), &ruta).unwrap();
         assert!(resumen.total() >= 6);
+        // La copia masiva no llena el historial de deshacer y lo deja reactivado.
+        let (historial, suspendido): (i64, i64) = db
+            .conn()
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM undo_historial), suspendido FROM undo_control",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((historial, suspendido), (0, 0));
         assert!(
             resumen.advertencias.is_empty(),
             "{:?}",

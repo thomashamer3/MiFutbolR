@@ -107,8 +107,8 @@ impl App {
                     ruta.display()
                 );
                 self.usuario_actual = Some(usuario);
+                // App::new ya calculó el resumen de Inicio de esta base.
                 self.stack = vec![Screen::MainMenu];
-                let _ = self.refrescar_inicio();
             }
             Err(error) => {
                 self.modal = Some(Modal::Error(format!(
