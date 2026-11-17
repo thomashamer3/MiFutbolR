@@ -11,3 +11,6 @@ docs/MIGRACION_BD.md
 docs/PLAN_IMPLEMENTACION.md
 docs/TUI.md
 docs/IMPLEMENTACION_32.md
+
+# Worktrees y estado local de agentes
+.claude/
