@@ -14,6 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Tabs, Wrap};
 
 use crate::app::{APP_NAME, App, Modal, Screen};
+use crate::domain::models::FormMode;
 use crate::util::text::truncate_width;
 use theme::{Palette, palette};
 
@@ -42,6 +43,40 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
     app.table_hits.clear();
     app.table_hit_target = None;
+
+    if app.animations.enabled {
+        let pantalla = app.current_screen();
+        if app.last_screen != Some(pantalla) {
+            app.last_screen = Some(pantalla);
+            app.animations.fade_in(&colors);
+        }
+        let modal_abierto = app.modal.is_some();
+        if modal_abierto && !app.last_modal_open {
+            app.animations.modal_in(&colors);
+        }
+        app.last_modal_open = modal_abierto;
+    }
+
+    // Portada de inicio de sesión a pantalla completa, sin cabecera ni barras.
+    let portada = match app.current_screen() {
+        Screen::Bienvenida => true,
+        Screen::UsuarioForm(FormMode::Create) | Screen::UsuarioLogin => {
+            app.usuario_actual.is_none()
+        }
+        _ => false,
+    };
+    if portada {
+        let [cuerpo, footer] =
+            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
+        screens::bienvenida::draw(frame, cuerpo, app);
+        draw_footer(frame, footer, app, &colors);
+        if let Some(modal) = app.modal.clone() {
+            draw_modal(frame, area, &modal, &colors);
+        }
+        app.animations.process(frame.buffer_mut(), area);
+        return;
+    }
+
     let en_modulo = app.active_module.is_some()
         && !matches!(app.current_screen(), Screen::MainMenu | Screen::Ayuda);
     let con_sidebar = en_modulo && area.width >= 140;
@@ -70,19 +105,6 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     } else {
         cuerpo
     };
-
-    if app.animations.enabled {
-        let pantalla = app.current_screen();
-        if app.last_screen != Some(pantalla) {
-            app.last_screen = Some(pantalla);
-            app.animations.fade_in(&colors);
-        }
-        let modal_abierto = app.modal.is_some();
-        if modal_abierto && !app.last_modal_open {
-            app.animations.modal_in(&colors);
-        }
-        app.last_modal_open = modal_abierto;
-    }
 
     match app.current_screen() {
         Screen::MainMenu => screens::main_menu::draw(frame, body, app),

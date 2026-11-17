@@ -68,6 +68,8 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("No se pudo abrir {}", paths.db_file.display()))?;
 
     let mut app = App::new(db, paths)?;
+    // El binario siempre arranca en la portada de inicio de sesión.
+    app.mostrar_inicio_sesion();
 
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;

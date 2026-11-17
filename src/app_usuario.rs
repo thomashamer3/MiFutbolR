@@ -4,6 +4,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{App, ConfirmAction, Field, Form, Modal, Screen};
+use crate::db::Database;
 use crate::domain::models::FormMode;
 use crate::domain::usuario::Usuario;
 use crate::services::usuario_service;
@@ -18,36 +19,127 @@ impl App {
         Ok(())
     }
 
-    /// Recarga cuentas y sesión.
+    /// Recarga las cuentas del registro y preselecciona la última usada.
     pub(crate) fn refresh_usuarios(&mut self) -> Result<()> {
-        match usuario_service::listar(self.db.conn()) {
-            Ok(usuarios) => {
-                self.usuarios = usuarios;
-                self.usuarios_table.select(if self.usuarios.is_empty() {
-                    None
-                } else {
-                    Some(0)
-                });
-            }
+        match usuario_service::listar(self.cuentas.conn()) {
+            Ok(usuarios) => self.usuarios = usuarios,
             Err(error) => self.status = format!("No se pudieron cargar las cuentas: {error}"),
         }
-        if let Ok(sesion) = usuario_service::sesion(self.db.conn()) {
-            self.usuario_actual = sesion.usuario;
-            self.bienvenida_vista = sesion.bienvenida_vista;
-        }
+        let ultima = usuario_service::sesion(self.cuentas.conn())
+            .ok()
+            .and_then(|sesion| sesion.usuario)
+            .and_then(|ultima| self.usuarios.iter().position(|u| u.id == ultima.id));
+        self.usuarios_table.select(if self.usuarios.is_empty() {
+            None
+        } else {
+            Some(ultima.unwrap_or(0))
+        });
         Ok(())
     }
 
-    /// Teclas de la pantalla de bienvenida.
+    /// Muestra la portada de inicio de sesión como única pantalla.
+    pub fn mostrar_inicio_sesion(&mut self) {
+        self.stack = vec![Screen::Bienvenida];
+        self.active_module = None;
+        let _ = self.refresh_usuarios();
+    }
+
+    /// Teclas de la portada de inicio de sesión.
     pub(crate) fn handle_bienvenida_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self.mover_usuario(1),
+            KeyCode::Up | KeyCode::Char('k') => self.mover_usuario(-1),
+            KeyCode::Enter => match self.usuario_seleccionado() {
+                Some(usuario) => self.entrar_seleccionado(&usuario)?,
+                None => self.entrar_al_menu()?,
+            },
             KeyCode::Char('n') => self.open_usuario_form(FormMode::Create)?,
-            KeyCode::Char('l') => self.open_usuario_login("")?,
-            KeyCode::Enter | KeyCode::Esc => self.entrar_al_menu()?,
+            KeyCode::Char('l') => {
+                let nombre = self
+                    .usuario_seleccionado()
+                    .map(|usuario| usuario.nombre)
+                    .unwrap_or_default();
+                self.open_usuario_login(&nombre)?;
+            }
+            KeyCode::Char('i') | KeyCode::Esc => self.entrar_al_menu()?,
             KeyCode::Char('q') => self.should_quit = true,
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    fn mover_usuario(&mut self, delta: isize) {
+        let total = self.usuarios.len();
+        if total == 0 {
+            return;
+        }
+        let actual = self.usuarios_table.selected().unwrap_or(0);
+        let siguiente = actual.saturating_add_signed(delta).min(total - 1);
+        self.usuarios_table.select(Some(siguiente));
+    }
+
+    /// Entra con la cuenta elegida: directo si no tiene contraseña.
+    fn entrar_seleccionado(&mut self, usuario: &Usuario) -> Result<()> {
+        if usuario.con_password {
+            return self.open_usuario_login(&usuario.nombre);
+        }
+        match usuario_service::autenticar(self.cuentas.conn(), &usuario.nombre, None) {
+            Ok(usuario) => self.entrar_como(usuario),
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+        Ok(())
+    }
+
+    /// Reconstruye la app sobre la base de datos propia de la cuenta.
+    pub(crate) fn entrar_como(&mut self, usuario: Usuario) {
+        let ruta = self.paths.db_usuario(usuario.id);
+        let nueva = Database::open(&ruta)
+            .map_err(anyhow::Error::from)
+            .and_then(|db| App::new(db, self.paths.clone()));
+        match nueva {
+            Ok(app) => {
+                *self = app;
+                let _ = usuario_service::marcar_bienvenida(self.db.conn());
+                self.bienvenida_vista = true;
+                self.status = format!(
+                    "Sesión iniciada como {} · BD: {}",
+                    usuario.nombre,
+                    ruta.display()
+                );
+                self.usuario_actual = Some(usuario);
+                self.stack = vec![Screen::MainMenu];
+                let _ = self.refrescar_inicio();
+            }
+            Err(error) => {
+                self.modal = Some(Modal::Error(format!(
+                    "No se pudo abrir la base de {}: {error:#}",
+                    usuario.nombre
+                )));
+            }
+        }
+    }
+
+    /// Cierra la sesión y vuelve a la portada sobre la base de invitado.
+    pub(crate) fn salir_a_invitado(&mut self) {
+        if let Err(error) = usuario_service::cerrar_sesion(self.cuentas.conn()) {
+            self.modal = Some(Modal::Error(error.to_string()));
+            return;
+        }
+        let nueva = Database::open(&self.paths.db_file)
+            .map_err(anyhow::Error::from)
+            .and_then(|db| App::new(db, self.paths.clone()));
+        match nueva {
+            Ok(app) => {
+                *self = app;
+                self.mostrar_inicio_sesion();
+                self.status = "Sesión cerrada".to_string();
+            }
+            Err(error) => {
+                self.modal = Some(Modal::Error(format!(
+                    "No se pudo abrir la base de invitado: {error:#}"
+                )));
+            }
+        }
     }
 
     /// Marca la bienvenida como vista y abre el menú.
@@ -87,36 +179,11 @@ impl App {
     /// Teclas del listado de cuentas.
     pub(crate) fn handle_usuario_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.usuarios.len();
-                if total > 0 {
-                    let indice = (self.usuarios_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.usuarios_table.select(Some(indice));
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .usuarios_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.usuarios_table.select(Some(indice));
-            }
+            KeyCode::Down | KeyCode::Char('j') => self.mover_usuario(1),
+            KeyCode::Up | KeyCode::Char('k') => self.mover_usuario(-1),
             KeyCode::Enter => {
                 if let Some(usuario) = self.usuario_seleccionado() {
-                    if usuario.con_password {
-                        self.open_usuario_login(&usuario.nombre)?;
-                    } else {
-                        match usuario_service::autenticar(self.db.conn(), &usuario.nombre, None) {
-                            Ok(_) => {
-                                self.refresh_usuarios()?;
-                                self.status = format!("Sesión iniciada como {}", usuario.nombre);
-                            }
-                            Err(error) => {
-                                self.modal = Some(Modal::Error(error.to_string()));
-                            }
-                        }
-                    }
+                    self.entrar_seleccionado(&usuario)?;
                 }
             }
             KeyCode::Char('n') => self.open_usuario_form(FormMode::Create)?,
@@ -139,19 +206,12 @@ impl App {
                 {
                     self.modal = Some(Modal::confirm(
                         "Eliminar cuenta",
-                        "Se eliminarán sus datos de sesión. ¿Continuar?",
+                        "La cuenta se quitará del inicio de sesión; su base de datos queda en disco. ¿Continuar?",
                         ConfirmAction::DeleteUsuario(id),
                     ));
                 }
             }
-            KeyCode::Char('c') => {
-                if let Err(error) = usuario_service::cerrar_sesion(self.db.conn()) {
-                    self.modal = Some(Modal::Error(error.to_string()));
-                } else {
-                    self.refresh_usuarios()?;
-                    self.status = "Sesión cerrada".to_string();
-                }
-            }
+            KeyCode::Char('c') => self.salir_a_invitado(),
             KeyCode::Char('r') => {
                 self.refresh_usuarios()?;
                 self.status = "Cuentas actualizadas".to_string();
@@ -208,7 +268,7 @@ impl App {
         let resultado = match mode {
             FormMode::Create => {
                 let nombre = form.value("nombre").unwrap_or("").to_string();
-                usuario_service::crear(self.db.conn(), &nombre, password).map(|_| ())
+                usuario_service::crear(self.cuentas.conn(), &nombre, password).map(Some)
             }
             FormMode::Edit => {
                 let Some(id) = self.usuario_edit_id else {
@@ -216,23 +276,19 @@ impl App {
                     self.modal = Some(Modal::Error("Cuenta no válida".to_string()));
                     return Ok(());
                 };
-                usuario_service::cambiar_password(self.db.conn(), id, password)
+                usuario_service::cambiar_password(self.cuentas.conn(), id, password).map(|()| None)
             }
         };
         match resultado {
-            Ok(()) => {
+            Ok(Some(usuario)) => {
+                self.form = None;
+                self.entrar_como(usuario);
+            }
+            Ok(None) => {
                 self.form = None;
                 self.refresh_usuarios()?;
-                match mode {
-                    FormMode::Create => {
-                        self.stack = vec![Screen::Bienvenida];
-                        self.status = "Cuenta creada. ¡Bienvenido!".to_string();
-                    }
-                    FormMode::Edit => {
-                        self.go_back();
-                        self.status = "Contraseña actualizada".to_string();
-                    }
-                }
+                self.go_back();
+                self.status = "Contraseña actualizada".to_string();
             }
             Err(error) => {
                 self.form = Some(form);
@@ -254,12 +310,10 @@ impl App {
         }
         let nombre = form.value("nombre").unwrap_or("").to_string();
         let password = form.value("password").unwrap_or("").to_string();
-        match usuario_service::autenticar(self.db.conn(), &nombre, Some(&password)) {
+        match usuario_service::autenticar(self.cuentas.conn(), &nombre, Some(&password)) {
             Ok(usuario) => {
                 self.form = None;
-                self.refresh_usuarios()?;
-                self.go_back();
-                self.status = format!("Sesión iniciada como {}", usuario.nombre);
+                self.entrar_como(usuario);
             }
             Err(error) => {
                 self.form = Some(form);

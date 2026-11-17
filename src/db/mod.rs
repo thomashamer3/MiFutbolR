@@ -97,6 +97,23 @@ impl Database {
         })
     }
 
+    /// Abre (o crea) el registro de cuentas: solo las tablas `cuenta` y
+    /// `cuenta_sesion`, separado de los datos de cada usuario.
+    pub fn open_cuentas(path: &Path) -> Result<Self, DbError> {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+        let conn = Connection::open(path)?;
+        configure(&conn)?;
+        conn.execute_batch(include_str!("../../migrations/011_usuario.sql"))?;
+        Ok(Self {
+            conn,
+            path: Some(path.to_path_buf()),
+        })
+    }
+
     /// Base de datos en memoria para tests.
     pub fn open_in_memory() -> Result<Self, DbError> {
         let conn = Connection::open_in_memory()?;

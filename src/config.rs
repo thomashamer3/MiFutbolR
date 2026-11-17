@@ -10,8 +10,10 @@ use directories::ProjectDirs;
 pub struct AppPaths {
     /// Directorio de datos local.
     pub data_dir: PathBuf,
-    /// Archivo SQLite.
+    /// Archivo SQLite (sesión de invitado).
     pub db_file: PathBuf,
+    /// Registro de cuentas locales.
+    pub cuentas_file: PathBuf,
     /// Exportaciones.
     pub export_dir: PathBuf,
     /// Importaciones.
@@ -37,6 +39,7 @@ impl AppPaths {
             import_dir: data_dir.join("Importaciones"),
             images_dir: data_dir.join("Imagenes"),
             log_file: data_dir.join("mifutbol.log"),
+            cuentas_file: data_dir.join("cuentas.db"),
             data_dir,
             db_file,
         })
@@ -51,7 +54,17 @@ impl AppPaths {
             import_dir: root.join("Importaciones"),
             images_dir: root.join("Imagenes"),
             log_file: root.join("mifutbol.log"),
+            cuentas_file: root.join("cuentas.db"),
         }
+    }
+
+    /// Base de datos propia de una cuenta.
+    #[must_use]
+    pub fn db_usuario(&self, id: i64) -> PathBuf {
+        self.data_dir
+            .join("usuarios")
+            .join(id.to_string())
+            .join("mifutbol.db")
     }
 
     /// Crea los directorios necesarios.
@@ -78,5 +91,10 @@ mod tests {
         let paths = AppPaths::with_root(root);
         assert_eq!(paths.db_file, root.join("mifutbol.db"));
         assert_eq!(paths.export_dir, root.join("Exportaciones"));
+        assert_eq!(paths.cuentas_file, root.join("cuentas.db"));
+        assert_eq!(
+            paths.db_usuario(7),
+            root.join("usuarios").join("7").join("mifutbol.db")
+        );
     }
 }

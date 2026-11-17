@@ -31,8 +31,9 @@ Las capturas se generan desde la TUI real con
 - **19 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
   Estadísticas, Financiamiento, Carrera, Resumen Compartible, Ajustes, Torneos,
   Temporadas, Tiendas, Amigos, Multimedia, Recordatorios, Progresión y Usuario.
-- **Usuario y bienvenida**: cuentas locales con contraseña opcional, sesión persistente
-  y pantalla de bienvenida de MiFutbolR al iniciar.
+- **Inicio de sesión multiusuario**: portada de MiFutbolR al iniciar para entrar o
+  registrarse con o sin contraseña; cada cuenta usa su propia base de datos
+  (también se puede continuar como invitado).
 - **TUI ratatui**: header con breadcrumb, paneles redondeados con padding,
   tablas con vista previa lateral, formularios con iconos de tipo, wizard de
   partidos en 4 pasos, modales, temas y búsqueda incremental.
@@ -139,8 +140,12 @@ genera logs + reporte en `target/analisis/`:
 | Linux | `~/.local/share/mifutbol-rs/mifutbol.db` |
 | macOS | `~/Library/Application Support/com.mifutbol.mifutbol-rs/mifutbol.db` |
 
-`MIFUTBOL_DB` permite apuntar a otro archivo. Exportaciones, backups e
-imágenes viven junto a la BD.
+Esa es la BD de invitado. Las cuentas se registran en `cuentas.db` y cada una
+guarda sus datos en `usuarios/<id>/mifutbol.db`, dentro del mismo directorio.
+Eliminar una cuenta no borra su archivo de datos.
+
+`MIFUTBOL_DB` permite apuntar a otro archivo (BD de invitado). Exportaciones,
+backups e imágenes viven junto a la BD.
 
 ## Arquitectura
 

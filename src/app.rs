@@ -1074,8 +1074,10 @@ pub const ACCIONES_PALETA: [(&str, &str); 22] = [
 
 /// Estado global de la aplicación.
 pub struct App {
-    /// Base de datos.
+    /// Base de datos de la sesión actual (cuenta o invitado).
     pub db: Database,
+    /// Registro de cuentas locales (`cuentas.db`).
+    pub cuentas: Database,
     /// Rutas.
     pub paths: AppPaths,
     /// Pila de pantallas.
@@ -1389,13 +1391,15 @@ impl App {
         let tutorial_completado =
             crate::db::settings_repo::tutorial_completado(db.conn()).unwrap_or(false);
         let sesion = crate::services::usuario_service::sesion(db.conn()).unwrap_or_default();
+        let cuentas = Database::open_cuentas(&paths.cuentas_file)?;
         let stack = if sesion.bienvenida_vista {
             vec![Screen::MainMenu]
         } else {
             vec![Screen::Bienvenida]
         };
-        Ok(Self {
+        let mut app = Self {
             db,
+            cuentas,
             paths,
             stack,
             active_module: None,
@@ -1541,10 +1545,12 @@ impl App {
             usuarios_table: TableState::default(),
             usuario_edit_id: None,
             usuario_login_nombre: String::new(),
-            usuario_actual: sesion.usuario,
+            usuario_actual: None,
             bienvenida_vista: sesion.bienvenida_vista,
             search: None,
-        })
+        };
+        let _ = app.refresh_usuarios();
+        Ok(app)
     }
 
     /// Pantalla visible.
@@ -1764,7 +1770,9 @@ impl App {
             Screen::Agenda => "j/k: mover  Esc: volver",
             Screen::ProgresionList => "n: nueva  e: editar  d: borrar  p: planes  r: refrescar",
             Screen::PlanesList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
-            Screen::Bienvenida => "n: crear cuenta  l: iniciar sesión  Enter: continuar  q: salir",
+            Screen::Bienvenida => {
+                "↑↓: elegir cuenta  Enter: entrar  n: crear cuenta  l: iniciar sesión  i: invitado  q: salir"
+            }
             Screen::UsuarioList => {
                 "n: nueva  l: iniciar  p: contraseña  d: borrar  c: cerrar sesión"
             }
@@ -2323,9 +2331,14 @@ impl App {
                 });
             }
             ConfirmAction::DeleteUsuario(id) => {
-                let resultado = crate::services::usuario_service::eliminar(self.db.conn(), id);
+                let era_actual = self.usuario_actual.as_ref().is_some_and(|u| u.id == id);
+                let resultado = crate::services::usuario_service::eliminar(self.cuentas.conn(), id);
                 self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_usuarios();
+                    if era_actual {
+                        app.salir_a_invitado();
+                    } else {
+                        let _ = app.refresh_usuarios();
+                    }
                 });
             }
             ConfirmAction::DeletePlan(id) => {
