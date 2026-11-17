@@ -941,6 +941,9 @@ impl App {
             "notificaciones" => self.open_notificaciones(),
             "resumen" => self.open_module(Module::Resumen),
             "ajustes" => self.open_module(Module::Ajustes),
+            "bienestar" => self.open_bienestar(),
+            "colecciones" => self.open_colecciones(),
+            "entrenador_ia" => self.open_entrenador(),
             "usuario" => self.open_usuarios(),
             "ayuda" => {
                 self.push_screen(Screen::Ayuda);

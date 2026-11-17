@@ -110,7 +110,7 @@ fn canchas(app: &App) -> i64 {
 
 fn abrir_usuario(app: &mut App) {
     let actual = app.menu_state.selected().unwrap_or(0);
-    let pasos = (18 + 19 - actual) % 19;
+    let pasos = (21 + 22 - actual) % 22;
     for _ in 0..pasos {
         press(app, KeyCode::Down);
     }

@@ -92,12 +92,18 @@ pub enum Module {
     /// Módulo 18.
     Progresion,
     /// Módulo 19.
+    Bienestar,
+    /// Módulo 20.
+    Colecciones,
+    /// Módulo 21.
+    EntrenadorIa,
+    /// Módulo 22.
     Usuario,
 }
 
 impl Module {
     /// Orden del menú principal.
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 22] = [
         Self::Camisetas,
         Self::Canchas,
         Self::Botines,
@@ -116,6 +122,9 @@ impl Module {
         Self::Media,
         Self::Recordatorios,
         Self::Progresion,
+        Self::Bienestar,
+        Self::Colecciones,
+        Self::EntrenadorIa,
         Self::Usuario,
     ];
 
@@ -141,6 +150,9 @@ impl Module {
             Self::Media => "Multimedia",
             Self::Recordatorios => "Recordatorios",
             Self::Progresion => "Progresión",
+            Self::Bienestar => "Bienestar",
+            Self::Colecciones => "Colecciones",
+            Self::EntrenadorIa => "Entrenador IA",
             Self::Usuario => "Usuario",
         }
     }
@@ -167,6 +179,9 @@ impl Module {
             Self::Media => "Multimedia",
             Self::Recordatorios => "Recordatorios",
             Self::Progresion => "Progresión",
+            Self::Bienestar => "Bienestar",
+            Self::Colecciones => "Colecciones",
+            Self::EntrenadorIa => "IA",
             Self::Usuario => "Usuario",
         }
     }
@@ -193,6 +208,9 @@ impl Module {
             Self::Media => "media",
             Self::Recordatorios => "recordatorios",
             Self::Progresion => "progresion",
+            Self::Bienestar => "bienestar",
+            Self::Colecciones => "colecciones",
+            Self::EntrenadorIa => "entrenador_ia",
             Self::Usuario => "usuario",
         }
     }
@@ -219,6 +237,9 @@ impl Module {
             Self::Media => "Videos, fotos, artículos y audio asociados a partidos.",
             Self::Recordatorios => "Recordatorios, recurrencias y agenda.",
             Self::Progresion => "Planes de entrenamiento y evolución semanal por jugador.",
+            Self::Bienestar => "Hábitos, entrenamientos, comidas, mente, salud y asistente.",
+            Self::Colecciones => "Inventario de equipamiento y colecciones.",
+            Self::EntrenadorIa => "Consejos, predicción, táctica y descanso según tus partidos.",
             Self::Usuario => "Cuentas locales, inicio de sesión y bienvenida.",
         }
     }
@@ -360,6 +381,20 @@ pub enum Screen {
     TiendasList,
     /// Formulario de tienda.
     TiendaForm(FormMode),
+    /// Bienestar: listado por secciones.
+    BienestarList,
+    /// Formulario de Bienestar.
+    BienestarForm(FormMode),
+    /// Asistente de entrenamientos.
+    BienestarAsistente,
+    /// Inventario y colecciones.
+    ColeccionesList,
+    /// Formulario de ítem, colección o asignación.
+    ColeccionForm(FormMode),
+    /// Ítems de una colección.
+    ColeccionDetail(i64),
+    /// Entrenador IA.
+    EntrenadorIa,
     /// Ranking de amigos.
     AmigosList,
     /// Formulario de amigo.
@@ -433,6 +468,12 @@ pub enum ConfirmAction {
     DeleteTemporada(i64),
     /// Eliminar la tienda indicada.
     DeleteTienda(i64),
+    /// Eliminar un registro de la sección activa de Bienestar.
+    DeleteBienestar(i64),
+    /// Eliminar un ítem del inventario.
+    DeleteInventarioItem(i64),
+    /// Eliminar una colección.
+    DeleteColeccion(i64),
     /// Eliminar el amigo indicado.
     DeleteAmigo(i64),
     /// Eliminar la referencia multimedia indicada.
@@ -1047,7 +1088,7 @@ pub enum Overlay {
 }
 
 /// Acciones de la paleta: (etiqueta, id).
-pub const ACCIONES_PALETA: [(&str, &str); 22] = [
+pub const ACCIONES_PALETA: [(&str, &str); 25] = [
     ("Nuevo partido", "nuevo_partido"),
     ("Ir a Partidos", "partidos"),
     ("Ir a Camisetas", "camisetas"),
@@ -1064,6 +1105,9 @@ pub const ACCIONES_PALETA: [(&str, &str); 22] = [
     ("Multimedia", "media"),
     ("Recordatorios", "recordatorios"),
     ("Progresión", "progresion"),
+    ("Bienestar", "bienestar"),
+    ("Colecciones e inventario", "colecciones"),
+    ("Entrenador IA", "entrenador_ia"),
     ("Usuario", "usuario"),
     ("Notificaciones", "notificaciones"),
     ("Resumen compartible", "resumen"),
@@ -1318,6 +1362,38 @@ pub struct App {
     pub tiendas_table: TableState,
     /// Tienda en edición.
     pub tienda_edit_id: Option<i64>,
+    /// Sección activa de Bienestar.
+    pub bienestar_seccion: crate::domain::bienestar::Seccion,
+    /// Registros de la sección activa.
+    pub bienestar_registros: Vec<crate::domain::bienestar::Registro>,
+    /// Selección de Bienestar.
+    pub bienestar_table: TableState,
+    /// Registro de Bienestar en edición.
+    pub bienestar_edit_id: Option<i64>,
+    /// Último cálculo del asistente.
+    pub bienestar_asistente: Option<crate::domain::bienestar::Asistente>,
+    /// Recomendaciones guardadas.
+    pub bienestar_recomendaciones: Vec<crate::domain::bienestar::Recomendacion>,
+    /// Inventario.
+    pub inventario: Vec<crate::domain::colecciones::InventarioItem>,
+    /// Selección del inventario.
+    pub inventario_table: TableState,
+    /// Colecciones.
+    pub colecciones: Vec<crate::domain::colecciones::Coleccion>,
+    /// Selección de colecciones.
+    pub colecciones_table: TableState,
+    /// `true` si la pestaña activa es Colecciones.
+    pub colecciones_ver_colecciones: bool,
+    /// Ítems de la colección abierta.
+    pub coleccion_detalle: Vec<crate::domain::colecciones::InventarioItem>,
+    /// Selección del detalle.
+    pub coleccion_detalle_table: TableState,
+    /// Id en edición (0 = nuevo).
+    pub coleccion_edit_id: i64,
+    /// Qué edita el formulario de colecciones.
+    pub coleccion_formulario: crate::app_colecciones::FormularioColeccion,
+    /// Último análisis del Entrenador IA.
+    pub entrenador: Option<crate::domain::entrenador::Analisis>,
     /// Amigos.
     pub amigos: Vec<Amigo>,
     /// Ranking de amigos.
@@ -1526,6 +1602,22 @@ impl App {
             tiendas: Vec::new(),
             tiendas_table: TableState::default(),
             tienda_edit_id: None,
+            bienestar_seccion: crate::domain::bienestar::Seccion::Habitos,
+            bienestar_registros: Vec::new(),
+            bienestar_table: TableState::default(),
+            bienestar_edit_id: None,
+            bienestar_asistente: None,
+            bienestar_recomendaciones: Vec::new(),
+            inventario: Vec::new(),
+            inventario_table: TableState::default(),
+            colecciones: Vec::new(),
+            colecciones_table: TableState::default(),
+            colecciones_ver_colecciones: false,
+            coleccion_detalle: Vec::new(),
+            coleccion_detalle_table: TableState::default(),
+            coleccion_edit_id: 0,
+            coleccion_formulario: crate::app_colecciones::FormularioColeccion::default(),
+            entrenador: None,
             amigos: Vec::new(),
             amigos_ranking: Vec::new(),
             amigos_table: TableState::default(),
@@ -1636,6 +1728,13 @@ impl App {
             Screen::TemporadaForm(_) => "Temporadas · formulario".to_string(),
             Screen::TiendasList => "Tiendas".to_string(),
             Screen::TiendaForm(_) => "Tiendas · formulario".to_string(),
+            Screen::BienestarList => format!("Bienestar · {}", self.bienestar_seccion.label()),
+            Screen::BienestarForm(_) => "Bienestar · formulario".to_string(),
+            Screen::BienestarAsistente => "Bienestar · asistente".to_string(),
+            Screen::ColeccionesList => "Colecciones e inventario".to_string(),
+            Screen::ColeccionForm(_) => "Colecciones · formulario".to_string(),
+            Screen::ColeccionDetail(_) => "Colecciones · detalle".to_string(),
+            Screen::EntrenadorIa => "Entrenador IA".to_string(),
             Screen::AmigosList => "Ranking de amigos".to_string(),
             Screen::AmigoForm(_) => "Amigos · formulario".to_string(),
             Screen::MediaList => "Multimedia".to_string(),
@@ -1684,6 +1783,8 @@ impl App {
             | Screen::TorneoResultadoForm(_)
             | Screen::TemporadaForm(_)
             | Screen::TiendaForm(_)
+            | Screen::BienestarForm(_)
+            | Screen::ColeccionForm(_)
             | Screen::AmigoForm(_)
             | Screen::MediaForm(_)
             | Screen::RecordatorioForm(_)
@@ -1769,6 +1870,17 @@ impl App {
                 "1/2: tipo  Tab: A/B  j/k: mover  Enter: comparar  r: recargar  Esc: volver"
             }
             Screen::TiendasList => "n: nueva  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::BienestarList => {
+                "Tab/←→: sección  n: nuevo  e: editar  d: borrar  o: omitido  a: asistente  r: refrescar"
+            }
+            Screen::BienestarAsistente => "s: guardar recomendación  r: recalcular  Esc: volver",
+            Screen::ColeccionesList => {
+                "Tab: pestaña  n: nuevo  e: editar  d: borrar  s: sincronizar camisetas  a: agregar a colección  Enter: abrir"
+            }
+            Screen::ColeccionDetail(_) => "u: quitar de la colección  Esc: volver",
+            Screen::EntrenadorIa => {
+                "s: consejos seguidos  i: ignorados  v: nivel de intervención  r: refrescar  Esc: volver"
+            }
             Screen::AmigosList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
             Screen::MediaList => {
                 "n: nueva  e: editar  d: borrar  f: tipo  r: refrescar  Esc: volver"
@@ -2055,6 +2167,11 @@ impl App {
             Screen::TemporadasList => self.handle_temporadas_list_key(key)?,
             Screen::TemporadaDetail(_) => self.handle_temporada_detail_key(key)?,
             Screen::TiendasList => self.handle_tiendas_list_key(key)?,
+            Screen::BienestarList => self.handle_bienestar_list_key(key)?,
+            Screen::BienestarAsistente => self.handle_bienestar_asistente_key(key)?,
+            Screen::ColeccionesList => self.handle_colecciones_list_key(key)?,
+            Screen::ColeccionDetail(id) => self.handle_coleccion_detail_key(id, key)?,
+            Screen::EntrenadorIa => self.handle_entrenador_key(key)?,
             Screen::AmigosList => self.handle_amigos_list_key(key)?,
             Screen::MediaList => self.handle_media_list_key(key)?,
             Screen::RecordatoriosList => self.handle_recordatorios_list_key(key)?,
@@ -2065,7 +2182,10 @@ impl App {
             Screen::UsuarioList => self.handle_usuario_list_key(key)?,
             Screen::Ultimos => self.handle_ultimos_key(key)?,
             Screen::Comparador => self.handle_comparador_key(key)?,
-            Screen::TiendaForm(_) | Screen::AmigoForm(_) => {
+            Screen::TiendaForm(_)
+            | Screen::AmigoForm(_)
+            | Screen::BienestarForm(_)
+            | Screen::ColeccionForm(_) => {
                 self.handle_form_key(key)?;
                 true
             }
@@ -2350,6 +2470,9 @@ impl App {
                     let _ = app.refresh_tiendas();
                 });
             }
+            ConfirmAction::DeleteBienestar(id) => self.eliminar_bienestar(id),
+            ConfirmAction::DeleteInventarioItem(id) => self.eliminar_inventario_item(id),
+            ConfirmAction::DeleteColeccion(id) => self.eliminar_coleccion(id),
             ConfirmAction::DeleteProgresion(id) => {
                 let resultado = crate::services::progresion_service::eliminar(self.db.conn(), id);
                 self.confirmar_eliminacion(resultado, |app| {
@@ -2493,7 +2616,7 @@ impl App {
         state.select(Some(siguiente));
     }
 
-    fn confirmar_eliminacion<T, E, F>(&mut self, resultado: Result<T, E>, despues: F)
+    pub(crate) fn confirmar_eliminacion<T, E, F>(&mut self, resultado: Result<T, E>, despues: F)
     where
         E: std::fmt::Display,
         F: FnOnce(&mut Self),
@@ -2610,6 +2733,9 @@ impl App {
                 self.push_screen(Screen::ProgresionList);
                 self.refresh_progresion()?;
             }
+            Module::Bienestar => self.open_bienestar()?,
+            Module::Colecciones => self.open_colecciones()?,
+            Module::EntrenadorIa => self.open_entrenador()?,
             Module::Usuario => {
                 self.push_screen(Screen::UsuarioList);
                 self.refresh_usuarios()?;
@@ -2784,6 +2910,8 @@ impl App {
             Screen::TorneoResultadoForm(_) => self.save_torneo_resultado_form(),
             Screen::TemporadaForm(mode) => self.save_temporada_form(mode),
             Screen::TiendaForm(mode) => self.save_tienda_form(mode),
+            Screen::BienestarForm(_) => self.save_bienestar_form(),
+            Screen::ColeccionForm(_) => self.save_coleccion_form(),
             Screen::AmigoForm(mode) => self.save_amigo_form(mode),
             Screen::MediaForm(mode) => self.save_media_form(mode),
             Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),

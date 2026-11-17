@@ -7,11 +7,14 @@
 pub mod app;
 mod app_ajustes;
 mod app_amigos;
+mod app_bienestar;
 mod app_botines;
 mod app_canchas;
 mod app_carrera;
 mod app_clima;
+mod app_colecciones;
 mod app_comparador;
+mod app_entrenador;
 mod app_equipos;
 mod app_estadisticas;
 mod app_financiamiento;

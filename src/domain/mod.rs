@@ -4,11 +4,14 @@
 //! dependencias externas (ADR-06).
 
 pub mod amigos;
+pub mod bienestar;
 pub mod busqueda;
 pub mod calendario;
 pub mod cancha_codes;
+pub mod colecciones;
 pub mod comparador;
 pub mod dates;
+pub mod entrenador;
 pub mod inicio;
 pub mod logros;
 pub mod media;
