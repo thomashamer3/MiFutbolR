@@ -1,0 +1,82 @@
+name: Release
+
+# Publica binarios e instalador al empujar un tag vX.Y.Z.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  crear:
+    name: Crear release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release en borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          --title "MiFutbolR $GITHUB_REF_NAME" --generate-notes --draft
+
+  binarios:
+    name: Binario (${{ matrix.os }})
+    needs: crear
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            exe: mifutbol-rs.exe
+            sufijo: win64
+          - os: ubuntu-latest
+            exe: mifutbol-rs
+            sufijo: linux-x64
+          - os: macos-latest
+            exe: mifutbol-rs
+            sufijo: macos-arm64
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Toolchain estable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Caché de Cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Pruebas
+        run: cargo test --locked
+      - name: Build release
+        run: cargo build --locked --release
+      - name: Versión numérica del tag (v1.2.3 -> 1.2.3)
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "VERSION=${version%%-*}" >> "$GITHUB_ENV"
+      - name: Empaquetar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q "/DMyAppVersion=$env:VERSION" MiFutbolR.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $zip = "dist/MiFutbolR-$env:VERSION-${{ matrix.sufijo }}.zip"
+          Compress-Archive -Path "target/release/${{ matrix.exe }}", README.md -DestinationPath $zip -Force
+          Get-ChildItem dist -File | Where-Object { $_.Name -like "*$env:VERSION*" } |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content "dist/SHA256SUMS-${{ matrix.sufijo }}.txt"
+      - name: Empaquetar (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          tar -czf "dist/MiFutbolR-$VERSION-${{ matrix.sufijo }}.tar.gz" -C target/release "${{ matrix.exe }}" -C "$GITHUB_WORKSPACE" README.md
+          (cd dist && shasum -a 256 MiFutbolR-* > "SHA256SUMS-${{ matrix.sufijo }}.txt")
+      - name: Subir al release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/*"$VERSION"* dist/SHA256SUMS-${{ matrix.sufijo }}.txt --clobber

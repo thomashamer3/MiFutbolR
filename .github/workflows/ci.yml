@@ -32,3 +32,17 @@ jobs:
         run: cargo test --locked
       - name: Build release
         run: cargo build --locked --release
+
+  dependencias:
+    name: Dependencias (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Toolchain estable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Caché de Cargo (incluye ~/.cargo/bin)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Instalar cargo-deny
+        run: cargo deny --version || cargo install cargo-deny --locked
+      - name: Vulnerabilidades, licencias, orígenes y duplicados
+        run: cargo deny check

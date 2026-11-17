@@ -1,0 +1,45 @@
+name: Benchmarks
+
+# Compara el rendimiento del PR contra su rama base con criterion
+# (`--save-baseline` / `--baseline`) y deja el resultado en el resumen del job.
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  queries:
+    name: Consultas (base vs PR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Toolchain estable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Caché de Cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Baseline de la rama base
+        if: github.event_name == 'pull_request'
+        run: |
+          git checkout --quiet "${{ github.event.pull_request.base.sha }}"
+          cargo bench --locked --bench queries -- --warm-up-time 1 --measurement-time 3 --noplot --save-baseline base
+          git checkout --quiet "${{ github.sha }}"
+      - name: Medir el PR
+        shell: bash
+        run: |
+          comparar=()
+          if [ "${{ github.event_name }}" = "pull_request" ]; then comparar=(--baseline base); fi
+          cargo bench --locked --bench queries -- --warm-up-time 1 --measurement-time 3 --noplot "${comparar[@]}" | tee bench.txt
+      - name: Resumen
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Benchmarks de consultas"
+            echo '```'
+            grep -E "^partidos/|time:|change:|Performance" bench.txt || cat bench.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

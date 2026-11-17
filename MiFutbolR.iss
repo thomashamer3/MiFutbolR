@@ -2,7 +2,10 @@
 ; Compilar con: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" MiFutbolR.iss
 
 #define MyAppName "MiFutbolR"
-#define MyAppVersion "0.1"
+; La versión puede venir de CI: ISCC /DMyAppVersion=1.2.3
+#ifndef MyAppVersion
+  #define MyAppVersion "0.1"
+#endif
 #define MyAppPublisher "MiFutbolR"
 #define MyAppURL "https://github.com/"
 #define MyAppExeName "mifutbol-rs.exe"
@@ -47,10 +50,10 @@ Source: "target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "assets\icono.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
 Source: "assets\banner.png"; DestDir: "{app}\assets"; Flags: ignoreversion
-Source: "docs\TUI.md"; DestDir: "{app}\docs"; Flags: ignoreversion
-Source: "docs\MIGRACION_BD.md"; DestDir: "{app}\docs"; Flags: ignoreversion
-Source: "docs\PLAN_IMPLEMENTACION.md"; DestDir: "{app}\docs"; Flags: ignoreversion
-Source: "docs\ACEPTACION.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "docs\TUI.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "docs\MIGRACION_BD.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "docs\PLAN_IMPLEMENTACION.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "docs\ACEPTACION.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "docs\img\*.png"; DestDir: "{app}\docs\img"; Flags: ignoreversion
 
 [Icons]

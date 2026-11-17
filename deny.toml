@@ -2,6 +2,11 @@
 [advisories]
 version = 2
 yanked = "warn"
+ignore = [
+    # Sin mantenimiento, no vulnerable. Se usa en 32 archivos; migrar a `jiff`
+    # o `time` es una tarea propia (ver odd/tasks/recomendaciones.md).
+    { id = "RUSTSEC-2026-0543", reason = "chrono sin mantenimiento; migración pendiente" },
+]
 
 [licenses]
 version = 2
