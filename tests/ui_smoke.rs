@@ -9,7 +9,8 @@ use common::*;
 #[test]
 fn main_menu_lists_all_modules() {
     let (mut app, _dir) = test_app();
-    let text = render_con(&mut app, 100, 30);
+    // 22 módulos: con 33 filas entran todos sin desplazar la lista.
+    let text = render_con(&mut app, 100, 33);
     assert!(text.contains("MiFutbolR"), "falta el nombre de la app");
     for label in [
         "Camisetas",
@@ -30,6 +31,9 @@ fn main_menu_lists_all_modules() {
         "Multimedia",
         "Recordatorios",
         "Progresión",
+        "Bienestar",
+        "Colecciones",
+        "Entrenador IA",
         "Usuario",
     ] {
         assert!(text.contains(label), "falta el módulo {label}");

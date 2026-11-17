@@ -4,13 +4,16 @@
 //! los servicios orquestan transacciones.
 
 pub mod amigo_repo;
+pub mod bienestar_repo;
 pub mod botin_repo;
 pub mod busqueda_repo;
 pub mod calendario_repo;
 pub mod camiseta_repo;
 pub mod cancha_repo;
 pub mod carrera_repo;
+pub mod coleccion_repo;
 pub mod comparador_repo;
+pub mod entrenador_repo;
 pub mod equipo_repo;
 pub mod error;
 pub mod estadisticas_repo;
@@ -57,6 +60,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/009_ola2_recordatorios.sql"),
     include_str!("../../migrations/010_ola2_quimica.sql"),
     include_str!("../../migrations/011_usuario.sql"),
+    include_str!("../../migrations/012_bienestar_colecciones_ia.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

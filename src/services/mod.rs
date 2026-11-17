@@ -5,12 +5,15 @@
 //! reserva para mantener estable la estructura del proyecto.
 
 pub mod amigos_service;
+pub mod bienestar_service;
 pub mod botin_service;
 pub mod busqueda_service;
 pub mod camiseta_service;
 pub mod cancha_service;
 pub mod carrera_service;
+pub mod colecciones_service;
 pub mod comparador_service;
+pub mod entrenador_service;
 pub mod equipo_service;
 pub mod estadisticas_service;
 pub mod export_service;

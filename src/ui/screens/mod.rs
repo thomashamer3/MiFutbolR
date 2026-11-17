@@ -3,6 +3,7 @@
 pub mod ajustes;
 pub mod amigos;
 pub mod ayuda;
+pub mod bienestar;
 pub mod bienvenida;
 pub mod botines;
 pub mod busqueda;
@@ -10,7 +11,9 @@ pub mod calendario;
 pub mod camisetas;
 pub mod canchas;
 pub mod carrera;
+pub mod colecciones;
 pub mod comparador;
+pub mod entrenador;
 pub mod equipos;
 pub mod estadisticas;
 pub mod financiamiento;

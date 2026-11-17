@@ -17,7 +17,7 @@ fn wide_main_menu_shows_preview_and_shortcuts() {
     let (mut app, _dir) = test_app();
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
-    assert!(text.contains("Módulo 1 de 19"), "{text}");
+    assert!(text.contains("Módulo 1 de 22"), "{text}");
     assert!(text.contains("Atajos"), "{text}");
     assert!(text.contains("Camisetas"), "{text}");
 }
