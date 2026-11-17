@@ -34,6 +34,9 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
   (tope 64) e ignorar movimiento del mouse. Ruta: inline (1 archivo, src/app.rs::run).
 - [x] T3 Rendimiento: `estadisticas_repo::rendimiento` con una sola pasada en lugar de 8 GROUP BY
   + test de equivalencia contra SQL. Ruta: inline (1 archivo).
+- [x] T4 Rendimiento: `goles` y `canchas` sin GROUP BY costosos (una pasada / CTE por cancha) +
+  equivalencia; `procesar_eventos` extraído y testeado con eventos simulados. Ruta: inline.
+- [x] T5 Contraste con la documentación de ratatui pedida (ver sección Documentación).
 
 ## Criterios de aceptación
 - Crear cuenta (con/sin contraseña) abre el menú usando `usuarios/<id>/mifutbol.db`.
@@ -62,6 +65,22 @@ Hoy las cuentas (`cuenta`, `cuenta_sesion`) viven dentro de la misma
 - T2: no medible con TestBackend; en reposo pasa de ~8 frames/s a 0. No probado en terminal real.
 - `cargo test`: 207 OK, 0 fallos. Clippy `-D warnings` limpio. Commit T2+T3: `d437ebb`.
 
+- T4: bench `estadisticas_completas` 62,0 → 53,3 ms (total 79,4 → 53,3, −33 %). Commit `5af1e55`.
+  Tests: 212 OK, 0 fallos; clippy limpio. 4 tests nuevos en tests/event_loop.rs.
+- Terminal real (consola Windows, release, 8 s en reposo en la portada): CPU 391 ms (5030a72) →
+  16 ms (5af1e55), −96 %; ambos procesos vivos al final.
+
+## Documentación consultada (T5)
+- ratatui.rs/concepts/rendering: modo inmediato, "only updates when you tell it to" → el bucle decide
+  cuándo dibujar; no bloquear el hilo de render.
+- ratatui.rs/concepts/rendering/under-the-hood: doble buffer + diff; cada `draw` igual ejecuta el
+  closure y calcula el diff → evitar `draw` sin cambios (T2).
+- docs.rs/ratatui: los resize no redibujan solos → `procesar_eventos` marca cambio en cualquier
+  evento que no sea movimiento del mouse.
+- ratatui.rs/tutorials/counter-app/basic-app: un `draw` por iteración, filtrar `KeyEventKind::Press`
+  (ya lo hace `App::handle_key`).
+- ratatui.rs/concepts/layout + recipes/layout/center-a-widget: `Layout::vertical(..).flex(Flex::Center)`,
+  `Rect::centered_horizontally`, `Clear` en popups → la portada y `draw_modal` ya lo usan.
+
 ## Siguiente paso
-Opcional: llevar `canchas` (13 ms) y `goles` (10 ms) al mismo patrón de una pasada si se usan bases
-muy grandes; con datos realistas (cientos de partidos) ya cargan en pocos ms.
+Ninguno obligatorio. Opcional: `generales` (8 ms) y `por_anio` (5,7 ms) con bases muy grandes.
