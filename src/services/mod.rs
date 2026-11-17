@@ -22,6 +22,7 @@ pub mod logros_service;
 pub mod media_service;
 pub mod notificacion_service;
 pub mod partido_service;
+pub mod perfiles_import_service;
 pub mod progresion_service;
 pub mod quimica_service;
 pub mod recordatorios_service;

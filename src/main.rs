@@ -2,6 +2,7 @@
 //!
 //! Opciones de línea de comandos:
 //! - `--importar-legacy <ruta.db>`: importa una base de MiFutbolC a la BD actual.
+//! - `--importar-perfiles [dir]`: importa los perfiles de MiFutbolC como cuentas.
 //! - `--version`: muestra la versión.
 //! - `--help`: ayuda.
 
@@ -11,7 +12,7 @@ use anyhow::Context;
 use mifutbol_rs::app::{self, App};
 use mifutbol_rs::config::AppPaths;
 use mifutbol_rs::db::Database;
-use mifutbol_rs::services::legacy_import_service;
+use mifutbol_rs::services::{legacy_import_service, perfiles_import_service};
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -32,7 +33,7 @@ fn main() -> anyhow::Result<()> {
         }
         Some("--help") | Some("-h") => {
             println!(
-                "MiFutbolRS {}\n\nUso:\n  mifutbol-rs                       Abre la TUI\n  mifutbol-rs --importar-legacy <ruta.db>  Importa una BD legacy\n  mifutbol-rs --version             Muestra la versión\n  mifutbol-rs --help                Muestra esta ayuda\n\nBase de datos: {}\nVariable MIFUTBOL_DB para usar otra ruta.",
+                "MiFutbolRS {}\n\nUso:\n  mifutbol-rs                       Abre la TUI\n  mifutbol-rs --importar-legacy <ruta.db>  Importa una BD legacy\n  mifutbol-rs --importar-perfiles [dir]    Importa los perfiles de MiFutbolC (users.db)\n  mifutbol-rs --version             Muestra la versión\n  mifutbol-rs --help                Muestra esta ayuda\n\nBase de datos: {}\nVariable MIFUTBOL_DB para usar otra ruta.",
                 env!("CARGO_PKG_VERSION"),
                 paths.db_file.display()
             );
@@ -52,6 +53,33 @@ fn main() -> anyhow::Result<()> {
             );
             for (tabla, filas) in &resumen.tablas {
                 println!("  {tabla}: {filas}");
+            }
+            for aviso in &resumen.advertencias {
+                println!("  aviso: {aviso}");
+            }
+            return Ok(());
+        }
+        Some("--importar-perfiles") => {
+            let dir = match args.get(1) {
+                Some(dir) => std::path::PathBuf::from(dir),
+                None => perfiles_import_service::directorio_c_por_defecto()
+                    .context("No se encontró el directorio de MiFutbolC; pasalo como argumento")?,
+            };
+            let cuentas = Database::open_cuentas(&paths.cuentas_file)
+                .with_context(|| format!("No se pudo abrir {}", paths.cuentas_file.display()))?;
+            let resumen = perfiles_import_service::importar_perfiles(cuentas.conn(), &paths, &dir)?;
+            println!(
+                "Perfiles importados desde {}: {}",
+                dir.display(),
+                resumen.perfiles.len()
+            );
+            for perfil in &resumen.perfiles {
+                let clave = if perfil.con_password {
+                    "con contraseña"
+                } else {
+                    "sin contraseña"
+                };
+                println!("  {} ({clave}): {} filas", perfil.nombre, perfil.filas);
             }
             for aviso in &resumen.advertencias {
                 println!("  aviso: {aviso}");

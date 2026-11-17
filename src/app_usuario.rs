@@ -7,7 +7,7 @@ use crate::app::{App, ConfirmAction, Field, Form, Modal, Screen};
 use crate::db::Database;
 use crate::domain::models::FormMode;
 use crate::domain::usuario::Usuario;
-use crate::services::usuario_service;
+use crate::services::{perfiles_import_service, usuario_service};
 
 impl App {
     /// Abre el módulo de usuario.
@@ -62,10 +62,34 @@ impl App {
                 self.open_usuario_login(&nombre)?;
             }
             KeyCode::Char('i') | KeyCode::Esc => self.entrar_al_menu()?,
+            KeyCode::Char('m') => self.importar_perfiles_c(),
             KeyCode::Char('q') => self.should_quit = true,
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    /// Importa los perfiles de MiFutbolC desde su directorio de datos por defecto.
+    fn importar_perfiles_c(&mut self) {
+        let Some(dir) = perfiles_import_service::directorio_c_por_defecto() else {
+            self.modal = Some(Modal::Error(
+                "No se encontró el directorio de MiFutbolC (LOCALAPPDATA).".to_string(),
+            ));
+            return;
+        };
+        match perfiles_import_service::importar_perfiles(self.cuentas.conn(), &self.paths, &dir) {
+            Ok(resumen) => {
+                let _ = self.refresh_usuarios();
+                self.status = format!(
+                    "{} perfiles importados de MiFutbolC",
+                    resumen.perfiles.len()
+                );
+                if !resumen.advertencias.is_empty() {
+                    self.modal = Some(Modal::Error(resumen.advertencias.join("\n")));
+                }
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
     }
 
     fn mover_usuario(&mut self, delta: isize) {

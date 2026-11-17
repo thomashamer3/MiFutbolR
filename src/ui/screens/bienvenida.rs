@@ -178,7 +178,14 @@ fn draw_cuentas(frame: &mut Frame, area: Rect, app: &mut App, colors: &Palette) 
         atajos.push(Span::styled(format!(" {t}"), texto));
     }
     frame.render_widget(
-        Paragraph::new(vec![Line::from(""), Line::from(atajos)]).alignment(Alignment::Center),
+        Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled("m", tecla),
+                Span::styled(" importar perfiles de MiFutbolC", texto),
+            ]),
+            Line::from(atajos),
+        ])
+        .alignment(Alignment::Center),
         ayuda_area,
     );
 }

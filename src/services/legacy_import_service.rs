@@ -88,9 +88,10 @@ pub fn importar(conn: &mut Connection, ruta: &Path) -> Result<ImportResumen, Imp
         return Err(ImportError::DestinoConDatos);
     }
 
+    // Solo lectura: la base de MiFutbolC nunca se modifica al importar.
     conn.execute(
         "ATTACH DATABASE ?1 AS legacy",
-        params![ruta.to_string_lossy()],
+        params![uri_solo_lectura(ruta)],
     )?;
 
     let resultado = importar_adjunta(conn);
@@ -108,6 +109,29 @@ pub fn importar(conn: &mut Connection, ruta: &Path) -> Result<ImportResumen, Imp
         ));
     }
     Ok(resumen)
+}
+
+/// URI `file:` de solo lectura (rusqlite abre las conexiones con URIs habilitadas).
+fn uri_solo_lectura(ruta: &Path) -> String {
+    let ruta = std::fs::canonicalize(ruta).unwrap_or_else(|_| ruta.to_path_buf());
+    let texto = ruta.to_string_lossy().replace('\\', "/");
+    // `canonicalize` en Windows devuelve `//?/C:/...`; SQLite espera `/C:/...`.
+    let texto = texto.trim_start_matches("//?/");
+    let mut uri = String::from("file:");
+    if !texto.starts_with('/') {
+        uri.push('/');
+    }
+    for caracter in texto.chars() {
+        match caracter {
+            '%' => uri.push_str("%25"),
+            ' ' => uri.push_str("%20"),
+            '?' => uri.push_str("%3f"),
+            '#' => uri.push_str("%23"),
+            otro => uri.push(otro),
+        }
+    }
+    uri.push_str("?mode=ro");
+    uri
 }
 
 fn importar_adjunta(conn: &mut Connection) -> Result<ImportResumen, ImportError> {
@@ -393,8 +417,12 @@ mod tests {
     #[test]
     fn imports_and_converts_legacy_data() {
         let dir = tempfile::tempdir().unwrap();
-        let ruta = dir.path().join("legacy.db");
+        // Espacios y % en la ruta, como "Lenguaje C" en la carpeta real.
+        let carpeta = dir.path().join("Mi Futbol 100%");
+        std::fs::create_dir_all(&carpeta).unwrap();
+        let ruta = carpeta.join("legacy.db");
         crear_legacy(&ruta);
+        let original = std::fs::read(&ruta).unwrap();
 
         let mut db = Database::open_in_memory().unwrap();
         let resumen = importar(db.conn_mut(), &ruta).unwrap();
@@ -409,6 +437,21 @@ mod tests {
             )
             .unwrap();
         assert_eq!((historial, suspendido), (0, 0));
+        assert_eq!(
+            std::fs::read(&ruta).unwrap(),
+            original,
+            "el origen no cambia"
+        );
+        let solo_lectura = Connection::open_in_memory().unwrap();
+        solo_lectura
+            .execute("ATTACH DATABASE ?1 AS l", params![uri_solo_lectura(&ruta)])
+            .unwrap();
+        assert!(
+            solo_lectura
+                .execute("INSERT INTO l.camiseta (nombre) VALUES ('x')", [])
+                .is_err(),
+            "la base adjunta es de solo lectura"
+        );
         assert!(
             resumen.advertencias.is_empty(),
             "{:?}",

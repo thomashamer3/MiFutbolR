@@ -89,6 +89,18 @@ La base de datos de usuario se guarda en
 `%LOCALAPPDATA%\mifutbol\mifutbol-rs\data\mifutbol.db` y no se elimina al
 desinstalar.
 
+Para migrar los **perfiles de MiFutbolC** (`users.db` + `mifutbol_<usuario>.db`), cada uno
+como cuenta con su propia base y la misma contraseña:
+
+```powershell
+.\mifutbol-rs.exe --importar-perfiles            # usa %LOCALAPPDATA%\MiFutbolC\data
+.\mifutbol-rs.exe --importar-perfiles "D:\otra\carpeta\data"
+```
+
+o desde la portada con la tecla **m**. Los archivos de MiFutbolC se abren en solo lectura;
+los perfiles cuyo nombre ya existe se omiten con un aviso. La contraseña heredada se
+convierte al formato de MiFutbolR en el primer inicio de sesión.
+
 Para migrar una base legacy:
 
 ```powershell
