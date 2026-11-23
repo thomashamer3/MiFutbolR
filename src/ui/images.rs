@@ -21,6 +21,17 @@ static LOGO: &[u8] = include_bytes!("../../images/icon-256x256.png");
 /// Tamaño de celda objetivo para las miniaturas.
 const MINIATURA: Size = Size::new(28, 10);
 
+/// Máximo de protocolos en caché; cada tamaño de terminal crea entradas nuevas.
+const MAX_ENTRADAS: usize = 32;
+
+/// Vacía el mapa al llenarse para que los redimensionados no lo hagan crecer sin límite.
+// shortcut: vaciar todo en vez de LRU; recarga lo visible una vez, pasar a LRU si molesta.
+fn acotar<K, V>(mapa: &mut HashMap<K, V>) {
+    if mapa.len() >= MAX_ENTRADAS {
+        mapa.clear();
+    }
+}
+
 /// Caché de protocolos de imagen ya decodificados.
 pub struct ImageCache {
     picker: Picker,
@@ -66,6 +77,7 @@ impl ImageCache {
         let clave = (ruta.to_path_buf(), tamano.width, tamano.height);
         if !self.cache.contains_key(&clave) {
             let protocolo = self.cargar(ruta, tamano);
+            acotar(&mut self.cache);
             self.cache.insert(clave.clone(), protocolo);
         }
         self.cache.get(&clave).and_then(Option::as_ref)
@@ -93,6 +105,7 @@ impl ImageCache {
                     .new_protocol(imagen, tamano, Resize::Fit(None))
                     .ok()
             });
+            acotar(&mut self.logo);
             self.logo.insert(clave, protocolo);
         }
         self.logo.get(&clave).and_then(Option::as_ref)
@@ -208,6 +221,18 @@ mod tests {
         assert!(cache.protocolo(&ruta).is_some());
         // La segunda llamada usa la caché.
         assert!(cache.protocolo(&ruta).is_some());
+    }
+
+    #[test]
+    fn cache_stays_bounded_across_resizes() {
+        let mut cache = ImageCache::default();
+        let ruta = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/icono.png");
+        for ancho in 1..=(MAX_ENTRADAS as u16 * 2) {
+            assert!(cache.protocolo_tamano(&ruta, Size::new(ancho, 4)).is_some());
+            assert!(cache.logo(Size::new(ancho, 4)).is_some());
+            assert!(cache.cache.len() <= MAX_ENTRADAS);
+            assert!(cache.logo.len() <= MAX_ENTRADAS);
+        }
     }
 
     #[test]

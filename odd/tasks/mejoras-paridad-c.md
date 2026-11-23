@@ -40,7 +40,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 ## Tareas
 - [x] B1 Errores. Ruta: delegated (writer trigger: ~8 archivos).
 - [x] B2 Flujo C. Ruta: delegated (writer trigger: app.rs, ui, ajustes, main).
-- [ ] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
+- [x] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
 - [ ] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [ ] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
 
@@ -70,7 +70,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     literal (búsqueda y filtro), fixture revertido, undo fallido sin `suspendido=1`,
     `fecha_de` multibyte. Total 263 OK; `cargo clippy --all-targets -D warnings` y
     `cargo fmt --check` limpios.
-- B2 (commit en este bloque; RDD unmanaged):
+- B2 (`200934a`, verificado por el orquestador: 275 OK, clippy limpio; RDD unmanaged):
   - 1 Menú en orden y nombres de `menu.c` `MENU_ITEMS`: `Module` suma Calendario, Logros,
     Análisis, Records y Tutorial; 1..24 como C y extras 25 Progresión, 26 Entrenador IA,
     27 Usuario; "0 Salir" al pie. Sincronización (25 en C) fuera de alcance. Análisis es un
@@ -104,3 +104,33 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     portada q/Esc, oferta de restaurar backup, `menus_ocultos`. Total 275 OK
     (`cargo test --all-targets`), clippy `-D warnings` y `cargo fmt --check` limpios.
   - No hecho: editor de menús personalizados (C `menu_custom_menus`) — no pedido.
+- B3 (commit en este bloque; RDD unmanaged):
+  - 1 Búsqueda global (`handle_overlay_key`): guarda el texto antes de la tecla y solo llama a
+    `busqueda_service::buscar` si cambió; flechas/Enter ya no repiten los ~8 `LIKE`.
+  - 2 `go_back` al menú recalcula el Inicio solo si `inicio_sucio` o si
+    `conn.total_changes()` cambió desde el último `refrescar_inicio` (nuevo campo
+    `App::inicio_cambios`). Así cualquier guardado/borrado/undo/import por la conexión de la
+    app lo marca sin tocar cada formulario; restaurar backup (API de backup, no cuenta en
+    `total_changes`) pone `inicio_sucio = true`. `handle_key` sin cambios.
+  - 3 Filtros por mes con rango indexable `col >= ?1 AND col < ?2` (`dates::rango_mes`,
+    diciembre → enero del año siguiente; mes inválido = rango vacío): `inicio_repo::mes`,
+    `calendario_repo::eventos_mes` (partido, financiamiento, recordatorio) y
+    `financiamiento_repo::gasto_mes`. No se usó `partido.mes_anio` aunque el formato es el
+    mismo (`YYYY-MM`): las inserciones directas (tests, imports) lo dejan en `''`. Los índices
+    de fecha ya existían (`idx_partido_fecha_hora`, `idx_financiamiento_fecha`,
+    `idx_recordatorio_fecha`), así que 015 no suma índices de fecha.
+  - 4 `migrations/015_fk_indexes.sql`: equipo(partido_id), media(partido_id),
+    bienestar_sesion_mental(partido_id) (la auditoría decía `bienestar_entrenamiento`, que no
+    tiene `partido_id`), partido_torneo(equipo1_id), partido_torneo(equipo2_id),
+    equipo_historial(equipo_id), equipo_historial(torneo_id), progresion_jugador(plan_id),
+    torneo(equipo_fijo_id). `progresion_jugador(jugador_id)` ya lo cubre el UNIQUE
+    (jugador_id, plan_id, semana). `cuenta_sesion.usuario_id` sin índice (tabla mínima).
+  - 5 `ImageCache`: `acotar` vacía el mapa (protocolos y logo) al llegar a 32 entradas, así los
+    redimensionados no lo hacen crecer sin límite (atajo documentado: no es LRU).
+  - Tests nuevos (8): búsqueda no reconsulta con flechas, `go_back` sin escrituras no
+    recalcula / con escritura sí, `rango_mes`, borde diciembre→enero en inicio, calendario y
+    gasto del mes, índices de 015 + `EXPLAIN QUERY PLAN` usa `idx_partido_fecha_hora`, caché
+    de imágenes acotada. Total 283 OK (`cargo test --all-targets`), clippy
+    `-D warnings` y `cargo fmt` limpios.
+  - No hecho: benches (`benches/queries.rs` no cubre Inicio/Calendario); filtros por mes de
+    `informe_service` (bienestar) siguen con `substr` — fuera de la lista auditada.

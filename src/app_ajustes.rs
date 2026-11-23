@@ -297,6 +297,8 @@ impl App {
             Ok(()) => {
                 self.settings = self.db.settings()?;
                 self.menu_ocultos = crate::db::settings_repo::menus_ocultos(self.db.conn());
+                // El backup API no cuenta en `total_changes()`: marcar el Inicio a mano.
+                self.inicio_sucio = true;
                 self.status = format!("Backup restaurado: {}", ruta.display());
                 self.modal = Some(Modal::Info("Backup restaurado correctamente.".to_string()));
             }

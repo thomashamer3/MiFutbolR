@@ -130,6 +130,35 @@ pub fn month_key_from_date(date: NaiveDate) -> String {
     format!("{:04}-{:02}", date.year(), date.month())
 }
 
+/// Rango `[inicio, fin)` de un mes `YYYY-MM` para filtrar una columna de fecha ISO
+/// con su índice: `col >= inicio AND col < fin` equivale a `substr(col, 1, 7) = mes`.
+/// Un mes inválido devuelve un rango vacío (no coincide con nada, como antes).
+#[must_use]
+pub fn rango_mes(mes: &str) -> (String, String) {
+    let siguiente = mes
+        .split_once('-')
+        .filter(|(anio, numero)| {
+            anio.len() == 4
+                && numero.len() == 2
+                && anio
+                    .bytes()
+                    .chain(numero.bytes())
+                    .all(|b| b.is_ascii_digit())
+        })
+        .and_then(|(anio, numero)| {
+            let anio: i32 = anio.parse().ok()?;
+            match numero.parse::<u32>().ok()? {
+                12 => Some(format!("{:04}-01", anio + 1)),
+                n @ 1..=11 => Some(format!("{anio:04}-{:02}", n + 1)),
+                _ => None,
+            }
+        });
+    (
+        mes.to_string(),
+        siguiente.unwrap_or_else(|| mes.to_string()),
+    )
+}
+
 /// Franja horaria codificada como en el legacy (`partido.dia`).
 ///
 /// `1` madrugada, `2` mañana, `3` mediodía, `4` tarde, `5` atardecer,
@@ -161,6 +190,19 @@ pub fn today() -> NaiveDate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rango_mes_cruza_el_anio() {
+        let rango = |a: &str, b: &str| (a.to_string(), b.to_string());
+        assert_eq!(rango_mes("2025-12"), rango("2025-12", "2026-01"));
+        assert_eq!(rango_mes("2026-01"), rango("2026-01", "2026-02"));
+        assert_eq!(rango_mes("2026-09"), rango("2026-09", "2026-10"));
+        // Inválidos: rango vacío.
+        for malo in ["2026-13", "2026-00", "2026-1", "abcd-ef", ""] {
+            let (inicio, fin) = rango_mes(malo);
+            assert_eq!(inicio, fin, "{malo}");
+        }
+    }
 
     #[test]
     fn parses_iso_and_local_dates() {

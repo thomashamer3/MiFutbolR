@@ -25,6 +25,7 @@ impl App {
             Err(error) => self.status = format!("No se pudo cargar el inicio: {error}"),
         }
         self.no_leidas = notificacion_service::no_leidas(self.db.conn()).unwrap_or(0);
+        self.inicio_cambios = self.db.conn().total_changes();
         Ok(())
     }
 
@@ -851,6 +852,12 @@ impl App {
             return Ok(());
         }
 
+        // Las flechas y Enter no cambian el texto: no repetir los ~8 LIKE de la búsqueda.
+        let query_antes = match &overlay {
+            Overlay::Busqueda(estado) => Some(estado.query.clone()),
+            Overlay::Paleta(_) => None,
+        };
+
         match &mut overlay {
             Overlay::Busqueda(estado) => match key.code {
                 KeyCode::Backspace => {
@@ -903,6 +910,7 @@ impl App {
 
         if let Overlay::Busqueda(estado) = &mut overlay
             && !cerrar
+            && query_antes.as_deref() != Some(estado.query.as_str())
         {
             match busqueda_service::buscar(self.db.conn(), &estado.query, 40) {
                 Ok(resultados) => estado.resultados = resultados,

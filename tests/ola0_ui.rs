@@ -75,6 +75,32 @@ fn global_search_opens_and_closes() {
 }
 
 #[test]
+fn global_search_only_requeries_when_text_changes() {
+    let (mut app, _dir) = test_app();
+    press_ctrl_code(&mut app, KeyCode::Char('f'));
+    type_text(&mut app, "zeta");
+    let resultados = |app: &mifutbol_rs::app::App| match &app.overlay {
+        Some(Overlay::Busqueda(estado)) => estado.resultados.len(),
+        _ => panic!("la búsqueda debería seguir abierta"),
+    };
+    assert_eq!(resultados(&app), 0);
+
+    // Un dato nuevo no aparece con flechas: no se vuelve a consultar.
+    app.db
+        .conn()
+        .execute("INSERT INTO cancha (nombre) VALUES ('Zeta Arena')", [])
+        .unwrap();
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Up);
+    assert_eq!(resultados(&app), 0);
+
+    // Al cambiar el texto sí se busca de nuevo.
+    press(&mut app, KeyCode::Backspace);
+    press(&mut app, KeyCode::Char('a'));
+    assert_eq!(resultados(&app), 1);
+}
+
+#[test]
 fn palette_filters_and_executes_calendar() {
     let (mut app, _dir) = test_app();
     press_ctrl_code(&mut app, KeyCode::Char('k'));

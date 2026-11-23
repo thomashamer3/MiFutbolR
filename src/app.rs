@@ -1524,6 +1524,8 @@ pub struct App {
     pub search: Option<SearchState>,
     /// El resumen de Inicio quedó desactualizado; se recalcula al verse el menú.
     pub inicio_sucio: bool,
+    /// `total_changes()` de la conexión en el último recálculo del Inicio.
+    pub inicio_cambios: u64,
     /// Consultas de clima en segundo plano (Open-Meteo).
     pub clima: crate::services::clima_service::ClimaWorker,
     /// Próxima revisión de la cola de clima.
@@ -1728,6 +1730,7 @@ impl App {
             bienvenida_vista: sesion.bienvenida_vista,
             search: None,
             inicio_sucio: false,
+            inicio_cambios: 0,
             clima: crate::services::clima_service::ClimaWorker::default(),
             clima_proxima_consulta: std::time::Instant::now(),
             analisis_hub: ListState::default().with_selected(Some(0)),
@@ -2030,7 +2033,10 @@ impl App {
             self.stack.pop();
             if self.current_screen() == Screen::MainMenu {
                 self.active_module = None;
-                let _ = self.refrescar_inicio();
+                // Recalcular (33 ms con 20k partidos) solo si hubo escrituras desde el último.
+                if self.inicio_sucio || self.db.conn().total_changes() != self.inicio_cambios {
+                    let _ = self.refrescar_inicio();
+                }
             }
             self.status = "Volvió a la pantalla anterior".to_string();
         }

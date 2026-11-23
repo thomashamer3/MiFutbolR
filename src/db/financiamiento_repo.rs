@@ -266,11 +266,12 @@ pub fn presupuesto_vista(
 
 /// Gasto de un mes `YYYY-MM`.
 pub fn gasto_mes(conn: &Connection, mes_anio: &str) -> Result<Cents, DbError> {
+    let (inicio, fin) = dates::rango_mes(mes_anio);
     let total: i64 = conn.query_row(
         "SELECT COALESCE(SUM(monto_centavos), 0)
            FROM financiamiento
-          WHERE tipo = 1 AND substr(fecha, 1, 7) = ?1",
-        [mes_anio],
+          WHERE tipo = 1 AND fecha >= ?1 AND fecha < ?2",
+        params![inicio, fin],
         |row| row.get(0),
     )?;
     Ok(Cents(total))
@@ -320,4 +321,26 @@ pub fn existe_auto_partido(
         |row| row.get(0),
     )?;
     Ok(exists)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn gasto_mes_respects_december_january_boundary() {
+        let db = Database::open_in_memory().unwrap();
+        db.conn()
+            .execute_batch(
+                "INSERT INTO financiamiento (fecha, tipo, categoria, descripcion, monto_centavos)
+                 VALUES ('2025-12-31 23:00', 1, 0, 'A', 100),
+                        ('2026-01-01', 1, 0, 'B', 200),
+                        ('2026-01-15', 0, 0, 'Ingreso', 999);",
+            )
+            .unwrap();
+        assert_eq!(gasto_mes(db.conn(), "2025-12").unwrap(), Cents(100));
+        assert_eq!(gasto_mes(db.conn(), "2026-01").unwrap(), Cents(200));
+        assert_eq!(gasto_mes(db.conn(), "2026-02").unwrap(), Cents(0));
+    }
 }

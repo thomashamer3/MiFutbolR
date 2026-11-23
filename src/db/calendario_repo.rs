@@ -18,15 +18,15 @@ pub fn eventos_mes(
     year: i32,
     month: u32,
 ) -> Result<Vec<EventoCalendario>, DbError> {
-    let mes = format!("{year:04}-{month:02}");
+    let (inicio, fin) = dates::rango_mes(&format!("{year:04}-{month:02}"));
     let mut eventos = Vec::new();
 
     let mut stmt = conn.prepare(
         "SELECT id, fecha_hora, rival_nombre, goles, asistencias, resultado
            FROM partido
-          WHERE substr(fecha_hora, 1, 7) = ?1",
+          WHERE fecha_hora >= ?1 AND fecha_hora < ?2",
     )?;
-    let partidos = stmt.query_map(params![mes], |row| {
+    let partidos = stmt.query_map(params![inicio, fin], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -64,9 +64,9 @@ pub fn eventos_mes(
     let mut stmt = conn.prepare(
         "SELECT id, fecha, tipo, descripcion, monto_centavos
            FROM financiamiento
-          WHERE substr(fecha, 1, 7) = ?1",
+          WHERE fecha >= ?1 AND fecha < ?2",
     )?;
-    let movimientos = stmt.query_map(params![mes], |row| {
+    let movimientos = stmt.query_map(params![inicio, fin], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -93,9 +93,9 @@ pub fn eventos_mes(
     let mut stmt = conn.prepare(
         "SELECT id, fecha, hora, titulo, tematica
            FROM recordatorio
-          WHERE substr(fecha, 1, 7) = ?1 AND completado = 0",
+          WHERE completado = 0 AND fecha >= ?1 AND fecha < ?2",
     )?;
-    let recordatorios = stmt.query_map(params![mes], |row| {
+    let recordatorios = stmt.query_map(params![inicio, fin], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -172,5 +172,28 @@ mod tests {
         assert_eq!(eventos[0].tipo, EventoTipo::Partido);
         assert_eq!(eventos[1].tipo, EventoTipo::Financiamiento);
         assert!(eventos_mes(db.conn(), 2026, 4).unwrap().is_empty());
+    }
+
+    #[test]
+    fn month_filter_respects_december_january_boundary() {
+        let db = Database::open_in_memory().unwrap();
+        let conn = db.conn();
+        conn.execute_batch(
+            "INSERT INTO cancha (id, nombre) VALUES (1, 'C');
+             INSERT INTO camiseta (id, nombre) VALUES (1, 'K');
+             INSERT INTO partido (cancha_id, camiseta_id, fecha_hora)
+                  VALUES (1, 1, '2025-12-31 23:59:59'), (1, 1, '2026-01-01 00:00:00');
+             INSERT INTO financiamiento (fecha, tipo, categoria, descripcion, monto_centavos)
+                  VALUES ('2025-12-31', 1, 0, 'A', 100), ('2026-01-01', 1, 0, 'B', 200);
+             INSERT INTO recordatorio (titulo, fecha) VALUES ('R1', '2025-12-31'), ('R2', '2026-01-01');",
+        )
+        .unwrap();
+        for (anio, mes, dia) in [(2025, 12, 31), (2026, 1, 1)] {
+            let eventos = eventos_mes(conn, anio, mes).unwrap();
+            assert_eq!(eventos.len(), 3, "{anio}-{mes}");
+            let esperado = NaiveDate::from_ymd_opt(anio, mes, dia).unwrap();
+            assert!(eventos.iter().all(|evento| evento.fecha == esperado));
+        }
+        assert!(eventos_mes(conn, 2026, 2).unwrap().is_empty());
     }
 }

@@ -63,6 +63,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/012_bienestar_colecciones_ia.sql"),
     include_str!("../../migrations/013_clima.sql"),
     include_str!("../../migrations/014_bienestar_completo.sql"),
+    include_str!("../../migrations/015_fk_indexes.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.
@@ -324,6 +325,42 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM custom_menus", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 11);
+    }
+
+    #[test]
+    fn fk_indexes_exist_and_month_filter_uses_index() {
+        let db = Database::open_in_memory().unwrap();
+        for indice in [
+            "idx_equipo_partido",
+            "idx_media_partido",
+            "idx_bienestar_mental_partido",
+            "idx_partido_torneo_equipo1",
+            "idx_partido_torneo_equipo2",
+            "idx_equipo_historial_equipo",
+            "idx_equipo_historial_torneo",
+            "idx_progresion_jugador_plan",
+            "idx_torneo_equipo_fijo",
+        ] {
+            let existe: i64 = db
+                .conn()
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?1",
+                    [indice],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(existe, 1, "falta {indice}");
+        }
+        let plan: String = db
+            .conn()
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM partido
+                  WHERE fecha_hora >= '2026-01' AND fecha_hora < '2026-02'",
+                [],
+                |r| r.get(3),
+            )
+            .unwrap();
+        assert!(plan.contains("idx_partido_fecha_hora"), "{plan}");
     }
 
     #[test]

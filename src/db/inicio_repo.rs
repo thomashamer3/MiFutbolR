@@ -109,6 +109,7 @@ pub fn racha(conn: &Connection) -> Result<RachaInfo, DbError> {
 
 /// Totales del mes indicado (`YYYY-MM`).
 pub fn mes(conn: &Connection, mes: &str) -> Result<MesResumen, DbError> {
+    let (inicio, fin) = dates::rango_mes(mes);
     let (partidos, goles, asistencias, victorias, empates, derrotas, promedio) = conn.query_row(
         "SELECT COUNT(*),
                 COALESCE(SUM(goles), 0),
@@ -118,8 +119,8 @@ pub fn mes(conn: &Connection, mes: &str) -> Result<MesResumen, DbError> {
                 COALESCE(SUM(CASE WHEN resultado = 3 THEN 1 ELSE 0 END), 0),
                 COALESCE(AVG(rendimiento_general), 0.0)
            FROM partido
-          WHERE substr(fecha_hora, 1, 7) = ?1",
-        params![mes],
+          WHERE fecha_hora >= ?1 AND fecha_hora < ?2",
+        params![inicio, fin],
         |row| {
             Ok((
                 row.get(0)?,
@@ -218,6 +219,23 @@ mod tests {
         assert_eq!(mes.partidos, 3);
         assert_eq!(mes.goles, 3);
         assert_eq!(mes.victorias, 2);
+    }
+
+    #[test]
+    fn month_totals_respect_december_january_boundary() {
+        let db = Database::open_in_memory().unwrap();
+        let (cancha, camiseta) = base(db.conn());
+        let fecha = |texto| chrono::NaiveDateTime::parse_from_str(texto, "%Y-%m-%d %H:%M:%S");
+        for texto in [
+            "2025-12-01 00:00:00",
+            "2025-12-31 23:59:59",
+            "2026-01-01 00:00:00",
+        ] {
+            partido(db.conn(), cancha, camiseta, fecha(texto).unwrap(), 1, 1);
+        }
+        assert_eq!(mes(db.conn(), "2025-12").unwrap().partidos, 2);
+        assert_eq!(mes(db.conn(), "2026-01").unwrap().partidos, 1);
+        assert_eq!(mes(db.conn(), "2025-11").unwrap().partidos, 0);
     }
 
     #[test]

@@ -169,3 +169,39 @@ fn home_summary_refreshes_only_when_menu_is_visible() {
         "el Inicio muestra el partido nuevo"
     );
 }
+
+#[test]
+fn go_back_recomputes_home_only_after_writes() {
+    let (mut app, _dir) = test_app();
+    let (cancha_id, camiseta_id) = preparar(&app);
+    let insertar = "INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, mes_anio)
+                    VALUES (?1, ?2, '2026-03-01 20:00:00', '2026-03')";
+
+    // Escritura desde otra conexión: no cuenta en `total_changes()` de la app,
+    // así que volver sin cambios propios no recalcula el Inicio.
+    let otra = rusqlite::Connection::open(&app.paths.db_file).unwrap();
+    open_partidos(&mut app);
+    press(&mut app, KeyCode::Esc); // sincroniza el contador tras `preparar`
+    open_partidos(&mut app);
+    otra.execute(insertar, rusqlite::params![cancha_id, camiseta_id])
+        .unwrap();
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.current_screen(), Screen::MainMenu);
+    assert!(
+        app.inicio.ultimo.is_none(),
+        "volver sin cambios no recalcula"
+    );
+
+    // Una escritura propia (cualquier tabla, sin marcar `inicio_sucio`) sí recalcula.
+    open_partidos(&mut app);
+    app.db
+        .conn()
+        .execute("UPDATE cancha SET localidad = 'Quilmes'", [])
+        .unwrap();
+    assert!(!app.inicio_sucio);
+    press(&mut app, KeyCode::Esc);
+    assert!(
+        app.inicio.ultimo.is_some(),
+        "tras guardar, el Inicio se recalcula"
+    );
+}
