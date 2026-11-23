@@ -42,7 +42,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 - [x] B2 Flujo C. Ruta: delegated (writer trigger: app.rs, ui, ajustes, main).
 - [x] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
 - [x] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
-- [ ] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
+- [x] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
 
 ## Criterios de aceptación
 - Cada bloque: `cargo test --all-targets`, `cargo clippy --all-targets -- -D warnings`,
@@ -171,3 +171,31 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     (JSON parseado con serde_json + cabeceras MD) y UI (camisetas `a`, 3 pantallas de
     Análisis, hub con 5 entradas, backups, Ctrl+T/Ctrl+X).
   - Engram `odd/mejoras-paridad-c/tasks`: pendiente (lo sincroniza el orquestador).
+- B5 (`28b58fe`; RDD unmanaged; 298 OK en `cargo test --all-targets`, clippy `-D warnings` y
+  `cargo fmt --check` limpios; `git diff --stat`: 34 archivos, +417 / -618):
+  - 1 Selección: `app::mover_seleccion` (vuelve al otro extremo; lista vacía = `None`) y
+    `App::mover_tabla_seleccion` la usa. Fuera las 9 copias `move_*_selection`/`mover_usuario`
+    y los bloques `min`/`saturating_sub` (amigos, logros, avisos, últimos, récords,
+    progresión, planes, recordatorios, agenda, temporadas, torneos y su fixture); hubs
+    (menú, carrera, estadísticas, análisis) también. Cambio visible: los listados que
+    frenaban en el borde ahora dan la vuelta (`usuario_ui` ajustado). Test unitario nuevo.
+  - 2 Borrado: `App::tras_eliminar(mensaje, es_ficha, recargar)` para camisetas, canchas,
+    botines, equipos, jugadores, partidos, lesiones y transacciones; cada uno solo arma el
+    mensaje (sus cuatro `ResultadoEliminacion` son tipos distintos). Los `confirm_delete_*`
+    quedan: son 10 líneas y el de jugador arma el texto con nombre y número.
+  - 3 Textos: `detail::AYUDA_VISTA_PREVIA` = "Enter: detalle   e: editar   d: borrar" en las 5
+    vistas previas (lo más usado en la barra inferior); "d: borrar" también en finanzas,
+    backups y la ayuda. La barra inferior sigue con literales (no se puede `concat!` de una
+    `const`). El título de la ficha de equipo mostraba teclas: ahora "Equipos · detalle".
+  - 4 Código muerto: fuera `Screen::Module` + `module_placeholder`, `ImageCache::limpiar` (sin
+    uso) y el parámetro `colors` de `dibujar_miniatura`/`dibujar_logo`. El único
+    `#[allow(dead_code)]` es el de `tests/common` (helpers compartidos): queda.
+  - 5 Errores: `confirmar_eliminacion` recibe un `despues` que devuelve `Result` y muestra su
+    error; modal o barra para avisos (`generar`, marcar leída/todas), `notificar_logros`,
+    tutorial, bienvenida, refresco tras deshacer, refresco del clima y copia previa a
+    restaurar (se avisa en el modal de éxito; la restauración sigue igual). Quedan los
+    `let _` intencionales: `refresh_usuarios`/`refrescar_inicio` (siempre `Ok`, avisan
+    solos), `PRAGMA optimize`, backup best-effort previo a migrar, logging, `DETACH`,
+    `write!` a `String`.
+  - No hecho: las listas de los overlays (búsqueda global, paleta) y el selector A/B del
+    comparador siguen frenando en el borde (no son tablas).
