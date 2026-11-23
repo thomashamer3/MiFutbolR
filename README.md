@@ -74,6 +74,17 @@ Las capturas se generan desde la TUI real con
   OOXML con partidos, equipos, canchas, camisetas, lesiones y torneos), ODS, PDF,
   copia de la base, MiFutbolMobile, base legacy y partidos del móvil. Los atajos
   `Ctrl+X/O/P/E/W/L/Y/A` de Ajustes siguen funcionando.
+- **Importar JSON / TXT / CSV / HTML** (port de `import.c`): lee
+  `Importaciones/camisetas.<ext>`, `partidos.<ext>` y `lesiones.<ext>` en los
+  formatos que escribe MiFutbolC (con la columna "Atajaste" y los textos
+  `VICTORIA`, `Mucho Calor`, `Noche`...). Hace un backup previo
+  (`backup_*_pre_import.db`), importa todo en una transacción sin entrar al
+  deshacer y muestra por archivo cuántas filas entraron, cuántas se omitieron
+  (duplicadas: mismo id de camiseta/lesión o misma cancha+fecha+camiseta del
+  partido; camiseta inexistente) y qué líneas estaban mal formadas. La cancha
+  de un partido se crea si falta; la lesión usa la camiseta `camiseta` del JSON
+  o la primera activa. Las "estadísticas" de C no se importan (MiFutbolR las
+  calcula de los partidos).
 - **Inicio de sesión multiusuario**: portada de MiFutbolR al iniciar para entrar o
   registrarse con o sin contraseña; cada cuenta usa su propia base de datos
   (también se puede continuar como invitado).

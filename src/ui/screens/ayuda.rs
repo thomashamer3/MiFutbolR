@@ -63,7 +63,7 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
     ),
     (
         "Ctrl+D (Ajustes)",
-        "Exportar / Importar: todo, XLSX, ODS, PDF, base, móvil y legacy",
+        "Exportar / Importar: todo, XLSX, ODS, PDF, base, móvil, legacy e importar JSON/TXT/CSV/HTML",
     ),
     (
         "Ctrl+X (Ajustes)",

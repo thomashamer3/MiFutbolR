@@ -6,10 +6,11 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{App, Modal, Screen, mover_seleccion};
+use crate::services::importacion_service::{self, Formato};
 use crate::services::informe_service;
 
 /// Opciones en pantalla: (título, descripción).
-pub const EXPORT_OPCIONES: [(&str, &str); 9] = [
+pub const EXPORT_OPCIONES: [(&str, &str); 13] = [
     (
         "Exportar todo (JSON + Markdown)",
         "Todas las tablas a JSON y los listados a Markdown (Ctrl+X).",
@@ -33,6 +34,22 @@ pub const EXPORT_OPCIONES: [(&str, &str); 9] = [
     (
         "Exportar para MiFutbolMobile",
         "mifutbolmobile_import.json (Ctrl+W).",
+    ),
+    (
+        "Importar desde JSON",
+        "camisetas.json, partidos.json y lesiones.json de Importaciones/.",
+    ),
+    (
+        "Importar desde TXT",
+        "camisetas.txt, partidos.txt y lesiones.txt (formato de C).",
+    ),
+    (
+        "Importar desde CSV",
+        "camisetas.csv, partidos.csv y lesiones.csv (formato de C).",
+    ),
+    (
+        "Importar desde HTML",
+        "camisetas.html, partidos.html y lesiones.html (tablas de C).",
     ),
     (
         "Importar base legacy (.db)",
@@ -92,8 +109,12 @@ impl App {
             3 => self.exportar_pdf_ajustes(),
             4 => self.exportar_db_ajustes()?,
             5 => self.exportar_mobile_ajustes(),
-            6 => self.open_legacy_import_form()?,
-            7 => self.importar_mobile_ajustes(),
+            6 => self.importar_formato_ajustes(Formato::Json),
+            7 => self.importar_formato_ajustes(Formato::Txt),
+            8 => self.importar_formato_ajustes(Formato::Csv),
+            9 => self.importar_formato_ajustes(Formato::Html),
+            10 => self.open_legacy_import_form()?,
+            11 => self.importar_mobile_ajustes(),
             _ => self.alternar_mobile_auto_ajustes(),
         }
         Ok(())
@@ -110,6 +131,70 @@ impl App {
                 )));
             }
             Err(error) => self.modal = Some(Modal::Error(error.0)),
+        }
+    }
+
+    /// Importa los archivos del formato desde `Importaciones/`, con un backup
+    /// previo como `backup_base_datos_automatico("import_*")` de C.
+    pub(crate) fn importar_formato_ajustes(&mut self, formato: Formato) {
+        let dir = self.paths.import_dir.clone();
+        if importacion_service::pendientes(&dir, formato).is_empty() {
+            let ext = formato.extension();
+            self.modal = Some(Modal::Error(format!(
+                "No hay camisetas.{ext}, partidos.{ext} ni lesiones.{ext} en {}",
+                dir.display()
+            )));
+            return;
+        }
+        let previo = self.paths.export_dir.join(format!(
+            "backup_{}_pre_import.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S")
+        ));
+        if let Err(error) = self.db.backup(&previo) {
+            self.modal = Some(Modal::Error(format!(
+                "No se pudo crear el backup previo; no se importó nada: {error}"
+            )));
+            return;
+        }
+        match importacion_service::importar(self.db.conn_mut(), &dir, formato) {
+            Ok(resumenes) => {
+                self.inicio_sucio = true;
+                let mut texto = String::new();
+                for r in &resumenes {
+                    let nombre = r
+                        .archivo
+                        .file_name()
+                        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                    texto.push_str(&format!(
+                        "{nombre}: {} importados, {} omitidos (ya existían o sin camiseta), {} con errores
+",
+                        r.importados,
+                        r.omitidos,
+                        r.errores.len()
+                    ));
+                    for error in r.errores.iter().take(5) {
+                        texto.push_str(&format!(
+                            "  {error}
+"
+                        ));
+                    }
+                    if r.errores.len() > 5 {
+                        texto.push_str(&format!(
+                            "  … y {} más
+",
+                            r.errores.len() - 5
+                        ));
+                    }
+                }
+                let total: usize = resumenes.iter().map(|r| r.importados).sum();
+                self.status = format!("Importación: {total} filas nuevas");
+                self.modal = Some(Modal::Info(format!(
+                    "{texto}
+Backup previo: {}",
+                    previo.display()
+                )));
+            }
+            Err(error) => self.modal = Some(Modal::Error(error)),
         }
     }
 }

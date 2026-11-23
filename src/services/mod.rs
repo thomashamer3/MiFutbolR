@@ -21,6 +21,7 @@ pub mod equipo_service;
 pub mod estadisticas_service;
 pub mod export_service;
 pub mod financiamiento_service;
+pub mod importacion_service;
 pub mod informe_service;
 pub mod inicio_service;
 pub mod legacy_import_service;

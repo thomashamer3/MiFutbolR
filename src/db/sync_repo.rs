@@ -315,13 +315,13 @@ fn estado_cancha_texto(codigo: i64) -> &'static str {
 
 /// Código de una enumeración que llega como texto o como número. C solo
 /// aceptaba texto: un número (de la app móvil) quedaba en 0.
-fn codigo_enum(valor: &Value, desde_texto: fn(&str) -> i64) -> i64 {
+pub(crate) fn codigo_enum(valor: &Value, desde_texto: fn(&str) -> i64) -> i64 {
     valor
         .as_i64()
         .unwrap_or_else(|| valor.as_str().map_or(0, desde_texto))
 }
 
-fn resultado_codigo(texto: &str) -> i64 {
+pub(crate) fn resultado_codigo(texto: &str) -> i64 {
     match texto.to_lowercase().as_str() {
         "victoria" | "1" => 1,
         "empate" | "2" => 2,
@@ -330,7 +330,26 @@ fn resultado_codigo(texto: &str) -> i64 {
     }
 }
 
-fn clima_codigo(texto: &str) -> i64 {
+/// Franja horaria de C: los textos de `dia_to_text` (1 Madrugada … 6 Noche),
+/// con o sin tildes, o el número. C los convertía mal al importar ("Dia"=1,
+/// "Tarde"=2, "Noche"=3).
+pub(crate) fn dia_codigo(texto: &str) -> i64 {
+    match texto.trim().to_lowercase().as_str() {
+        "madrugada" => 1,
+        "manana" | "mañana" => 2,
+        "mediodia" | "mediodía" => 3,
+        "tarde" => 4,
+        "atardecer" => 5,
+        "noche" => 6,
+        otro => otro
+            .parse()
+            .ok()
+            .filter(|n| (0..=6).contains(n))
+            .unwrap_or(0),
+    }
+}
+
+pub(crate) fn clima_codigo(texto: &str) -> i64 {
     if let Some(posicion) = CLIMAS
         .iter()
         .position(|clima| clima.eq_ignore_ascii_case(texto))

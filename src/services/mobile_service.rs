@@ -14,6 +14,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Map, Value, json};
 
 use crate::db::DbError;
+use crate::db::sync_repo::{clima_codigo, codigo_enum, dia_codigo, resultado_codigo};
 use crate::domain::cancha_codes::{decode_superficies, decode_tipos};
 use crate::domain::models::{Superficie, TipoCancha};
 use crate::services::export_service::ExportError;
@@ -438,7 +439,7 @@ pub fn exportar(
 // ---------------------------------------------------------------- Importar
 
 /// "DD/MM/AAAA[ HH:MM]" o ISO → "AAAA-MM-DD HH:MM:SS".
-fn fecha_partido(texto: &str) -> String {
+pub(crate) fn fecha_partido(texto: &str) -> String {
     let texto = texto.trim().replacen('T', " ", 1);
     let texto = match texto.as_bytes() {
         [d1, d2, b'/', m1, m2, b'/', a1, a2, a3, a4, ..] => {
@@ -488,7 +489,7 @@ pub fn importar_partidos(conn: &mut Connection, ruta: &Path) -> Result<(usize, u
     Ok((importados, items.len()))
 }
 
-fn importar_item(conn: &Connection, item: &Value) -> Result<bool, DbError> {
+pub(crate) fn importar_item(conn: &Connection, item: &Value) -> Result<bool, DbError> {
     let (Some(cancha), Some(fecha), Some(goles), Some(asistencias), Some(camiseta)) = (
         item["cancha"].as_str(),
         item["fecha"].as_str(),
@@ -499,6 +500,19 @@ fn importar_item(conn: &Connection, item: &Value) -> Result<bool, DbError> {
         return Ok(false);
     };
     let entero = |clave: &str| item[clave].as_i64().unwrap_or(0);
+    // Resultado, clima y franja como número (móvil) o como texto (exportadores de C).
+    let codigo = |clave: &str, desde_texto: fn(&str) -> i64| codigo_enum(&item[clave], desde_texto);
+    // La camiseta primero: C creaba la cancha aunque después omitiera el partido.
+    let Some(camiseta_id) = conn
+        .query_row(
+            "SELECT id FROM camiseta WHERE nombre = ?1",
+            [camiseta],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+    else {
+        return Ok(false);
+    };
     let cancha_id = match conn
         .query_row("SELECT id FROM cancha WHERE nombre = ?1", [cancha], |row| {
             row.get::<_, i64>(0)
@@ -510,16 +524,6 @@ fn importar_item(conn: &Connection, item: &Value) -> Result<bool, DbError> {
             conn.execute("INSERT INTO cancha (nombre) VALUES (?1)", [cancha])?;
             conn.last_insert_rowid()
         }
-    };
-    let Some(camiseta_id) = conn
-        .query_row(
-            "SELECT id FROM camiseta WHERE nombre = ?1",
-            [camiseta],
-            |row| row.get::<_, i64>(0),
-        )
-        .optional()?
-    else {
-        return Ok(false);
     };
     let fecha = fecha_partido(fecha);
     let existe: i64 = conn.query_row(
@@ -542,9 +546,9 @@ fn importar_item(conn: &Connection, item: &Value) -> Result<bool, DbError> {
             goles,
             asistencias,
             camiseta_id,
-            entero("resultado"),
-            entero("clima"),
-            entero("dia"),
+            codigo("resultado", resultado_codigo),
+            codigo("clima", clima_codigo),
+            codigo("dia", dia_codigo),
             entero("rendimiento_general"),
             entero("cansancio"),
             entero("estado_animo"),

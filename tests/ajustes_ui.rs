@@ -302,3 +302,46 @@ fn exportar_importar_lista_los_formatos_y_exporta_xlsx() {
     press_ctrl(&mut app, 'x');
     assert!(archivos_export(&app).iter().any(|n| n.ends_with(".md")));
 }
+
+#[test]
+fn importar_csv_desde_exportar_importar_con_backup_previo() {
+    let (mut app, _dir) = test_app();
+    std::fs::create_dir_all(&app.paths.import_dir).unwrap();
+    std::fs::write(
+        app.paths.import_dir.join("camisetas.csv"),
+        "id,nombre\n40,Importada CSV\nroto\n",
+    )
+    .unwrap();
+    open_ajustes(&mut app);
+    press_ctrl(&mut app, 'd');
+    // 9 = "Importar desde CSV".
+    press(&mut app, KeyCode::Char('9'));
+    match &app.modal {
+        Some(mifutbol_rs::app::Modal::Info(texto)) => {
+            assert!(texto.contains("camisetas.csv: 1 importados"), "{texto}");
+            assert!(texto.contains("línea 3"), "{texto}");
+        }
+        otro => panic!("modal inesperado: {otro:?}"),
+    }
+    let nombre: String = app
+        .db
+        .conn()
+        .query_row("SELECT nombre FROM camiseta WHERE id = 40", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(nombre, "Importada CSV");
+    assert!(
+        archivos_export(&app)
+            .iter()
+            .any(|n| n.ends_with("_pre_import.db"))
+    );
+    // Sin archivos HTML: error y sin backup nuevo.
+    press(&mut app, KeyCode::Enter);
+    let antes = archivos_export(&app).len();
+    // La selección quedó en CSV (9); una abajo = HTML.
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.modal, Some(mifutbol_rs::app::Modal::Error(_))));
+    assert_eq!(archivos_export(&app).len(), antes);
+}
