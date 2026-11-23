@@ -35,7 +35,7 @@ const ATAJOS: &[(&str, &str)] = &[
 /// Atajos que solo valen en el menú principal.
 const ATAJOS_MENU: &[(&str, &str)] = &[
     (
-        "1 … 27",
+        "1 … 28",
         "Abrir la opción (\"15\" abre la 15; Enter abre lo tecleado)",
     ),
     ("0", "Salir"),
@@ -64,6 +64,18 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
     (
         "Ctrl+X (Ajustes)",
         "Exportar todo: tablas a JSON y listados a Markdown",
+    ),
+    (
+        "Ctrl+W / Ctrl+Y (Ajustes)",
+        "MiFutbolMobile: exportar mifutbolmobile_import.json / importar partidos.json",
+    ),
+    (
+        "Ctrl+A (Ajustes)",
+        "Importar partidos.json del móvil al iniciar (activar / desactivar)",
+    ),
+    (
+        "1-8 (Sincronización)",
+        "PocketBase: servidor, sesión, sincronizar, subir todo, estado, conflictos, auto-sync, salir",
     ),
     (
         "m (Evolución)",

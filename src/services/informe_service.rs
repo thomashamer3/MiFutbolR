@@ -341,6 +341,11 @@ const EXCLUIDAS_JSON: &[&str] = &[
     "usuario",
     "cuenta",
     "cuenta_sesion",
+    // Sincronización: el token y el correo son secretos; la cola es interna.
+    "sync_config",
+    "sync_dirty",
+    "sync_conflicto",
+    "sync_tombstones",
 ];
 
 /// Todas las tablas de usuario como `{tabla: [fila, ...]}`. Los BLOB salen como
@@ -545,14 +550,30 @@ mod tests {
     #[test]
     fn exportar_todo_json_y_markdown() {
         let db = base();
+        db.conn()
+            .execute(
+                "INSERT INTO sync_config (clave, valor) VALUES ('token', 'secreto-pb')",
+                [],
+            )
+            .unwrap();
         let dir = tempfile::tempdir().unwrap();
         let (json, md) = exportar_todo(db.conn(), dir.path()).unwrap();
-        let valor: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(json).unwrap()).unwrap();
+        let texto = std::fs::read_to_string(json).unwrap();
+        assert!(!texto.contains("secreto-pb"), "el token no se exporta");
+        let valor: serde_json::Value = serde_json::from_str(&texto).unwrap();
         assert_eq!(valor["partido"][0]["rival_nombre"], "Los Ñandúes");
         assert_eq!(valor["partido"][0]["goles"], 2);
         assert!(valor.get("cancha").is_some());
-        for excluida in ["undo_historial", "cuenta", "usuario", "sqlite_sequence"] {
+        for excluida in [
+            "undo_historial",
+            "cuenta",
+            "usuario",
+            "sqlite_sequence",
+            "sync_config",
+            "sync_dirty",
+            "sync_conflicto",
+            "sync_tombstones",
+        ] {
             assert!(valor.get(excluida).is_none(), "{excluida}");
         }
         let md = std::fs::read_to_string(md).unwrap();

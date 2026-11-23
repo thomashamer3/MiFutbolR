@@ -271,11 +271,7 @@ pub fn update(conn: &mut Connection, partido: &Partido) -> Result<(), DbError> {
 /// Elimina el partido y sus dependencias lógicas.
 pub fn delete(conn: &mut Connection, id: i64) -> Result<(), DbError> {
     let tx = conn.transaction()?;
-    tx.execute("DELETE FROM financiamiento WHERE partido_id = ?1", [id])?;
-    tx.execute("DELETE FROM partido_tag WHERE partido_id = ?1", [id])?;
-    tx.execute("DELETE FROM partido_meta WHERE partido_id = ?1", [id])?;
-    let deleted = tx.execute("DELETE FROM partido WHERE id = ?1", [id])?;
-    if deleted == 0 {
+    if borrar_con_dependencias(&tx, id)? == 0 {
         return Err(DbError::NotFound {
             entidad: "Partido",
             id,
@@ -283,6 +279,15 @@ pub fn delete(conn: &mut Connection, id: i64) -> Result<(), DbError> {
     }
     tx.commit()?;
     Ok(())
+}
+
+/// Borra el partido y sus dependencias lógicas dentro de la transacción del
+/// llamador. Devuelve las filas de `partido` borradas.
+pub fn borrar_con_dependencias(conn: &Connection, id: i64) -> Result<usize, DbError> {
+    conn.execute("DELETE FROM financiamiento WHERE partido_id = ?1", [id])?;
+    conn.execute("DELETE FROM partido_tag WHERE partido_id = ?1", [id])?;
+    conn.execute("DELETE FROM partido_meta WHERE partido_id = ?1", [id])?;
+    Ok(conn.execute("DELETE FROM partido WHERE id = ?1", [id])?)
 }
 
 /// Marca/desmarca un partido como favorito.

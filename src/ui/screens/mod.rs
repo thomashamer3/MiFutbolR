@@ -29,6 +29,7 @@ pub mod progresion;
 pub mod recordatorios;
 pub mod records;
 pub mod resumen;
+pub mod sincronizacion;
 pub mod temporadas;
 pub mod tiendas;
 pub mod torneos;

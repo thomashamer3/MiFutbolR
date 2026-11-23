@@ -32,6 +32,7 @@ pub mod recordatorio_repo;
 pub mod records_repo;
 pub mod resumen_repo;
 pub mod settings_repo;
+pub mod sync_repo;
 pub mod temporada_repo;
 pub mod tienda_repo;
 pub mod torneo_repo;
@@ -65,6 +66,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/013_clima.sql"),
     include_str!("../../migrations/014_bienestar_completo.sql"),
     include_str!("../../migrations/015_fk_indexes.sql"),
+    include_str!("../../migrations/016_sync.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

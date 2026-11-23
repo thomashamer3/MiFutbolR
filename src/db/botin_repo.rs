@@ -74,7 +74,8 @@ pub fn insert(conn: &Connection, botin: &Botin) -> Result<i64, DbError> {
 /// Actualiza un botín.
 pub fn update(conn: &Connection, botin: &Botin) -> Result<(), DbError> {
     let updated = conn.execute(
-        "UPDATE botin SET nombre = ?1, imagen_ruta = ?2, activa = ?3, sorteada = ?4 WHERE id = ?5",
+        "UPDATE botin SET nombre = ?1, imagen_ruta = ?2, activa = ?3, sorteada = ?4,
+                updated_at = datetime('now','localtime') WHERE id = ?5",
         params![
             botin.nombre,
             botin.imagen_ruta,
@@ -95,7 +96,7 @@ pub fn update(conn: &Connection, botin: &Botin) -> Result<(), DbError> {
 /// Activa/desactiva un botín.
 pub fn set_active(conn: &Connection, id: i64, active: bool) -> Result<(), DbError> {
     let updated = conn.execute(
-        "UPDATE botin SET activa = ?1 WHERE id = ?2",
+        "UPDATE botin SET activa = ?1, updated_at = datetime('now','localtime') WHERE id = ?2",
         params![i64::from(active), id],
     )?;
     if updated == 0 {

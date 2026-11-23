@@ -26,6 +26,7 @@ mod app_partidos;
 mod app_progresion;
 mod app_recordatorios;
 mod app_resumen;
+pub mod app_sync;
 mod app_temporadas;
 mod app_tiendas;
 mod app_torneos;

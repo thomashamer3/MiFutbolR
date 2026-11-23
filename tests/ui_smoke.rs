@@ -10,7 +10,7 @@ use common::*;
 #[test]
 fn main_menu_lists_all_modules() {
     let (mut app, _dir) = test_app();
-    // 27 opciones + "0 Salir": con 60 filas entran todas sin desplazar la lista.
+    // 28 opciones + "0 Salir": con 60 filas entran todas sin desplazar la lista.
     let text = render_con(&mut app, 100, 60);
     assert!(text.contains("MiFutbolR"), "falta el nombre de la app");
     for label in [
@@ -38,9 +38,10 @@ fn main_menu_lists_all_modules() {
         "22   Resumen Compartible",
         "23   Ranking Amigos",
         "24   Ajustes",
-        "25   Progresión",
-        "26   Entrenador IA",
-        "27   Usuario",
+        "25   Sincronización (PocketBase)",
+        "26   Progresión",
+        "27   Entrenador IA",
+        "28   Usuario",
         " 0   Salir",
     ] {
         assert!(text.contains(label), "falta la opción {label}\n{text}");
@@ -62,6 +63,7 @@ fn modo_simple_filtra_el_menu_y_conserva_los_numeros() {
             Module::Lesiones,
             Module::Tutorial,
             Module::Ajustes,
+            Module::Sincronizacion,
             Module::Usuario,
         ]
     );
@@ -81,7 +83,7 @@ fn modo_simple_filtra_el_menu_y_conserva_los_numeros() {
 fn modo_por_defecto_es_simple() {
     let (app, _dir) = test_app_con_bienvenida();
     assert_eq!(app.settings.mode, Mode::Simple);
-    assert_eq!(app.menu_modulos().len(), 9);
+    assert_eq!(app.menu_modulos().len(), 10);
 }
 
 #[test]
@@ -94,6 +96,10 @@ fn modo_personalizado_oculta_los_menus_desactivados() {
     assert!(
         modulos.contains(&Module::Ajustes),
         "Ajustes siempre visible"
+    );
+    assert!(
+        modulos.contains(&Module::Sincronizacion),
+        "Sincronización no tiene getter en C: siempre visible"
     );
     assert!(modulos.contains(&Module::Calendario));
 }

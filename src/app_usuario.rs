@@ -130,6 +130,7 @@ impl App {
                 // App::new ya calculó el resumen de Inicio de esta base.
                 self.stack = vec![Screen::MainMenu];
                 self.ofrecer_restaurar_backup_inicio();
+                self.sincronizar_al_iniciar();
             }
             Err(error) => {
                 self.modal = Some(Modal::Error(format!(
@@ -174,6 +175,7 @@ impl App {
         self.active_module = None;
         let _ = self.refrescar_inicio();
         self.ofrecer_restaurar_backup_inicio();
+        self.sincronizar_al_iniciar();
         Ok(())
     }
 

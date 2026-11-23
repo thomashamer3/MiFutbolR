@@ -33,13 +33,15 @@ Las capturas se generan desde la TUI real con
   10 Financiamiento, 11 Torneos, 12 Temporada, 13 Análisis (Básico, Comparador
   A/B, Entrenador IA, Química y Evolución temporal), 14 Bienestar, 15 Carrera Futbolística, 16 Recordatorios,
   17 Colecciones, 18 Records & Rankings, 19 Tiendas, 20 Referencias Multimedia,
-  21 Tutorial, 22 Resumen Compartible, 23 Ranking Amigos, 24 Ajustes; extras de
-  MiFutbolR: 25 Progresión, 26 Entrenador IA, 27 Usuario; 0 Salir.
+  21 Tutorial, 22 Resumen Compartible, 23 Ranking Amigos, 24 Ajustes,
+  25 Sincronización (PocketBase); extras de MiFutbolR: 26 Progresión,
+  27 Entrenador IA, 28 Usuario; 0 Salir.
   - Se abre tecleando el número: `3` abre en el acto, `1` espera un instante por si
     sigue otra cifra (`15`), Enter abre lo tecleado. `0`, `q` o Esc piden confirmar
     la salida (también en la portada; `i` entra como invitado).
   - Ajustes → **Modo de menú**: *Simple* (por defecto, como C) muestra Calendario,
-    Camisetas, Canchas, Botines, Partidos, Lesiones, Tutorial, Ajustes y Usuario;
+    Camisetas, Canchas, Botines, Partidos, Lesiones, Tutorial, Ajustes,
+    Sincronización y Usuario;
     *Avanzado* muestra todo; *Personalizado* oculta los menús con `enabled = 0` en
     `custom_menus` (claves de MiFutbolC). Los números no cambian al filtrar.
   - Los atajos de letra (`c` calendario, `l`/`L` logros, `R` récords, `t` tutorial,
@@ -100,6 +102,19 @@ Las capturas se generan desde la TUI real con
   `foreign_key_check`) y `Ctrl+X` exporta todo: un `.json` con todas las tablas de
   usuario (sin undo ni credenciales) y un `.md` con partidos, camisetas, canchas,
   botines, lesiones, financiamiento y torneos.
+- **Sincronización (PocketBase)** (port de `sync.c`): configurar URL local
+  (Wi-Fi) y remota (HTTPS), iniciar sesión (se guarda solo el token, nunca la
+  contraseña), sincronizar ahora o subir todo el historial, ver pendientes y
+  conflictos, resolverlos (local o servidor) y activar la auto-sync al iniciar,
+  que corre en segundo plano sin frenar la TUI. Sube y baja partidos
+  (`partidos_sync`), camisetas (`camisetas_sync`) y botines (`botines_sync`);
+  gana la marca más nueva y, si un partido cambió en los dos lados, queda un
+  conflicto. Ni el token ni la cola salen en "Exportar todo".
+- **MiFutbolMobile**: en Ajustes, `Ctrl+W` exporta
+  `Exportaciones/mifutbolmobile_import.json` (formato `mifutbolmobile-import` v1
+  de MiFutbolC) y `Ctrl+Y` importa `Importaciones/partidos.json` del móvil (sin
+  duplicar). `Ctrl+A` activa el marcador `Importaciones/.sync_partidos_auto`: al
+  iniciar se importa ese archivo y se renombra a `partidos_importados_<fecha>.json`.
 - **Migración legacy**: importa una base de MiFutbolC convirtiendo fechas,
   importes y códigos de cancha; ignora tablas vacías/no usadas como `amigo`.
 - **Torneos**: alta, equipos automáticos, fixture ida/vuelta, resultados y tabla de posiciones.

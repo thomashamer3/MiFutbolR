@@ -178,6 +178,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         }
         Screen::Ultimos => screens::ultimos::draw(frame, body, app),
         Screen::AnalisisMenu => screens::comparador::draw_analisis(frame, body, app),
+        Screen::Sincronizacion => screens::sincronizacion::draw(frame, body, app),
+        Screen::SyncConflicto => screens::sincronizacion::draw_conflicto(frame, body, app),
+        Screen::SyncConfigForm | Screen::SyncLoginForm => {
+            screens::sincronizacion::draw_form(frame, body, app);
+        }
         Screen::Comparador => screens::comparador::draw(frame, body, app),
         Screen::AnalisisBasico => screens::analisis::draw_basico(frame, body, app),
         Screen::AnalisisEvolucion => screens::analisis::draw_evolucion(frame, body, app),

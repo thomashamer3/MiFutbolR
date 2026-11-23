@@ -107,17 +107,19 @@ pub enum Module {
     Amigos,
     /// 24.
     Ajustes,
-    /// 25 (extra de MiFutbolR).
-    Progresion,
+    /// 25.
+    Sincronizacion,
     /// 26 (extra de MiFutbolR).
-    EntrenadorIa,
+    Progresion,
     /// 27 (extra de MiFutbolR).
+    EntrenadorIa,
+    /// 28 (extra de MiFutbolR).
     Usuario,
 }
 
 impl Module {
     /// Orden del menú principal: la posición + 1 es el número de la opción.
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::Calendario,
         Self::Camisetas,
         Self::Canchas,
@@ -142,6 +144,7 @@ impl Module {
         Self::Resumen,
         Self::Amigos,
         Self::Ajustes,
+        Self::Sincronizacion,
         Self::Progresion,
         Self::EntrenadorIa,
         Self::Usuario,
@@ -157,7 +160,8 @@ impl Module {
     }
 
     /// ¿Visible en el modo Simple? (`DEFINE_GET_MENU` de `settings.c`).
-    /// Usuario se suma porque en MiFutbolR es la única vía a las cuentas.
+    /// Usuario se suma porque en MiFutbolR es la única vía a las cuentas;
+    /// Sincronización no tiene getter en C, así que se ve en todos los modos.
     #[must_use]
     pub const fn en_modo_simple(self) -> bool {
         matches!(
@@ -170,6 +174,7 @@ impl Module {
                 | Self::Lesiones
                 | Self::Tutorial
                 | Self::Ajustes
+                | Self::Sincronizacion
                 | Self::Usuario
         )
     }
@@ -202,6 +207,7 @@ impl Module {
             Self::Resumen => "Resumen Compartible",
             Self::Amigos => "Ranking Amigos",
             Self::Ajustes => "Ajustes",
+            Self::Sincronizacion => "Sincronización (PocketBase)",
             Self::Progresion => "Progresión",
             Self::EntrenadorIa => "Entrenador IA",
             Self::Usuario => "Usuario",
@@ -228,6 +234,7 @@ impl Module {
             Self::Carrera => "Carrera",
             Self::Resumen => "Resumen",
             Self::Ajustes => "Ajustes",
+            Self::Sincronizacion => "Sync",
             Self::Torneos => "Torneos",
             Self::Temporadas => "Temporadas",
             Self::Tiendas => "Tiendas",
@@ -262,6 +269,7 @@ impl Module {
             Self::Carrera => "carrera",
             Self::Resumen => "resumen_compartible",
             Self::Ajustes => "settings",
+            Self::Sincronizacion => "sincronizacion",
             Self::Torneos => "torneos",
             Self::Temporadas => "temporada",
             Self::Tiendas => "tiendas",
@@ -296,6 +304,7 @@ impl Module {
             Self::Carrera => "Identidad, hitos, timeline y badges de carrera.",
             Self::Resumen => "Resumen compartible en TXT/CSV/JSON/HTML/MD.",
             Self::Ajustes => "Tema, idioma, modo, backup e integridad.",
+            Self::Sincronizacion => "Partidos, camisetas y botines con un servidor PocketBase.",
             Self::Torneos => "Torneos, equipos, fixture, resultados y tabla.",
             Self::Temporadas => "Temporadas, fases, resumen, fatiga y comparación.",
             Self::Tiendas => "Tiendas deportivas, contacto, productos y favoritos.",
@@ -439,6 +448,14 @@ pub enum Screen {
     Ultimos,
     /// Hub de análisis (Comparador A/B y Entrenador IA).
     AnalisisMenu,
+    /// 25 Sincronización (PocketBase).
+    Sincronizacion,
+    /// Formulario de URLs del servidor.
+    SyncConfigForm,
+    /// Formulario de inicio de sesión en PocketBase.
+    SyncLoginForm,
+    /// Resolución de conflictos.
+    SyncConflicto,
     /// Comparador A/B.
     Comparador,
     /// Análisis básico (últimos 5, rachas, mensaje).
@@ -1574,6 +1591,16 @@ pub struct App {
     pub menu_ocultos: Vec<String>,
     /// La oferta de restaurar backup ya se hizo en esta sesión.
     pub restauracion_ofrecida: bool,
+    /// Sincronización PocketBase en segundo plano.
+    pub sync: crate::services::sync_service::SyncWorker,
+    /// Menú de sincronización.
+    pub sync_hub: ListState,
+    /// Estado mostrado en la pantalla de sincronización (sin el token).
+    pub sync_estado: crate::services::sync_service::Estado,
+    /// Resultado de la última sincronización.
+    pub sync_mensaje: String,
+    /// Ya se hizo la sincronización de inicio (móvil + auto-sync).
+    pub sincronizacion_inicio_hecha: bool,
 }
 
 impl App {
@@ -1783,6 +1810,11 @@ impl App {
             menu_numero: None,
             menu_ocultos,
             restauracion_ofrecida: false,
+            sync: crate::services::sync_service::SyncWorker::default(),
+            sync_hub: ListState::default().with_selected(Some(0)),
+            sync_estado: crate::services::sync_service::Estado::default(),
+            sync_mensaje: String::new(),
+            sincronizacion_inicio_hecha: false,
         };
         let _ = app.refresh_usuarios();
         Ok(app)
@@ -1855,6 +1887,10 @@ impl App {
             Screen::TorneoResultadoForm(_) => "Torneos · resultado".to_string(),
             Screen::Ultimos => "Últimos".to_string(),
             Screen::AnalisisMenu => "Análisis".to_string(),
+            Screen::Sincronizacion => "Sincronización (PocketBase)".to_string(),
+            Screen::SyncConfigForm => "Sincronización · servidor".to_string(),
+            Screen::SyncLoginForm => "Sincronización · iniciar sesión".to_string(),
+            Screen::SyncConflicto => "Sincronización · conflictos".to_string(),
             Screen::Comparador => "Comparador A/B".to_string(),
             Screen::AnalisisBasico => "Análisis básico".to_string(),
             Screen::AnalisisEvolucion => "Evolución temporal".to_string(),
@@ -1926,6 +1962,8 @@ impl App {
             | Screen::BienestarForm(_)
             | Screen::ColeccionForm(_)
             | Screen::AmigoForm(_)
+            | Screen::SyncConfigForm
+            | Screen::SyncLoginForm
             | Screen::QuimicaForm(_)
             | Screen::MediaForm(_)
             | Screen::RecordatorioForm(_)
@@ -1983,7 +2021,7 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Ctrl+X: exportar todo JSON+MD  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Ctrl+X: exportar todo JSON+MD  Ctrl+W: exportar MiFutbolMobile  Ctrl+Y: importar partidos del móvil  Ctrl+A: auto-importar móvil  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -2012,6 +2050,8 @@ impl App {
                 "e: editar  d: borrar  c: comparar  ↑↓: desplazar  Esc: volver"
             }
             Screen::AnalisisMenu => "↑↓: opción  Enter: abrir  Esc: volver",
+            Screen::Sincronizacion => "↑↓: opción  Enter o 1-8: ejecutar  Esc: volver",
+            Screen::SyncConflicto => "1: conservar local  2: conservar servidor  Esc: volver",
             Screen::AnalisisBasico => "↑↓: desplazar  Esc: volver",
             Screen::AnalisisEvolucion => {
                 "m: métrica (goles/asistencias/rendimiento)  ↑↓: desplazar  Esc: volver"
@@ -2062,7 +2102,7 @@ impl App {
                 Mode::Simple => module.en_modo_simple(),
                 Mode::Advanced => true,
                 Mode::Custom => {
-                    *module == Module::Ajustes
+                    matches!(module, Module::Ajustes | Module::Sincronizacion)
                         || !self.menu_ocultos.iter().any(|clave| clave == module.key())
                 }
             })
@@ -2273,6 +2313,18 @@ impl App {
                     self.exportar_ods_ajustes();
                     return Ok(());
                 }
+                KeyCode::Char('w') => {
+                    self.exportar_mobile_ajustes();
+                    return Ok(());
+                }
+                KeyCode::Char('y') => {
+                    self.importar_mobile_ajustes();
+                    return Ok(());
+                }
+                KeyCode::Char('a') => {
+                    self.alternar_mobile_auto_ajustes();
+                    return Ok(());
+                }
                 _ => {}
             }
         }
@@ -2372,6 +2424,8 @@ impl App {
             Screen::UsuarioList => self.handle_usuario_list_key(key)?,
             Screen::Ultimos => self.handle_ultimos_key(key)?,
             Screen::AnalisisMenu => self.handle_analisis_menu_key(key)?,
+            Screen::Sincronizacion => self.handle_sincronizacion_key(key)?,
+            Screen::SyncConflicto => self.handle_sync_conflicto_key(key)?,
             Screen::Comparador => self.handle_comparador_key(key)?,
             Screen::AnalisisBasico | Screen::AnalisisEvolucion => {
                 self.handle_analisis_reporte_key(key)?
@@ -2379,6 +2433,8 @@ impl App {
             Screen::Quimica => self.handle_quimica_key(key)?,
             Screen::TiendaForm(_)
             | Screen::AmigoForm(_)
+            | Screen::SyncConfigForm
+            | Screen::SyncLoginForm
             | Screen::QuimicaForm(_)
             | Screen::BienestarForm(_)
             | Screen::ColeccionForm(_) => {
@@ -2474,7 +2530,7 @@ impl App {
     }
 
     /// Suma un dígito al número tecleado: abre la opción en cuanto el número
-    /// deja de ser prefijo de otra visible (con 1..27, "3" abre ya y "1" espera).
+    /// deja de ser prefijo de otra visible (con 1..28, "3" abre ya y "1" espera).
     fn teclear_numero_menu(&mut self, digito: char) -> Result<()> {
         let mut numero = self
             .menu_numero
@@ -3011,6 +3067,7 @@ impl App {
             Module::Ajustes => {
                 self.open_ajustes_form()?;
             }
+            Module::Sincronizacion => self.open_sincronizacion(),
             Module::Torneos => {
                 self.push_screen(Screen::TorneosList);
                 self.refresh_torneos()?;
@@ -3248,6 +3305,8 @@ impl App {
             Screen::BienestarForm(_) => self.save_bienestar_form(),
             Screen::ColeccionForm(_) => self.save_coleccion_form(),
             Screen::AmigoForm(mode) => self.save_amigo_form(mode),
+            Screen::SyncConfigForm => self.save_sync_config_form(),
+            Screen::SyncLoginForm => self.save_sync_login_form(),
             Screen::QuimicaForm(mode) => self.save_quimica_form(mode),
             Screen::MediaForm(mode) => self.save_media_form(mode),
             Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),
@@ -3487,6 +3546,7 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     let mut redibujar = true;
     loop {
         redibujar |= app.tick_clima();
+        redibujar |= app.tick_sync();
         redibujar |= app.vencer_numero_menu(std::time::Instant::now());
         if redibujar || app.animations.running() {
             terminal.draw(|frame| crate::ui::draw(frame, app))?;
