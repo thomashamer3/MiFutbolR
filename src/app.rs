@@ -422,6 +422,8 @@ pub enum Screen {
     AjustesForm,
     /// Administración de backups (Ajustes → Ctrl+G).
     BackupsList,
+    /// Exportar / importar (Ajustes → Ctrl+D).
+    ExportarImportar,
     /// Visor de imagen a pantalla completa.
     ImagenViewer,
     /// Formulario de importación legacy.
@@ -1595,6 +1597,8 @@ pub struct App {
     pub sync: crate::services::sync_service::SyncWorker,
     /// Menú de sincronización.
     pub sync_hub: ListState,
+    /// Menú Exportar / Importar de Ajustes.
+    pub export_hub: ListState,
     /// Estado mostrado en la pantalla de sincronización (sin el token).
     pub sync_estado: crate::services::sync_service::Estado,
     /// Resultado de la última sincronización.
@@ -1812,6 +1816,7 @@ impl App {
             restauracion_ofrecida: false,
             sync: crate::services::sync_service::SyncWorker::default(),
             sync_hub: ListState::default().with_selected(Some(0)),
+            export_hub: ListState::default().with_selected(Some(0)),
             sync_estado: crate::services::sync_service::Estado::default(),
             sync_mensaje: String::new(),
             sincronizacion_inicio_hecha: false,
@@ -1871,6 +1876,7 @@ impl App {
             Screen::ResumenPreview => "Resumen compartible".to_string(),
             Screen::AjustesForm => "Ajustes".to_string(),
             Screen::BackupsList => "Ajustes · backups".to_string(),
+            Screen::ExportarImportar => "Ajustes · exportar / importar".to_string(),
             Screen::ImagenViewer => "Imagen".to_string(),
             Screen::LegacyImportForm => "Ajustes · importar legacy".to_string(),
             Screen::Calendario => format!(
@@ -2021,7 +2027,7 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Ctrl+X: exportar todo JSON+MD  Ctrl+W: exportar MiFutbolMobile  Ctrl+Y: importar partidos del móvil  Ctrl+A: auto-importar móvil  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+D: exportar / importar  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -2029,6 +2035,7 @@ impl App {
             Screen::BackupsList => {
                 "Enter: restaurar  d: borrar  b: crear backup  r: refrescar  Esc: volver"
             }
+            Screen::ExportarImportar => "↑↓: opción  Enter o número: ejecutar  Esc: volver",
             Screen::Calendario => {
                 "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
             }
@@ -2293,6 +2300,10 @@ impl App {
                     self.open_backups();
                     return Ok(());
                 }
+                KeyCode::Char('d') => {
+                    self.open_exportar_importar();
+                    return Ok(());
+                }
                 KeyCode::Char('t') => {
                     self.modal = Some(Modal::confirm(
                         "Mantenimiento de la base",
@@ -2363,6 +2374,7 @@ impl App {
                 true
             }
             Screen::BackupsList => self.handle_backups_key(key)?,
+            Screen::ExportarImportar => self.handle_exportar_importar_key(key)?,
             Screen::CanchasList => self.handle_canchas_list_key(key)?,
             Screen::CanchaDetail(_) => self.handle_cancha_detail_key(key)?,
             Screen::BotinesList => self.handle_botines_list_key(key)?,

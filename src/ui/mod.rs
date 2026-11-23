@@ -217,6 +217,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             screens::usuario::draw_form(frame, body, app)
         }
         Screen::BackupsList => screens::ajustes::draw_backups(frame, body, app),
+        Screen::ExportarImportar => screens::ajustes::draw_exportar(frame, body, app),
         Screen::AjustesForm | Screen::LegacyImportForm => {
             screens::ajustes::draw(frame, body, app);
         }

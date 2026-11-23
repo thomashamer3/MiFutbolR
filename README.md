@@ -69,6 +69,11 @@ Las capturas se generan desde la TUI real con
   Partidos encola los que faltan). Sin conexión, la app funciona igual.
 - **Informes**: en Ajustes, `Ctrl+P` exporta un informe PDF y `Ctrl+O` una hoja
   de cálculo ODS (LibreOffice/Excel) a la carpeta Exportaciones.
+- **Exportar / Importar** (Ajustes → `Ctrl+D`): una lista con todo lo de los menús
+  de exportar e importar de C — exportar todo (JSON + Markdown), XLSX (un libro
+  OOXML con partidos, equipos, canchas, camisetas, lesiones y torneos), ODS, PDF,
+  copia de la base, MiFutbolMobile, base legacy y partidos del móvil. Los atajos
+  `Ctrl+X/O/P/E/W/L/Y/A` de Ajustes siguen funcionando.
 - **Inicio de sesión multiusuario**: portada de MiFutbolR al iniciar para entrar o
   registrarse con o sin contraseña; cada cuenta usa su propia base de datos
   (también se puede continuar como invitado).

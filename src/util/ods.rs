@@ -18,7 +18,7 @@ pub struct Hoja {
     pub filas: Vec<Vec<String>>,
 }
 
-fn xml(texto: &str) -> String {
+pub(crate) fn xml(texto: &str) -> String {
     texto
         .replace('&', "&amp;")
         .replace('<', "&lt;")

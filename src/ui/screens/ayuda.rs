@@ -62,6 +62,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Mantenimiento: backup, VACUUM, ANALYZE e integridad",
     ),
     (
+        "Ctrl+D (Ajustes)",
+        "Exportar / Importar: todo, XLSX, ODS, PDF, base, móvil y legacy",
+    ),
+    (
         "Ctrl+X (Ajustes)",
         "Exportar todo: tablas a JSON y listados a Markdown",
     ),

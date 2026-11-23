@@ -124,3 +124,39 @@ pub fn draw_backups(frame: &mut Frame, area: Rect, app: &mut App) {
     .highlight_symbol("▶ ");
     frame.render_stateful_widget(tabla, area, &mut app.backups_table);
 }
+
+/// Exportar / Importar (`menu_exportar` y `menu_importar` de MiFutbolC).
+pub fn draw_exportar(frame: &mut Frame, area: Rect, app: &mut App) {
+    use crate::app_exportar::EXPORT_OPCIONES;
+    use ratatui::widgets::{List, ListItem};
+
+    let colors = palette(app.settings.theme);
+    let items: Vec<ListItem> = EXPORT_OPCIONES
+        .iter()
+        .enumerate()
+        .map(|(indice, (titulo, descripcion))| {
+            ListItem::new(vec![
+                Line::from(Span::styled(
+                    format!("{:>2} {titulo}", indice + 1),
+                    Style::default()
+                        .fg(colors.accent)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::styled(
+                    format!("    {descripcion}"),
+                    Style::default().fg(colors.muted),
+                )),
+            ])
+        })
+        .collect();
+    let lista = List::new(items)
+        .block(colors.panel(" Exportar / Importar "))
+        .highlight_style(
+            Style::default()
+                .bg(colors.highlight_bg)
+                .fg(colors.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+    frame.render_stateful_widget(lista, area, &mut app.export_hub);
+}

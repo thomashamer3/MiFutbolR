@@ -18,6 +18,7 @@ mod app_comparador;
 mod app_entrenador;
 mod app_equipos;
 mod app_estadisticas;
+pub mod app_exportar;
 mod app_financiamiento;
 mod app_inicio;
 mod app_lesiones;

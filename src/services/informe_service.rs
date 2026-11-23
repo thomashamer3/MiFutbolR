@@ -9,6 +9,7 @@ use crate::services::export_service::ExportError;
 use crate::services::resumen_service;
 use crate::util::ods::{Hoja, ods};
 use crate::util::pdf::{Seccion, informe};
+use crate::util::xlsx::xlsx;
 
 fn db(error: impl std::fmt::Display) -> ExportError {
     ExportError(error.to_string())
@@ -123,6 +124,45 @@ pub fn ods_bytes(conn: &Connection) -> Result<Vec<u8>, ExportError> {
 /// Exporta `mifutbol_{sello}.ods` en `dir`.
 pub fn exportar_ods(conn: &Connection, dir: &Path) -> Result<PathBuf, ExportError> {
     escribir(dir, &format!("mifutbol_{}.ods", sello()), &ods_bytes(conn)?)
+}
+
+const EQUIPOS: &str = "SELECT nombre AS Nombre,
+        CASE tipo WHEN 1 THEN 'Momentáneo' ELSE 'Fijo' END AS Tipo,
+        CASE tipo_futbol WHEN 1 THEN 'F7' WHEN 2 THEN 'F8' WHEN 3 THEN 'F11' ELSE 'F5' END AS Fútbol,
+        num_jugadores AS Jugadores FROM equipo ORDER BY nombre";
+
+/// Bytes del .xlsx con las hojas de `menu_exportar_xlsx` de C: partidos,
+/// equipos, canchas, camisetas, lesiones y torneos. Las consultas de C
+/// pedían columnas que no existen (`equipo.pais`, `camisetas.club`,
+/// `lesion.gravedad`...) y dejaban las hojas vacías; acá son las del esquema.
+pub fn xlsx_bytes(conn: &Connection) -> Result<Vec<u8>, ExportError> {
+    let mut hojas = Vec::new();
+    for (nombre, sql) in [
+        ("Partidos", PARTIDOS),
+        ("Equipos", EQUIPOS),
+        ("Canchas", CANCHAS),
+        ("Camisetas", CAMISETAS),
+        ("Lesiones", LESIONES),
+        ("Torneos", TORNEOS),
+    ] {
+        let (cabeceras, filas) = tabla(conn, sql)?;
+        hojas.push(Hoja {
+            nombre: nombre.into(),
+            cabeceras,
+            filas,
+        });
+    }
+    Ok(xlsx(&hojas))
+}
+
+/// Exporta `mifutbol_{sello}.xlsx` en `dir` (un libro con todas las hojas;
+/// C escribía un archivo por tabla).
+pub fn exportar_xlsx(conn: &Connection, dir: &Path) -> Result<PathBuf, ExportError> {
+    escribir(
+        dir,
+        &format!("mifutbol_{}.xlsx", sello()),
+        &xlsx_bytes(conn)?,
+    )
 }
 
 /// Líneas "Col: valor · Col: valor" de las primeras `limite` filas.
@@ -489,6 +529,40 @@ mod tests {
         assert!(texto.contains("<text:p>Equipamiento actual</text:p>"));
         assert!(texto.contains("<text:p>Accesorio</text:p>"));
         assert!(texto.contains("<text:p>Descansar</text:p>"));
+    }
+
+    #[test]
+    fn xlsx_tiene_las_hojas_de_c_con_datos() {
+        use crate::util::xlsx::tests::{entradas_zip, xml_bien_formado};
+        let db = base();
+        let entradas = entradas_zip(&xlsx_bytes(db.conn()).unwrap());
+        let libro = &entradas
+            .iter()
+            .find(|(n, _)| n == "xl/workbook.xml")
+            .unwrap()
+            .1;
+        for hoja in [
+            "Partidos",
+            "Equipos",
+            "Canchas",
+            "Camisetas",
+            "Lesiones",
+            "Torneos",
+        ] {
+            assert!(libro.contains(&format!("name=\"{hoja}\"")), "{hoja}");
+        }
+        let partidos = &entradas
+            .iter()
+            .find(|(n, _)| n == "xl/worksheets/sheet1.xml")
+            .unwrap()
+            .1;
+        assert!(xml_bien_formado(partidos));
+        assert!(partidos.contains(">Los Ñandúes</t>"));
+        assert!(partidos.contains(">Victoria</t>"));
+        let dir = tempfile::tempdir().unwrap();
+        let ruta = exportar_xlsx(db.conn(), dir.path()).unwrap();
+        assert!(ruta.extension().is_some_and(|e| e == "xlsx"));
+        assert_eq!(&std::fs::read(ruta).unwrap()[..4], b"PK");
     }
 
     #[test]

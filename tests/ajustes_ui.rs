@@ -267,3 +267,38 @@ fn mantenimiento_y_exportar_todo() {
     assert_eq!(valor["partido"].as_array().unwrap().len(), 3);
     assert!(archivos.iter().any(|n| n.ends_with(".md")), "{archivos:?}");
 }
+
+#[test]
+fn exportar_importar_lista_los_formatos_y_exporta_xlsx() {
+    let (mut app, _dir) = test_app();
+    open_ajustes(&mut app);
+    press_ctrl(&mut app, 'd');
+    assert_eq!(app.current_screen(), Screen::ExportarImportar);
+    let texto = render_con(&mut app, 120, 40);
+    for opcion in [
+        "Exportar todo",
+        "Exportar a XLSX",
+        "Exportar a ODS",
+        "Informe PDF",
+    ] {
+        assert!(texto.contains(opcion), "{opcion}");
+    }
+    press(&mut app, KeyCode::Char('2'));
+    assert!(matches!(app.modal, Some(mifutbol_rs::app::Modal::Info(_))));
+    assert!(
+        archivos_export(&app)
+            .iter()
+            .any(|nombre| nombre.ends_with(".xlsx")),
+        "{:?}",
+        archivos_export(&app)
+    );
+    press(&mut app, KeyCode::Enter);
+    // Enter sobre "Exportar a ODS" y el atajo Ctrl sigue funcionando en Ajustes.
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert!(archivos_export(&app).iter().any(|n| n.ends_with(".ods")));
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.current_screen(), Screen::AjustesForm);
+    press_ctrl(&mut app, 'x');
+    assert!(archivos_export(&app).iter().any(|n| n.ends_with(".md")));
+}
