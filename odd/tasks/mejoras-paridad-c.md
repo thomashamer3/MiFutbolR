@@ -41,7 +41,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 - [x] B1 Errores. Ruta: delegated (writer trigger: ~8 archivos).
 - [x] B2 Flujo C. Ruta: delegated (writer trigger: app.rs, ui, ajustes, main).
 - [x] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
-- [ ] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
+- [x] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [ ] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
 
 ## Criterios de aceptación
@@ -104,7 +104,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     portada q/Esc, oferta de restaurar backup, `menus_ocultos`. Total 275 OK
     (`cargo test --all-targets`), clippy `-D warnings` y `cargo fmt --check` limpios.
   - No hecho: editor de menús personalizados (C `menu_custom_menus`) — no pedido.
-- B3 (commit en este bloque; RDD unmanaged):
+- B3 (`1fa740c`, verificado por el orquestador: 283 OK, clippy limpio; RDD unmanaged):
   - 1 Búsqueda global (`handle_overlay_key`): guarda el texto antes de la tecla y solo llama a
     `busqueda_service::buscar` si cambió; flechas/Enter ya no repiten los ~8 `LIKE`.
   - 2 `go_back` al menú recalcula el Inicio solo si `inicio_sucio` o si
@@ -134,3 +134,40 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     `-D warnings` y `cargo fmt` limpios.
   - No hecho: benches (`benches/queries.rs` no cubre Inicio/Calendario); filtros por mes de
     `informe_service` (bienestar) siguen con `substr` — fuera de la lista auditada.
+- B4 (4 commits; RDD unmanaged; 297 OK en `cargo test --all-targets`, clippy `-D warnings`
+  y `cargo fmt` limpios en cada commit):
+  - 4b `3d2b735` Camisetas: `a` en listado y ficha llama a `camiseta_service::set_activa`
+    (antes sin uso). Las inactivas ya se veían (filtro `f`, indicador INACTIVA). Sin
+    confirmación, igual que el `a` de canchas/equipos (C pide confirmar al reactivar).
+  - 4a `f1912dd` Análisis (hub en el orden de C: básico, comparador, Entrenador IA, química,
+    más evolución temporal): `domain::analisis` (cálculos puros), `analisis_repo::serie`,
+    `analisis_service`, `app_analisis.rs`, `ui/screens/analisis.rs`. Básico = últimos 5 vs
+    promedio (goles, asistencias, rendimiento, cansancio, ánimo), rachas
+    (`actualizar_rachas`: empate corta ambas) y mensaje motivacional (umbral ±0,5).
+    Evolución = las 8 opciones de `mostrar_evolucion_temporal` en una pantalla con BarChart de
+    12 meses (`m` cambia métrica). Química = mejor dupla con la CTE `duplas_auto` de C
+    (winrate sin empates, como C) + CRUD de duplas con `quimica_service` (antes sin uso). La
+    parte `duplas_manual` de C no se porta: su tabla en C guarda datos por partido y la de
+    Rust son agregados por dupla, que se listan aparte.
+  - 4c `43a5cbe` Ajustes → Ctrl+G: `backup_service::listar` (backup_*.db, fecha, tamaño,
+    partidos), Enter restaura (confirmación, reutiliza `restaurar_backup_desde` con copia
+    pre_restore), `d` elimina (confirmación, solo `backup_*.db`), `b` crea. No lista
+    `pre_restore_*` ni copias `.bak_` de migración (fuera del patrón pedido).
+  - 4d+4e `b3aeb81` Ajustes → Ctrl+T: backup previo `backup_*_pre_vacuum.db` (como C), luego
+    `Database::mantenimiento` = VACUUM + ANALYZE + `wal_checkpoint(TRUNCATE)` +
+    `integrity()` (integrity_check y foreign_key_check), con tamaño antes/después en un modal.
+    Ctrl+X: `informe_service::exportar_todo` → `mifutbol_<sello>.json` (todas las tablas de
+    `sqlite_master` salvo `sqlite_*`, `undo_*`, `usuario`, `cuenta`, `cuenta_sesion` para no
+    exportar hashes de contraseña; BLOB → null, el esquema no tiene BLOB) y
+    `mifutbol_<sello>.md` (partidos, camisetas, canchas, botines, lesiones, financiamiento,
+    torneos; reutiliza las consultas del ODS). Un solo commit porque comparten el bloque Ctrl
+    de Ajustes.
+  - Errores de C encontrados: `comparar_inicio_fin_anio` rotula ambos semestres "(Ene-Jun)";
+    los `strftime` de evolución/mejor mes devuelven NULL con fechas DD/MM/AAAA heredadas
+    (meses "DESCONOCIDO") y `ORDER BY fecha_hora` las ordena mal — Rust parsea ISO y salta
+    las inválidas.
+  - Tests nuevos: dominio (rachas, básico, evolución), servicio (básico/evolución desde BD,
+    mejor combinación), `set_activa`, `backup_service`, `mantenimiento`, `exportar_todo`
+    (JSON parseado con serde_json + cabeceras MD) y UI (camisetas `a`, 3 pantallas de
+    Análisis, hub con 5 entradas, backups, Ctrl+T/Ctrl+X).
+  - Engram `odd/mejoras-paridad-c/tasks`: pendiente (lo sincroniza el orquestador).
