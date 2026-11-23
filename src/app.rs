@@ -28,7 +28,7 @@ use crate::domain::models::{
     CanchaFilter, CanchaRow, CarreraHall, CarreraIdentidad, CarreraPerfil, CarreraResumen,
     CategoriaTotal, Equipo, EquipoFilter, EquipoRow, EstadisticaKind, Estadisticas, EstadoFisico,
     FichaCamiseta, FinanciamientoFilter, FinanzasResumen, FormMode, HallPartido, HitoRow, Lesion,
-    LesionFilter, LesionRow, LesionStats, Partido, PartidoFilter, PartidoResumen, PartidoRow,
+    LesionFilter, LesionRow, LesionStats, Mode, Partido, PartidoFilter, PartidoResumen, PartidoRow,
     PresupuestoVista, TimelineEvento, TransaccionFinanciera,
 };
 use crate::domain::notificacion::Notificacion;
@@ -52,58 +52,73 @@ use crate::ui::images::ImageCache;
 /// Nombre visible de la aplicación.
 pub const APP_NAME: &str = "MiFutbolR";
 
-/// Módulos de la especificación (§1.1).
+/// Pausa tras un dígito ambiguo del menú ("1" puede ser 1 o 15) antes de abrirlo.
+pub const ESPERA_NUMERO_MENU: Duration = Duration::from_millis(900);
+
+/// Opciones del menú principal, en el orden y numeración de MiFutbolC
+/// (`menu.c`, `MENU_ITEMS`); al final, los extras de MiFutbolR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Module {
-    /// Módulo 1.
+    /// 1.
+    Calendario,
+    /// 2.
     Camisetas,
-    /// Módulo 2.
+    /// 3.
     Canchas,
-    /// Módulo 3.
+    /// 4.
     Botines,
-    /// Módulo 4.
+    /// 5.
     Equipos,
-    /// Módulo 5.
+    /// 6.
     Partidos,
-    /// Módulo 6.
+    /// 7.
     Lesiones,
-    /// Módulo 7.
+    /// 8.
     Estadisticas,
-    /// Módulo 8.
+    /// 9.
+    Logros,
+    /// 10.
     Financiamiento,
-    /// Módulo 9.
-    Carrera,
-    /// Módulo 10.
-    Resumen,
-    /// Módulo 11.
-    Ajustes,
-    /// Módulo 12.
+    /// 11.
     Torneos,
-    /// Módulo 13.
+    /// 12.
     Temporadas,
-    /// Módulo 14.
-    Tiendas,
-    /// Módulo 15.
-    Amigos,
-    /// Módulo 16.
-    Media,
-    /// Módulo 17.
-    Recordatorios,
-    /// Módulo 18.
-    Progresion,
-    /// Módulo 19.
+    /// 13.
+    Analisis,
+    /// 14.
     Bienestar,
-    /// Módulo 20.
+    /// 15.
+    Carrera,
+    /// 16.
+    Recordatorios,
+    /// 17.
     Colecciones,
-    /// Módulo 21.
+    /// 18.
+    Records,
+    /// 19.
+    Tiendas,
+    /// 20.
+    Media,
+    /// 21.
+    Tutorial,
+    /// 22.
+    Resumen,
+    /// 23.
+    Amigos,
+    /// 24.
+    Ajustes,
+    /// 25 (extra de MiFutbolR).
+    Progresion,
+    /// 26 (extra de MiFutbolR).
     EntrenadorIa,
-    /// Módulo 22.
+    /// 27 (extra de MiFutbolR).
     Usuario,
 }
 
 impl Module {
-    /// Orden del menú principal.
-    pub const ALL: [Self; 22] = [
+    /// Orden del menú principal: la posición + 1 es el número de la opción.
+    pub const ALL: [Self; 27] = [
+        Self::Calendario,
         Self::Camisetas,
         Self::Canchas,
         Self::Botines,
@@ -111,27 +126,59 @@ impl Module {
         Self::Partidos,
         Self::Lesiones,
         Self::Estadisticas,
+        Self::Logros,
         Self::Financiamiento,
-        Self::Carrera,
-        Self::Resumen,
-        Self::Ajustes,
         Self::Torneos,
         Self::Temporadas,
-        Self::Tiendas,
-        Self::Amigos,
-        Self::Media,
-        Self::Recordatorios,
-        Self::Progresion,
+        Self::Analisis,
         Self::Bienestar,
+        Self::Carrera,
+        Self::Recordatorios,
         Self::Colecciones,
+        Self::Records,
+        Self::Tiendas,
+        Self::Media,
+        Self::Tutorial,
+        Self::Resumen,
+        Self::Amigos,
+        Self::Ajustes,
+        Self::Progresion,
         Self::EntrenadorIa,
         Self::Usuario,
     ];
+
+    /// Número fijo de la opción (el de MiFutbolC), aunque el modo la oculte.
+    #[must_use]
+    pub fn numero(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|module| *module == self)
+            .map_or(0, |posicion| posicion + 1)
+    }
+
+    /// ¿Visible en el modo Simple? (`DEFINE_GET_MENU` de `settings.c`).
+    /// Usuario se suma porque en MiFutbolR es la única vía a las cuentas.
+    #[must_use]
+    pub const fn en_modo_simple(self) -> bool {
+        matches!(
+            self,
+            Self::Calendario
+                | Self::Camisetas
+                | Self::Canchas
+                | Self::Botines
+                | Self::Partidos
+                | Self::Lesiones
+                | Self::Tutorial
+                | Self::Ajustes
+                | Self::Usuario
+        )
+    }
 
     /// Etiqueta del menú.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
+            Self::Calendario => "Calendario",
             Self::Camisetas => "Camisetas",
             Self::Canchas => "Canchas",
             Self::Botines => "Botines",
@@ -139,19 +186,23 @@ impl Module {
             Self::Partidos => "Partidos",
             Self::Lesiones => "Lesiones",
             Self::Estadisticas => "Estadísticas",
+            Self::Logros => "Logros",
             Self::Financiamiento => "Financiamiento",
-            Self::Carrera => "Carrera futbolística",
-            Self::Resumen => "Resumen compartible",
-            Self::Ajustes => "Ajustes",
             Self::Torneos => "Torneos",
-            Self::Temporadas => "Temporadas",
-            Self::Tiendas => "Tiendas",
-            Self::Amigos => "Amigos",
-            Self::Media => "Multimedia",
-            Self::Recordatorios => "Recordatorios",
-            Self::Progresion => "Progresión",
+            Self::Temporadas => "Temporada",
+            Self::Analisis => "Análisis",
             Self::Bienestar => "Bienestar",
+            Self::Carrera => "Carrera Futbolística",
+            Self::Recordatorios => "Recordatorios",
             Self::Colecciones => "Colecciones",
+            Self::Records => "Records & Rankings",
+            Self::Tiendas => "Tiendas",
+            Self::Media => "Referencias Multimedia",
+            Self::Tutorial => "Tutorial",
+            Self::Resumen => "Resumen Compartible",
+            Self::Amigos => "Ranking Amigos",
+            Self::Ajustes => "Ajustes",
+            Self::Progresion => "Progresión",
             Self::EntrenadorIa => "Entrenador IA",
             Self::Usuario => "Usuario",
         }
@@ -161,6 +212,11 @@ impl Module {
     #[must_use]
     pub const fn short_label(self) -> &'static str {
         match self {
+            Self::Calendario => "Calend",
+            Self::Logros => "Logros",
+            Self::Analisis => "Análisis",
+            Self::Records => "Records",
+            Self::Tutorial => "Tutorial",
             Self::Camisetas => "Camis",
             Self::Canchas => "Canchas",
             Self::Botines => "Botines",
@@ -186,10 +242,15 @@ impl Module {
         }
     }
 
-    /// Clave legacy usada en `custom_menus`.
+    /// Clave de `custom_menus` (los nombres de `menu_custom_menus` de MiFutbolC).
     #[must_use]
     pub const fn key(self) -> &'static str {
         match self {
+            Self::Calendario => "calendario",
+            Self::Logros => "logros",
+            Self::Analisis => "analisis",
+            Self::Records => "records_rankings",
+            Self::Tutorial => "tutorial",
             Self::Camisetas => "camisetas",
             Self::Canchas => "canchas",
             Self::Botines => "botines",
@@ -199,12 +260,12 @@ impl Module {
             Self::Estadisticas => "estadisticas",
             Self::Financiamiento => "financiamiento",
             Self::Carrera => "carrera",
-            Self::Resumen => "resumen",
-            Self::Ajustes => "ajustes",
+            Self::Resumen => "resumen_compartible",
+            Self::Ajustes => "settings",
             Self::Torneos => "torneos",
-            Self::Temporadas => "temporadas",
+            Self::Temporadas => "temporada",
             Self::Tiendas => "tiendas",
-            Self::Amigos => "amigos",
+            Self::Amigos => "ranking_amigos",
             Self::Media => "media",
             Self::Recordatorios => "recordatorios",
             Self::Progresion => "progresion",
@@ -219,6 +280,11 @@ impl Module {
     #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
+            Self::Calendario => "Partidos, lesiones y recordatorios del mes.",
+            Self::Logros => "Logros y badges con su progreso.",
+            Self::Analisis => "Comparador A/B y Entrenador IA.",
+            Self::Records => "Récords personales y rankings.",
+            Self::Tutorial => "Recorrido guiado por la aplicación.",
             Self::Camisetas => "Catálogo de camisetas, costo, estado y sorteo.",
             Self::Canchas => "Canchas, superficies, horarios, precios y servicios.",
             Self::Botines => "Botines disponibles, predeterminado y sorteo.",
@@ -371,6 +437,8 @@ pub enum Screen {
     TorneoResultadoForm(i64),
     /// Últimos partidos por resultado/aporte.
     Ultimos,
+    /// Hub de análisis (Comparador A/B y Entrenador IA).
+    AnalisisMenu,
     /// Comparador A/B.
     Comparador,
     /// Listado de temporadas.
@@ -1460,6 +1528,14 @@ pub struct App {
     pub clima: crate::services::clima_service::ClimaWorker,
     /// Próxima revisión de la cola de clima.
     pub clima_proxima_consulta: std::time::Instant,
+    /// Hub de análisis.
+    pub analisis_hub: ListState,
+    /// Número tecleado en el menú principal y cuándo llegó el último dígito.
+    pub menu_numero: Option<(String, std::time::Instant)>,
+    /// Claves de `custom_menus` desactivadas (modo Personalizado).
+    pub menu_ocultos: Vec<String>,
+    /// La oferta de restaurar backup ya se hizo en esta sesión.
+    pub restauracion_ofrecida: bool,
 }
 
 impl App {
@@ -1477,6 +1553,7 @@ impl App {
         let tutorial_completado =
             crate::db::settings_repo::tutorial_completado(db.conn()).unwrap_or(false);
         let sesion = crate::services::usuario_service::sesion(db.conn()).unwrap_or_default();
+        let menu_ocultos = crate::db::settings_repo::menus_ocultos(db.conn());
         let cuentas = Database::open_cuentas(&paths.cuentas_file)?;
         let stack = if sesion.bienvenida_vista {
             vec![Screen::MainMenu]
@@ -1653,6 +1730,10 @@ impl App {
             inicio_sucio: false,
             clima: crate::services::clima_service::ClimaWorker::default(),
             clima_proxima_consulta: std::time::Instant::now(),
+            analisis_hub: ListState::default().with_selected(Some(0)),
+            menu_numero: None,
+            menu_ocultos,
+            restauracion_ofrecida: false,
         };
         let _ = app.refresh_usuarios();
         Ok(app)
@@ -1726,6 +1807,7 @@ impl App {
             Screen::TorneoForm(_) => "Torneos · formulario".to_string(),
             Screen::TorneoResultadoForm(_) => "Torneos · resultado".to_string(),
             Screen::Ultimos => "Últimos".to_string(),
+            Screen::AnalisisMenu => "Análisis".to_string(),
             Screen::Comparador => "Comparador A/B".to_string(),
             Screen::TemporadasList => "Temporadas".to_string(),
             Screen::TemporadaDetail(id) => format!("Temporadas · #{id}"),
@@ -1771,7 +1853,7 @@ impl App {
         }
         match self.current_screen() {
             Screen::MainMenu => {
-                "↑↓/jk: mover  Enter: abrir  c: calendario  Ctrl+F: buscar  !: avisos  ?: ayuda"
+                "↑↓/jk: mover  Enter/número: abrir  0/Esc/q: salir  Ctrl+F: buscar  !: avisos  ?: ayuda"
             }
             Screen::CamisetasList => {
                 "n: nueva  e: editar  d: borrar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
@@ -1872,6 +1954,7 @@ impl App {
             Screen::TemporadaDetail(_) => {
                 "e: editar  d: borrar  c: comparar  ↑↓: desplazar  Esc: volver"
             }
+            Screen::AnalisisMenu => "↑↓: opción  Enter: abrir  Esc: volver",
             Screen::Comparador => {
                 "1/2: tipo  Tab: A/B  j/k: mover  Enter: comparar  r: recargar  Esc: volver"
             }
@@ -1898,7 +1981,7 @@ impl App {
             Screen::ProgresionList => "n: nueva  e: editar  d: borrar  p: planes  r: refrescar",
             Screen::PlanesList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
             Screen::Bienvenida => {
-                "↑↓: elegir cuenta  Enter: entrar  n: crear cuenta  l: iniciar sesión  i: invitado  q: salir"
+                "↑↓: elegir cuenta  Enter: entrar  n: crear cuenta  l: iniciar sesión  i: invitado  q/Esc: salir"
             }
             Screen::UsuarioList => {
                 "n: nueva  l: iniciar  p: contraseña  d: borrar  c: cerrar sesión"
@@ -1908,13 +1991,32 @@ impl App {
         }
     }
 
+    /// Opciones visibles del menú según el modo (`create_filtered_menu` de C).
+    #[must_use]
+    pub fn menu_modulos(&self) -> Vec<Module> {
+        Module::ALL
+            .into_iter()
+            .filter(|module| match self.settings.mode {
+                Mode::Simple => module.en_modo_simple(),
+                Mode::Advanced => true,
+                Mode::Custom => {
+                    *module == Module::Ajustes
+                        || !self.menu_ocultos.iter().any(|clave| clave == module.key())
+                }
+            })
+            .collect()
+    }
+
     /// Módulo seleccionado en el menú.
     #[must_use]
     pub fn selected_module(&self) -> Module {
-        Module::ALL
-            .get(self.menu_state.selected().unwrap_or(0))
+        let modulos = self.menu_modulos();
+        let indice = self.menu_state.selected().unwrap_or(0);
+        modulos
+            .get(indice)
+            .or(modulos.last())
             .copied()
-            .unwrap_or(Module::Camisetas)
+            .unwrap_or(Module::Ajustes)
     }
 
     /// Entra a una pantalla.
@@ -2187,6 +2289,7 @@ impl App {
             Screen::Bienvenida => self.handle_bienvenida_key(key)?,
             Screen::UsuarioList => self.handle_usuario_list_key(key)?,
             Screen::Ultimos => self.handle_ultimos_key(key)?,
+            Screen::AnalisisMenu => self.handle_analisis_menu_key(key)?,
             Screen::Comparador => self.handle_comparador_key(key)?,
             Screen::TiendaForm(_)
             | Screen::AmigoForm(_)
@@ -2222,21 +2325,18 @@ impl App {
 
     fn handle_common_key(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
-            KeyCode::Char('q') => self.request_quit(),
-            KeyCode::Esc => self.go_back(),
+            // Fuera del menú, `q`/Esc vuelven; en el menú piden confirmar la salida.
+            KeyCode::Char('q') | KeyCode::Esc => self.request_quit(),
             KeyCode::Char('?') => self.push_screen(Screen::Ayuda),
             KeyCode::Char('g') => self.ir_a_inicio()?,
-            KeyCode::Char('c') => self.open_calendario()?,
             KeyCode::Char('!') => self.open_notificaciones()?,
-            KeyCode::Char('l') if !matches!(self.current_screen(), Screen::Logros) => {
-                self.open_logros()?
-            }
-            KeyCode::Char('n') if matches!(self.current_screen(), Screen::MainMenu) => {
-                self.abrir_nuevo_partido()?
-            }
-            KeyCode::Char('t') if matches!(self.current_screen(), Screen::MainMenu) => {
-                self.open_tutorial()?
-            }
+            // Los atajos de letra solo valen en el menú: dentro de un módulo la
+            // letra puede significar otra cosa y no debe saltar a otra pantalla.
+            _ if self.current_screen() != Screen::MainMenu => {}
+            KeyCode::Char('c') => self.open_calendario()?,
+            KeyCode::Char('l') => self.open_logros()?,
+            KeyCode::Char('n') => self.abrir_nuevo_partido()?,
+            KeyCode::Char('t') => self.open_tutorial()?,
             KeyCode::Char('R') => self.open_records()?,
             KeyCode::Char('T') => self.open_torneos()?,
             KeyCode::Char('U') => self.open_ultimos()?,
@@ -2254,6 +2354,26 @@ impl App {
     }
 
     fn handle_main_menu_key(&mut self, key: KeyEvent) -> Result<bool> {
+        if let KeyCode::Char(digito) = key.code
+            && digito.is_ascii_digit()
+        {
+            self.teclear_numero_menu(digito)?;
+            return Ok(true);
+        }
+        // Otra tecla corta el número en curso: Enter lo abre y Esc lo descarta.
+        if let Some((numero, _)) = self.menu_numero.take() {
+            match key.code {
+                KeyCode::Enter => {
+                    self.abrir_numero_menu(&numero)?;
+                    return Ok(true);
+                }
+                KeyCode::Esc => {
+                    self.status = "Número descartado".to_string();
+                    return Ok(true);
+                }
+                _ => {}
+            }
+        }
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => self.move_menu_selection(1),
             KeyCode::Up | KeyCode::Char('k') => self.move_menu_selection(-1),
@@ -2261,15 +2381,81 @@ impl App {
                 let module = self.selected_module();
                 self.open_module(module)?;
             }
-            KeyCode::Char(digit) if digit.is_ascii_digit() => {
-                let index = digit.to_digit(10).unwrap_or(0) as usize;
-                if (1..=9).contains(&index) {
-                    self.menu_state.select(Some(index - 1));
-                }
-            }
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    /// Suma un dígito al número tecleado: abre la opción en cuanto el número
+    /// deja de ser prefijo de otra visible (con 1..27, "3" abre ya y "1" espera).
+    fn teclear_numero_menu(&mut self, digito: char) -> Result<()> {
+        let mut numero = self
+            .menu_numero
+            .take()
+            .map(|(numero, _)| numero)
+            .unwrap_or_default();
+        numero.push(digito);
+        if numero == "0" {
+            self.request_quit();
+            return Ok(());
+        }
+        let modulos = self.menu_modulos();
+        let ambiguo = modulos.iter().any(|module| {
+            let otro = module.numero().to_string();
+            otro.len() > numero.len() && otro.starts_with(&numero)
+        });
+        if !ambiguo {
+            return self.abrir_numero_menu(&numero);
+        }
+        if let Some(posicion) = modulos
+            .iter()
+            .position(|module| module.numero().to_string() == numero)
+        {
+            self.menu_state.select(Some(posicion));
+        }
+        self.status = format!("Opción {numero}… (Enter abre)");
+        self.menu_numero = Some((numero, std::time::Instant::now()));
+        Ok(())
+    }
+
+    fn abrir_numero_menu(&mut self, numero: &str) -> Result<()> {
+        let modulos = self.menu_modulos();
+        match modulos
+            .iter()
+            .position(|module| module.numero().to_string() == numero)
+        {
+            Some(posicion) => {
+                self.menu_state.select(Some(posicion));
+                self.open_module(modulos[posicion])
+            }
+            None => {
+                self.status = format!(
+                    "La opción {numero} no está disponible en el modo {}",
+                    self.settings.mode.label()
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// Abre el número en espera cuando pasó [`ESPERA_NUMERO_MENU`] desde el
+    /// último dígito. Devuelve `true` si había uno vencido.
+    pub fn vencer_numero_menu(&mut self, ahora: std::time::Instant) -> bool {
+        let vencido = self
+            .menu_numero
+            .as_ref()
+            .is_some_and(|(_, desde)| ahora.duration_since(*desde) >= ESPERA_NUMERO_MENU);
+        if !vencido {
+            return false;
+        }
+        if let Some((numero, _)) = self.menu_numero.take()
+            && self.current_screen() == Screen::MainMenu
+            && self.modal.is_none()
+            && let Err(error) = self.abrir_numero_menu(&numero)
+        {
+            self.modal = Some(Modal::Error(error.to_string()));
+        }
+        true
     }
 
     fn handle_camisetas_list_key(&mut self, key: KeyEvent) -> Result<bool> {
@@ -2623,8 +2809,8 @@ impl App {
         }
     }
     fn move_menu_selection(&mut self, delta: isize) {
-        let len = Module::ALL.len() as isize;
-        let current = self.menu_state.selected().unwrap_or(0) as isize;
+        let len = self.menu_modulos().len().max(1) as isize;
+        let current = (self.menu_state.selected().unwrap_or(0) as isize).min(len - 1);
         let next = (current + delta).rem_euclid(len) as usize;
         self.menu_state.select(Some(next));
     }
@@ -2643,8 +2829,9 @@ impl App {
         self.camisetas_table.select(Some(next));
     }
 
-    fn request_quit(&mut self) {
-        if self.current_screen() == Screen::MainMenu {
+    /// En el menú o la portada pide confirmar la salida; en otra pantalla vuelve.
+    pub(crate) fn request_quit(&mut self) {
+        if matches!(self.current_screen(), Screen::MainMenu | Screen::Bienvenida) {
             self.modal = Some(Modal::confirm(
                 "Salir",
                 "¿Cerrar MiFutbolR? S = sí, N/Esc = no.",
@@ -2655,9 +2842,15 @@ impl App {
         }
     }
 
-    pub(crate) fn open_module(&mut self, module: Module) -> Result<()> {
+    /// Abre la opción del menú principal.
+    pub fn open_module(&mut self, module: Module) -> Result<()> {
         self.active_module = Some(module);
         match module {
+            Module::Calendario => self.open_calendario()?,
+            Module::Logros => self.open_logros()?,
+            Module::Records => self.open_records()?,
+            Module::Tutorial => self.open_tutorial()?,
+            Module::Analisis => self.push_screen(Screen::AnalisisMenu),
             Module::Camisetas => {
                 self.push_screen(Screen::CamisetasList);
                 self.refresh_camisetas()?;
@@ -3147,12 +3340,15 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     let mut redibujar = true;
     loop {
         redibujar |= app.tick_clima();
+        redibujar |= app.vencer_numero_menu(std::time::Instant::now());
         if redibujar || app.animations.running() {
             terminal.draw(|frame| crate::ui::draw(frame, app))?;
         }
         redibujar = false;
         let espera = if app.animations.running() {
             Duration::from_millis(16)
+        } else if app.menu_numero.is_some() {
+            Duration::from_millis(100)
         } else {
             Duration::from_secs(1)
         };

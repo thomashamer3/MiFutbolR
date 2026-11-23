@@ -7,7 +7,7 @@ mod common;
 use common::*;
 
 fn open_carrera(app: &mut App) {
-    for _ in 0..8 {
+    for _ in 0..14 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);
@@ -120,8 +120,7 @@ fn timeline_and_logros_render() {
 fn perfil_y_modo_retro_render() {
     let (mut app, _dir) = test_app();
     preparar_partidos(&app);
-    app.menu_state.select(Some(8));
-    press(&mut app, KeyCode::Enter);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Carrera);
     assert_eq!(app.current_screen(), Screen::CarreraMenu);
 
     app.carrera_hub.select(Some(5));

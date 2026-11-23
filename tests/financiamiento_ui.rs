@@ -7,7 +7,7 @@ mod common;
 use common::*;
 
 fn open_financiamiento(app: &mut App) {
-    for _ in 0..7 {
+    for _ in 0..9 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);

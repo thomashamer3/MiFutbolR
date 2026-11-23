@@ -16,7 +16,7 @@ fn count_rows(app: &App) -> i64 {
 #[test]
 fn create_camiseta_through_the_ui() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Enter); // abre Camisetas
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
     assert_eq!(app.current_screen(), Screen::CamisetasList);
 
     press(&mut app, KeyCode::Char('n'));
@@ -37,7 +37,7 @@ fn create_camiseta_through_the_ui() {
 #[test]
 fn empty_name_is_rejected_and_form_stays_open() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Enter);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
     press(&mut app, KeyCode::Char('n'));
     press_ctrl(&mut app, 's');
 
@@ -55,7 +55,7 @@ fn empty_name_is_rejected_and_form_stays_open() {
 #[test]
 fn edit_and_delete_through_the_ui() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Enter);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
     press(&mut app, KeyCode::Char('n'));
     type_text(&mut app, "Vieja");
     press_ctrl(&mut app, 's');
@@ -88,7 +88,7 @@ fn edit_and_delete_through_the_ui() {
 #[test]
 fn search_filters_the_list() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Enter);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
     for name in ["Roja", "Azul"] {
         press(&mut app, KeyCode::Char('n'));
         type_text(&mut app, name);
@@ -112,7 +112,7 @@ fn search_filters_the_list() {
 #[test]
 fn draw_awards_a_jersey_and_marks_it() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Enter);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
     press(&mut app, KeyCode::Char('n'));
     type_text(&mut app, "Sorteable");
     press_ctrl(&mut app, 's');

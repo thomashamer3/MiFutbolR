@@ -22,16 +22,29 @@ const ATAJOS: &[(&str, &str)] = &[
     ("r", "Refrescar"),
     ("x", "Exportar listado (CSV/JSON/HTML/MD)"),
     ("Ctrl+K / Ctrl+F", "Paleta / búsqueda global"),
-    ("g / c / !", "Inicio / calendario / avisos"),
-    ("l / R / T / U", "Logros / récords / torneos / últimos"),
-    ("C", "Comparador A/B"),
-    ("D / A / M", "Tiendas / amigos / multimedia"),
-    ("Y", "Recordatorios"),
-    ("P", "Progresión"),
-    ("t / Ctrl+Z", "Tutorial / deshacer"),
+    ("g / !", "Inicio / avisos"),
+    ("Ctrl+Z", "Deshacer"),
     ("Espacio", "Marcar / desmarcar"),
     ("?", "Esta ayuda"),
-    ("q", "Salir / volver"),
+    (
+        "q / Esc",
+        "Volver; en el menú y la portada, salir (pide confirmar)",
+    ),
+];
+
+/// Atajos que solo valen en el menú principal.
+const ATAJOS_MENU: &[(&str, &str)] = &[
+    (
+        "1 … 27",
+        "Abrir la opción (\"15\" abre la 15; Enter abre lo tecleado)",
+    ),
+    ("0", "Salir"),
+    ("c / l / t", "Calendario / logros / tutorial"),
+    ("n", "Nuevo partido"),
+    ("R / T / U", "Récords / torneos / últimos"),
+    ("C / E", "Comparador A/B / temporadas"),
+    ("D / A / M", "Tiendas / amigos / multimedia"),
+    ("Y / P / L", "Recordatorios / progresión / logros"),
 ];
 
 /// Dibuja la pantalla de ayuda.
@@ -43,12 +56,20 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
             .fg(colors.accent)
             .add_modifier(Modifier::BOLD),
     ))];
-    for (key, action) in ATAJOS {
-        lines.push(Line::from(vec![
+    let fila = |(key, action): &(&str, &'static str)| {
+        Line::from(vec![
             Span::styled(format!("  {key:<16}"), Style::default().fg(colors.warning)),
             Span::styled(*action, Style::default().fg(colors.fg)),
-        ]));
-    }
+        ])
+    };
+    lines.extend(ATAJOS.iter().map(fila));
+    lines.push(Line::from(Span::styled(
+        "Menú principal",
+        Style::default()
+            .fg(colors.accent)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.extend(ATAJOS_MENU.iter().map(fila));
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         "Esc: volver al menú",

@@ -25,7 +25,7 @@ fn count(app: &App, table: &str) -> i64 {
 #[test]
 fn create_and_delete_cancha_through_the_ui() {
     let (mut app, _dir) = test_app();
-    open_module(&mut app, 1); // Camisetas -> Canchas
+    open_module(&mut app, 2); // Calendario -> Camisetas -> Canchas
     assert_eq!(app.current_screen(), Screen::CanchasList);
 
     press(&mut app, KeyCode::Char('n'));
@@ -61,7 +61,7 @@ fn create_and_delete_cancha_through_the_ui() {
 #[test]
 fn cancha_search_and_detail() {
     let (mut app, _dir) = test_app();
-    open_module(&mut app, 1);
+    open_module(&mut app, 2);
     for nombre in ["Sur", "Norte"] {
         press(&mut app, KeyCode::Char('n'));
         type_text(&mut app, nombre);
@@ -85,7 +85,7 @@ fn cancha_search_and_detail() {
 #[test]
 fn create_set_default_and_draw_botin() {
     let (mut app, _dir) = test_app();
-    open_module(&mut app, 2); // Camisetas -> Canchas -> Botines
+    open_module(&mut app, 3); // Calendario -> Camisetas -> Canchas -> Botines
     assert_eq!(app.current_screen(), Screen::BotinesList);
 
     press(&mut app, KeyCode::Char('n'));

@@ -38,7 +38,7 @@ fn preparar(app: &App) {
 }
 
 fn open_estadisticas(app: &mut App) {
-    for _ in 0..6 {
+    for _ in 0..7 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);

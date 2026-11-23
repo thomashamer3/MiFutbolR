@@ -151,11 +151,20 @@ fn canchas(app: &App) -> i64 {
 }
 
 fn abrir_usuario(app: &mut App) {
-    let actual = app.menu_state.selected().unwrap_or(0);
-    let pasos = (21 + 22 - actual) % 22;
-    for _ in 0..pasos {
-        press(app, KeyCode::Down);
-    }
-    press(app, KeyCode::Enter);
+    abrir_opcion(app, mifutbol_rs::app::Module::Usuario);
     assert_eq!(app.current_screen(), Screen::UsuarioList);
+}
+
+#[test]
+fn portada_q_y_esc_piden_confirmar_e_i_entra_como_invitado() {
+    let (mut app, _dir) = test_app_con_bienvenida();
+    for tecla in [KeyCode::Char('q'), KeyCode::Esc] {
+        press(&mut app, tecla);
+        assert!(app.modal.is_some(), "{tecla:?} pide confirmar");
+        assert_eq!(app.current_screen(), Screen::Bienvenida);
+        press(&mut app, KeyCode::Char('n'));
+        assert!(!app.should_quit);
+    }
+    press(&mut app, KeyCode::Char('i'));
+    assert_eq!(app.current_screen(), Screen::MainMenu);
 }

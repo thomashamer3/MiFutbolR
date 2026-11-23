@@ -255,6 +255,29 @@ pub fn migrate(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
+/// ¿La base tiene datos cargados por el usuario? (`db_tiene_datos_usuario` de C).
+#[must_use]
+pub fn tiene_datos_usuario(conn: &Connection) -> bool {
+    [
+        "partido",
+        "camiseta",
+        "botin",
+        "cancha",
+        "lesion",
+        "equipo",
+        "torneo",
+        "financiamiento",
+        "temporada",
+        "bienestar_entrenamiento",
+        "media",
+    ]
+    .iter()
+    .any(|tabla| {
+        conn.query_row(&format!("SELECT 1 FROM {tabla} LIMIT 1"), [], |_| Ok(()))
+            .is_ok()
+    })
+}
+
 /// Lee `PRAGMA user_version`.
 pub fn schema_version(conn: &Connection) -> Result<i64, DbError> {
     let version = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;

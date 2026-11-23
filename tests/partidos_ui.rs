@@ -21,7 +21,7 @@ fn preparar(app: &App) -> (i64, i64) {
 }
 
 fn open_partidos(app: &mut App) {
-    for _ in 0..4 {
+    for _ in 0..5 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);

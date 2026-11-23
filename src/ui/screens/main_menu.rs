@@ -1,4 +1,4 @@
-//! Menú principal con los 11 módulos (§19.2).
+//! Menú principal numerado como MiFutbolC, filtrado por modo (§19.2).
 //!
 //! Encabezado con tipografía grande (tui-big-text), lista de módulos y tarjeta
 //! de vista previa; en pantallas angostas se apila y se usa texto normal.
@@ -10,7 +10,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, Paragraph, Wrap};
 use tui_big_text::{BigText, PixelSize};
 
-use crate::app::{App, Module};
+use crate::app::App;
 use crate::ui::theme::palette;
 
 /// Dibuja el menú y la ficha del módulo seleccionado.
@@ -52,26 +52,33 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         (arriba, abajo)
     };
 
-    let items: Vec<ListItem> = Module::ALL
+    let modulos = app.menu_modulos();
+    let fila = |numero: usize, texto: &'static str| {
+        ListItem::new(Line::from(vec![
+            Span::styled(
+                format!(" {numero:>2} "),
+                Style::default()
+                    .fg(colors.highlight_fg)
+                    .bg(colors.border)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled(texto, Style::default().fg(colors.fg)),
+        ]))
+    };
+    // "0 Salir" va al final como en MiFutbolC; la selección no llega a él.
+    let items: Vec<ListItem> = modulos
         .iter()
-        .enumerate()
-        .map(|(index, module)| {
-            ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!(" {:>2} ", index + 1),
-                    Style::default()
-                        .fg(colors.highlight_fg)
-                        .bg(colors.border)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  "),
-                Span::styled(module.label(), Style::default().fg(colors.fg)),
-            ]))
-        })
+        .map(|module| fila(module.numero(), module.label()))
+        .chain(std::iter::once(fila(0, "Salir")))
         .collect();
 
+    let titulo_lista = match &app.menu_numero {
+        Some((numero, _)) => format!(" Menú · opción {numero}… "),
+        None => format!(" Menú · {} · escribí el número ", app.settings.mode.label()),
+    };
     let list = List::new(items)
-        .block(colors.panel(" Módulos · 1-9 acceso rápido "))
+        .block(colors.panel(titulo_lista))
         .highlight_style(
             Style::default()
                 .bg(colors.highlight_bg)
@@ -83,24 +90,26 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_stateful_widget(list, list_area, &mut app.menu_state);
     let mut hits = Vec::new();
     let filas_visibles = list_area.height.saturating_sub(2) as usize;
-    for indice in 0..Module::ALL.len().min(filas_visibles) {
+    // La lista puede estar desplazada: la fila visible `i` es la opción `offset + i`.
+    let desplazamiento = app.menu_state.offset();
+    for fila in 0..modulos
+        .len()
+        .saturating_sub(desplazamiento)
+        .min(filas_visibles)
+    {
         hits.push((
             Rect {
                 x: list_area.x + 1,
-                y: list_area.y + 1 + indice as u16,
+                y: list_area.y + 1 + fila as u16,
                 width: list_area.width.saturating_sub(2),
                 height: 1,
             },
-            indice,
+            desplazamiento + fila,
         ));
     }
     app.menu_hits = hits;
 
     let selected = app.selected_module();
-    let indice = Module::ALL
-        .iter()
-        .position(|module| *module == selected)
-        .map_or(1, |posicion| posicion + 1);
 
     let mut lineas = vec![
         Line::from(Span::styled(selected.label(), colors.title_style())),
@@ -111,9 +120,9 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         )),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Módulo ", colors.muted_style()),
+            Span::styled("Opción ", colors.muted_style()),
             Span::styled(
-                format!("{indice} de {}", Module::ALL.len()),
+                format!("{} · modo {}", selected.numero(), app.settings.mode.label()),
                 Style::default().fg(colors.fg).add_modifier(Modifier::BOLD),
             ),
             Span::styled("   ·   tema ", colors.muted_style()),
@@ -134,7 +143,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
             Style::default().fg(colors.fg),
         )),
         Line::from(Span::styled(
-            "  1-9   ir directo    q  salir",
+            "  número  abrir (ej. 15)    0/Esc/q  salir",
             Style::default().fg(colors.fg),
         )),
         Line::from(Span::styled(

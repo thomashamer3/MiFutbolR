@@ -26,8 +26,21 @@ pub fn test_app() -> (App, tempfile::TempDir) {
     paths.ensure_dirs().expect("dirs");
     let db = Database::open(&paths.db_file).expect("db");
     let _ = mifutbol_rs::services::usuario_service::marcar_bienvenida(db.conn());
-    let app = App::new(db, paths).expect("app");
+    let mut app = App::new(db, paths).expect("app");
+    // El modo por defecto es Simple (como MiFutbolC); las pruebas usan el menú completo.
+    app.settings.mode = mifutbol_rs::domain::models::Mode::Advanced;
     (app, dir)
+}
+
+/// Selecciona la opción del menú principal y pulsa Enter.
+pub fn abrir_opcion(app: &mut App, module: mifutbol_rs::app::Module) {
+    let indice = app
+        .menu_modulos()
+        .iter()
+        .position(|visible| *visible == module)
+        .expect("opción visible en el menú");
+    app.menu_state.select(Some(indice));
+    press(app, KeyCode::Enter);
 }
 
 pub fn press(app: &mut App, code: KeyCode) {

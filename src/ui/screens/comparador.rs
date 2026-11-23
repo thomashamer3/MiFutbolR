@@ -4,11 +4,44 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Cell, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, BorderType, Cell, List, ListItem, Paragraph, Row, Table, Wrap};
 
 use crate::app::App;
+use crate::app_comparador::ANALISIS_SECCIONES;
 use crate::domain::comparador::{Comparacion, Lado, OpcionComparador};
 use crate::ui::theme::palette;
+
+/// Dibuja el hub Análisis.
+pub fn draw_analisis(frame: &mut Frame, area: Rect, app: &mut App) {
+    let colors = palette(app.settings.theme);
+    let items: Vec<ListItem> = ANALISIS_SECCIONES
+        .iter()
+        .map(|(titulo, descripcion)| {
+            ListItem::new(vec![
+                Line::from(Span::styled(
+                    *titulo,
+                    Style::default()
+                        .fg(colors.accent)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::styled(
+                    format!("   {descripcion}"),
+                    Style::default().fg(colors.muted),
+                )),
+            ])
+        })
+        .collect();
+    let list = List::new(items)
+        .block(colors.panel(" Análisis "))
+        .highlight_style(
+            Style::default()
+                .bg(colors.highlight_bg)
+                .fg(colors.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+    frame.render_stateful_widget(list, area, &mut app.analisis_hub);
+}
 
 /// Dibuja el comparador.
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {

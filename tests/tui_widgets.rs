@@ -2,22 +2,17 @@
 //! BarChart, Tabs, scrollbar y muestra de tema).
 
 use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
-use mifutbol_rs::app::{App, Module, Screen};
+use mifutbol_rs::app::{Module, Screen};
 
 mod common;
 use common::*;
-
-fn abrir_modulo(app: &mut App, indice: usize) {
-    app.menu_state.select(Some(indice));
-    press(app, KeyCode::Enter);
-}
 
 #[test]
 fn wide_main_menu_shows_preview_and_shortcuts() {
     let (mut app, _dir) = test_app();
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
-    assert!(text.contains("Módulo 1 de 22"), "{text}");
+    assert!(text.contains("Opción 1 · modo Avanzado"), "{text}");
     assert!(text.contains("Atajos"), "{text}");
     assert!(text.contains("Camisetas"), "{text}");
 }
@@ -32,7 +27,7 @@ fn camisetas_list_shows_side_preview() {
             [],
         )
         .unwrap();
-    abrir_modulo(&mut app, 0);
+    abrir_opcion(&mut app, Module::Camisetas);
     press(&mut app, KeyCode::Down);
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa"), "{text}");
@@ -64,7 +59,7 @@ fn financiamiento_uses_gauge_and_barchart() {
             rusqlite::params![hoy],
         )
         .unwrap();
-    abrir_modulo(&mut app, 7);
+    abrir_opcion(&mut app, Module::Financiamiento);
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("% consumido"), "{text}");
     assert!(text.contains("Gastos por categoría"), "{text}");
@@ -82,7 +77,7 @@ fn wizard_shows_step_tabs() {
         .conn()
         .execute("INSERT INTO camiseta (nombre) VALUES ('Titular')", [])
         .unwrap();
-    abrir_modulo(&mut app, 4);
+    abrir_opcion(&mut app, Module::Partidos);
     press(&mut app, KeyCode::Char('n'));
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Paso 1/4"), "{text}");
@@ -93,7 +88,7 @@ fn wizard_shows_step_tabs() {
 #[test]
 fn ajustes_shows_theme_preview() {
     let (mut app, _dir) = test_app();
-    abrir_modulo(&mut app, 10);
+    abrir_opcion(&mut app, Module::Ajustes);
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Vista previa del tema"), "{text}");
     assert!(text.contains("Éxito"), "{text}");
@@ -103,10 +98,10 @@ fn ajustes_shows_theme_preview() {
 #[test]
 fn module_tabs_show_context() {
     let (mut app, _dir) = test_app();
-    abrir_modulo(&mut app, 4);
+    abrir_opcion(&mut app, Module::Partidos);
     let text = render_con(&mut app, 120, 34);
     assert!(text.contains("Finanzas"), "{text}");
-    assert!(text.contains("Ajustes"), "{text}");
+    assert!(text.contains("Calend"), "{text}");
     assert!(text.contains("Camis"), "{text}");
 }
 
@@ -121,7 +116,7 @@ fn image_viewer_opens_and_closes() {
             [ruta.to_string_lossy()],
         )
         .unwrap();
-    abrir_modulo(&mut app, 0);
+    abrir_opcion(&mut app, Module::Camisetas);
     press(&mut app, KeyCode::Down);
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('v'));
@@ -135,7 +130,7 @@ fn image_viewer_opens_and_closes() {
 #[test]
 fn sidebar_click_switches_module() {
     let (mut app, _dir) = test_app();
-    abrir_modulo(&mut app, 4);
+    abrir_opcion(&mut app, Module::Partidos);
     let _ = render_con(&mut app, 160, 42);
     let objetivo = app
         .sidebar_hits
@@ -161,7 +156,7 @@ fn main_menu_click_opens_module() {
     let objetivo = app
         .menu_hits
         .iter()
-        .find(|(_, indice)| *indice == 3)
+        .find(|(_, indice)| *indice == 4)
         .map(|(area, _)| *area)
         .expect("hit de Equipos");
     let clic = MouseEvent {
@@ -184,7 +179,7 @@ fn table_click_selects_row() {
             .execute("INSERT INTO camiseta (nombre) VALUES (?1)", [nombre])
             .unwrap();
     }
-    abrir_modulo(&mut app, 0);
+    abrir_opcion(&mut app, Module::Camisetas);
     let _ = render_con(&mut app, 120, 34);
     let objetivo = app
         .table_hits
@@ -211,7 +206,7 @@ fn canchas_table_click_selects_row() {
             .execute("INSERT INTO cancha (nombre) VALUES (?1)", [nombre])
             .unwrap();
     }
-    abrir_modulo(&mut app, 1);
+    abrir_opcion(&mut app, Module::Canchas);
     let _ = render_con(&mut app, 120, 34);
     let objetivo = app
         .table_hits
@@ -238,7 +233,7 @@ fn moving_selection_starts_row_animation() {
             .execute("INSERT INTO camiseta (nombre) VALUES (?1)", [nombre])
             .unwrap();
     }
-    abrir_modulo(&mut app, 0);
+    abrir_opcion(&mut app, Module::Camisetas);
     let _ = render_con(&mut app, 120, 34);
     app.animations.clear();
     press(&mut app, KeyCode::Down);

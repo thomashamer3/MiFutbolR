@@ -296,12 +296,52 @@ impl App {
         match self.db.restore_from(&ruta) {
             Ok(()) => {
                 self.settings = self.db.settings()?;
+                self.menu_ocultos = crate::db::settings_repo::menus_ocultos(self.db.conn());
                 self.status = format!("Backup restaurado: {}", ruta.display());
                 self.modal = Some(Modal::Info("Backup restaurado correctamente.".to_string()));
             }
             Err(error) => self.modal = Some(Modal::Error(error.to_string())),
         }
         Ok(())
+    }
+
+    /// Al entrar al menú, una vez por sesión: si la base está vacía y hay un
+    /// backup con datos, ofrece restaurarlo (`ofrecer_restaurar_backup_inicio`
+    /// de MiFutbolC). Solo abre un modal; nunca bloquea.
+    pub fn ofrecer_restaurar_backup_inicio(&mut self) {
+        if self.restauracion_ofrecida
+            || self.modal.is_some()
+            || self.current_screen() != Screen::MainMenu
+        {
+            return;
+        }
+        self.restauracion_ofrecida = true;
+        if crate::db::tiene_datos_usuario(self.db.conn()) {
+            return;
+        }
+        let Some(ruta) = self.backup_mas_reciente() else {
+            return;
+        };
+        let Ok(copia) = rusqlite::Connection::open_with_flags(
+            &ruta,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ) else {
+            return;
+        };
+        if !crate::db::tiene_datos_usuario(&copia) {
+            return;
+        }
+        let partidos: i64 = copia
+            .query_row("SELECT COUNT(*) FROM partido", [], |row| row.get(0))
+            .unwrap_or(0);
+        self.modal = Some(Modal::confirm(
+            "¿Restaurar backup?",
+            format!(
+                "Se encontró una copia de seguridad con {partidos} partidos en:\n{}\n¿Restaurarla? (S = sí, N = no)",
+                ruta.display()
+            ),
+            ConfirmAction::RestoreBackup,
+        ));
     }
 
     fn backup_mas_reciente(&self) -> Option<PathBuf> {

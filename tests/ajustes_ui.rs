@@ -8,8 +8,7 @@ mod common;
 use common::*;
 
 fn open_ajustes(app: &mut App) {
-    app.menu_state.select(Some(10));
-    press(app, KeyCode::Enter);
+    abrir_opcion(app, mifutbol_rs::app::Module::Ajustes);
 }
 
 fn archivos_export(app: &App) -> Vec<String> {
@@ -147,4 +146,39 @@ fn import_legacy_database_through_ui() {
         })
         .unwrap();
     assert_eq!(fecha, "2026-02-01 19:00:00");
+}
+
+#[test]
+fn ofrece_restaurar_backup_si_la_base_esta_vacia() {
+    let (mut app, dir) = test_app();
+    // Sin backups no se ofrece nada.
+    app.ofrecer_restaurar_backup_inicio();
+    assert!(app.modal.is_none());
+
+    app.db
+        .conn()
+        .execute("INSERT INTO camiseta (nombre) VALUES ('Titular')", [])
+        .unwrap();
+    app.backup_ajustes().unwrap();
+
+    // Base nueva y vacía con las mismas carpetas: se ofrece una sola vez.
+    let db = mifutbol_rs::db::Database::open(&dir.path().join("vacia.db")).unwrap();
+    let _ = mifutbol_rs::services::usuario_service::marcar_bienvenida(db.conn());
+    let mut nueva = App::new(db, app.paths.clone()).unwrap();
+    assert!(nueva.modal.is_none(), "App::new no abre modales");
+    nueva.ofrecer_restaurar_backup_inicio();
+    let text = render_con(&mut nueva, 120, 34);
+    assert!(text.contains("¿Restaurar backup?"), "{text}");
+    press(&mut nueva, KeyCode::Char('s'));
+    let camisetas: i64 = nueva
+        .db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM camiseta", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(camisetas, 1);
+    nueva.modal = None;
+    nueva.restauracion_ofrecida = false;
+    // Con datos ya no se ofrece.
+    nueva.ofrecer_restaurar_backup_inicio();
+    assert!(nueva.modal.is_none());
 }

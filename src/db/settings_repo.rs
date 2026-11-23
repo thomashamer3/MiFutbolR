@@ -96,10 +96,35 @@ pub fn save(conn: &Connection, settings: &AppSettings) -> Result<(), DbError> {
     Ok(())
 }
 
+/// Claves de `custom_menus` desactivadas. Una clave sin fila cuenta como
+/// activa: MiFutbolR no tiene editor de menús y sus seeds no traen todas.
+#[must_use]
+pub fn menus_ocultos(conn: &Connection) -> Vec<String> {
+    conn.prepare("SELECT menu_name FROM custom_menus WHERE enabled = 0")
+        .and_then(|mut stmt| {
+            stmt.query_map([], |row| row.get(0))?
+                .collect::<Result<Vec<String>, _>>()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::Database;
+
+    #[test]
+    fn menus_ocultos_lista_solo_los_desactivados() {
+        let db = Database::open_in_memory().unwrap();
+        assert!(menus_ocultos(db.conn()).is_empty());
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO custom_menus (menu_name, enabled) VALUES ('logros', 0)",
+                [],
+            )
+            .unwrap();
+        assert_eq!(menus_ocultos(db.conn()), vec!["logros".to_string()]);
+    }
 
     #[test]
     fn load_returns_seeded_defaults() {

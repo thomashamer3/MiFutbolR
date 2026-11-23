@@ -39,7 +39,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 
 ## Tareas
 - [x] B1 Errores. Ruta: delegated (writer trigger: ~8 archivos).
-- [ ] B2 Flujo C. Ruta: delegated (writer trigger: app.rs, ui, ajustes, main).
+- [x] B2 Flujo C. Ruta: delegated (writer trigger: app.rs, ui, ajustes, main).
 - [ ] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
 - [ ] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [ ] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
@@ -51,7 +51,7 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 ## Progreso / evidencia
 - Línea base: 307 tests OK, clippy y fmt limpios (master `d589bde`).
   (Recuento real de `#[test]` en `d589bde`: 257; el 307 anterior no coincide con `cargo test`.)
-- B1 (commit en `feature/mejoras-paridad-c`):
+- B1 (`786a43a`, verificado por el orquestador: 263 OK, clippy limpio; RDD unmanaged):
   - 1 Seguridad: `usuario_service::cambiar_password(conn, id, actual, nueva)` y
     `eliminar(conn, id, actual)` verifican la contraseña actual (acepta hash `fnv1$` de C);
     el formulario de cambio pide "Contraseña actual" si la cuenta tiene, y borrar abre la
@@ -70,3 +70,37 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     literal (búsqueda y filtro), fixture revertido, undo fallido sin `suspendido=1`,
     `fecha_de` multibyte. Total 263 OK; `cargo clippy --all-targets -D warnings` y
     `cargo fmt --check` limpios.
+- B2 (commit en este bloque; RDD unmanaged):
+  - 1 Menú en orden y nombres de `menu.c` `MENU_ITEMS`: `Module` suma Calendario, Logros,
+    Análisis, Records y Tutorial; 1..24 como C y extras 25 Progresión, 26 Entrenador IA,
+    27 Usuario; "0 Salir" al pie. Sincronización (25 en C) fuera de alcance. Análisis es un
+    hub (`Screen::AnalisisMenu`, `ANALISIS_SECCIONES` en `app_comparador.rs`) con Comparador
+    A/B y Entrenador IA; B4 suma básico/evolución/química.
+  - 2 Números: `teclear_numero_menu` abre en cuanto el número deja de ser prefijo de otra
+    opción visible ("3" ya, "1"+"5" = 15); Enter abre lo tecleado; Esc lo descarta; el bucle
+    llama `vencer_numero_menu` y abre tras `ESPERA_NUMERO_MENU` (900 ms). `0` = Salir con
+    confirmación. Sidebar, tabs y lista muestran el número fijo.
+  - 3 `App::menu_modulos` filtra por modo como `DEFINE_GET_MENU` de `settings.c`: Simple =
+    Calendario, Camisetas, Canchas, Botines, Partidos, Lesiones, Tutorial, Ajustes (+ Usuario,
+    única vía a cuentas en Rust). Personalizado lee `custom_menus` con las claves de C
+    (`Module::key`): oculta solo filas `enabled = 0` (sin fila = visible, porque Rust no tiene
+    editor de menús y sus seeds no traen todas; C las ocultaría); Ajustes siempre visible.
+    Diferencias con C: los números no se renumeran al filtrar (pedido); Torneos no se oculta
+    siempre en Personalizado (en C `custom=0`, parece un error).
+  - 4 `ofrecer_restaurar_backup_inicio` (como `menu.c`): al entrar al menú (portada `i`/Enter
+    o login), una vez por sesión, si la base no tiene datos (`db::tiene_datos_usuario`, mismas
+    11 tablas que C) y el backup más reciente de `Exportaciones/` sí, modal S/N con la
+    cantidad de partidos → `restaurar_backup`. Solo modal; `App::new` no lo dispara (tests).
+    Rust no hace backup automático al iniciar como C, así que solo cuentan los `backup_*.db`.
+  - 5 Esc en el menú pide confirmar salir (igual que `q`); en la portada `q`/Esc piden
+    confirmar y `i` sigue entrando como invitado. Footer y ayuda actualizados.
+  - 6 Atajos de letra (`c l n t R T U C E D A M Y P L`) solo en el menú; `g ! ?`, Ctrl+F/K/Z
+    siguen globales.
+  - Tests: helper `abrir_opcion`; `test_app()` usa modo Avanzado (el defecto es Simple);
+    navegación por índice ajustada al nuevo orden; el test del menú verifica las 27 opciones
+    numeradas y "0 Salir". Nuevos (12):
+    Simple filtra y conserva números, defecto Simple, Personalizado, dos cifras, pausa,
+    0/Esc salen, nuevas opciones abren, hub Análisis, atajos no saltan desde módulos,
+    portada q/Esc, oferta de restaurar backup, `menus_ocultos`. Total 275 OK
+    (`cargo test --all-targets`), clippy `-D warnings` y `cargo fmt --check` limpios.
+  - No hecho: editor de menús personalizados (C `menu_custom_menus`) — no pedido.

@@ -73,7 +73,12 @@ fn endless_stream_is_capped_per_frame() {
 #[test]
 fn quitting_stops_processing() {
     let (mut app, _dir) = test_app_con_bienvenida();
-    let mut pendientes = cola(vec![tecla(KeyCode::Char('q')), tecla(KeyCode::Char('n'))]);
+    // En la portada `q` pide confirmar (como en el menú); `s` confirma.
+    let mut pendientes = cola(vec![
+        tecla(KeyCode::Char('q')),
+        tecla(KeyCode::Char('s')),
+        tecla(KeyCode::Char('n')),
+    ]);
     procesar_eventos(&mut app, || Ok(pendientes.pop_front())).unwrap();
     assert!(app.should_quit);
     assert_eq!(pendientes.len(), 1, "no se procesa nada después de salir");

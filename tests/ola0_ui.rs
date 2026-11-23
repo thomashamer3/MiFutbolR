@@ -110,7 +110,7 @@ fn tutorial_opens_and_completes() {
 #[test]
 fn export_list_writes_four_formats() {
     let (mut app, _dir) = test_app();
-    press(&mut app, KeyCode::Char('1'));
+    press(&mut app, KeyCode::Char('2'));
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.current_screen(), Screen::CamisetasList);
     press(&mut app, KeyCode::Char('x'));

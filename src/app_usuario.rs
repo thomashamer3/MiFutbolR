@@ -61,9 +61,9 @@ impl App {
                     .unwrap_or_default();
                 self.open_usuario_login(&nombre)?;
             }
-            KeyCode::Char('i') | KeyCode::Esc => self.entrar_al_menu()?,
+            KeyCode::Char('i') => self.entrar_al_menu()?,
             KeyCode::Char('m') => self.importar_perfiles_c(),
-            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Char('q') | KeyCode::Esc => self.request_quit(),
             _ => return Ok(false),
         }
         Ok(true)
@@ -133,6 +133,7 @@ impl App {
                 self.usuario_actual = Some(usuario);
                 // App::new ya calculó el resumen de Inicio de esta base.
                 self.stack = vec![Screen::MainMenu];
+                self.ofrecer_restaurar_backup_inicio();
             }
             Err(error) => {
                 self.modal = Some(Modal::Error(format!(
@@ -176,6 +177,7 @@ impl App {
         self.stack = vec![Screen::MainMenu];
         self.active_module = None;
         let _ = self.refrescar_inicio();
+        self.ofrecer_restaurar_backup_inicio();
         Ok(())
     }
 

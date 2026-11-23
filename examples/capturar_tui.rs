@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use mifutbol_rs::app::App;
+use mifutbol_rs::app::{App, Module};
 use mifutbol_rs::config::AppPaths;
 use mifutbol_rs::db::Database;
 use mifutbol_rs::domain::models::Theme;
@@ -75,6 +75,7 @@ fn nueva_app() -> anyhow::Result<App> {
     let db = Database::open(&PathBuf::from("target/capturas.db"))?;
     let paths = AppPaths::with_root(std::path::Path::new("target/capturas_paths"));
     let mut app = App::new(db, paths)?;
+    app.settings.mode = mifutbol_rs::domain::models::Mode::Advanced;
     app.settings.theme = Theme::Dark;
     app.status = "Listo".to_string();
     app.animations.enabled = false;
@@ -86,9 +87,8 @@ fn pulsar(app: &mut App, code: KeyCode) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn abrir_modulo(app: &mut App, indice: usize) -> anyhow::Result<()> {
-    app.menu_state.select(Some(indice));
-    pulsar(app, KeyCode::Enter)
+fn abrir_modulo(app: &mut App, module: Module) -> anyhow::Result<()> {
+    app.open_module(module)
 }
 
 fn guardar(app: &mut App, nombre: &str) -> anyhow::Result<()> {
@@ -148,7 +148,7 @@ fn main() -> anyhow::Result<()> {
     guardar(&mut app, "menu")?;
 
     let mut app = nueva_app()?;
-    abrir_modulo(&mut app, 0)?;
+    abrir_modulo(&mut app, Module::Camisetas)?;
     pulsar(&mut app, KeyCode::Down)?;
     guardar(&mut app, "lista_camisetas")?;
     pulsar(&mut app, KeyCode::Enter)?;
@@ -157,23 +157,23 @@ fn main() -> anyhow::Result<()> {
     guardar(&mut app, "visor")?;
 
     let mut app = nueva_app()?;
-    abrir_modulo(&mut app, 4)?;
+    abrir_modulo(&mut app, Module::Partidos)?;
     pulsar(&mut app, KeyCode::Down)?;
     guardar(&mut app, "partidos")?;
 
     let mut app = nueva_app()?;
-    abrir_modulo(&mut app, 6)?;
+    abrir_modulo(&mut app, Module::Estadisticas)?;
     app.estadisticas_hub.select(Some(0));
     pulsar(&mut app, KeyCode::Enter)?;
     guardar(&mut app, "estadisticas")?;
 
     let mut app = nueva_app()?;
-    abrir_modulo(&mut app, 7)?;
+    abrir_modulo(&mut app, Module::Financiamiento)?;
     guardar(&mut app, "financiamiento")?;
 
     // Panorama ancho con sidebar.
     let mut app = nueva_app()?;
-    abrir_modulo(&mut app, 4)?;
+    abrir_modulo(&mut app, Module::Partidos)?;
     pulsar(&mut app, KeyCode::Down)?;
     guardar_tamano(&mut app, "panorama", 160, 42)?;
 

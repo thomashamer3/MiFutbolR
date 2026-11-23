@@ -14,7 +14,7 @@ fn preparar(app: &App) {
 }
 
 fn open_lesiones(app: &mut App) {
-    for _ in 0..5 {
+    for _ in 0..6 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);

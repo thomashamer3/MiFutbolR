@@ -13,7 +13,7 @@ fn count(app: &App, sql: &str) -> i64 {
 #[test]
 fn create_team_add_players_and_delete_one() {
     let (mut app, _dir) = test_app();
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Down);
     }
     press(&mut app, KeyCode::Enter);
@@ -73,7 +73,7 @@ fn create_team_add_players_and_delete_one() {
 #[test]
 fn duplicate_dorsal_is_reported_and_form_stays() {
     let (mut app, _dir) = test_app();
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Down);
     }
     press(&mut app, KeyCode::Enter);
@@ -99,7 +99,7 @@ fn duplicate_dorsal_is_reported_and_form_stays() {
 #[test]
 fn team_search_and_toggle_active() {
     let (mut app, _dir) = test_app();
-    for _ in 0..3 {
+    for _ in 0..4 {
         press(&mut app, KeyCode::Down);
     }
     press(&mut app, KeyCode::Enter);

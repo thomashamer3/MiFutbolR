@@ -7,7 +7,7 @@ mod common;
 use common::*;
 
 fn open_resumen(app: &mut App) {
-    for _ in 0..9 {
+    for _ in 0..21 {
         press(app, KeyCode::Down);
     }
     press(app, KeyCode::Enter);

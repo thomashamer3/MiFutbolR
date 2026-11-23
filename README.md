@@ -28,10 +28,25 @@ Las capturas se generan desde la TUI real con
 
 ## Características
 
-- **22 módulos**: Camisetas, Canchas, Botines, Equipos, Partidos, Lesiones,
-  Estadísticas, Financiamiento, Carrera, Resumen Compartible, Ajustes, Torneos,
-  Temporadas, Tiendas, Amigos, Multimedia, Recordatorios, Progresión, Bienestar,
-  Colecciones, Entrenador IA y Usuario.
+- **Menú principal como MiFutbolC**, numerado: 1 Calendario, 2 Camisetas, 3 Canchas,
+  4 Botines, 5 Equipos, 6 Partidos, 7 Lesiones, 8 Estadísticas, 9 Logros,
+  10 Financiamiento, 11 Torneos, 12 Temporada, 13 Análisis (Comparador A/B y
+  Entrenador IA), 14 Bienestar, 15 Carrera Futbolística, 16 Recordatorios,
+  17 Colecciones, 18 Records & Rankings, 19 Tiendas, 20 Referencias Multimedia,
+  21 Tutorial, 22 Resumen Compartible, 23 Ranking Amigos, 24 Ajustes; extras de
+  MiFutbolR: 25 Progresión, 26 Entrenador IA, 27 Usuario; 0 Salir.
+  - Se abre tecleando el número: `3` abre en el acto, `1` espera un instante por si
+    sigue otra cifra (`15`), Enter abre lo tecleado. `0`, `q` o Esc piden confirmar
+    la salida (también en la portada; `i` entra como invitado).
+  - Ajustes → **Modo de menú**: *Simple* (por defecto, como C) muestra Calendario,
+    Camisetas, Canchas, Botines, Partidos, Lesiones, Tutorial, Ajustes y Usuario;
+    *Avanzado* muestra todo; *Personalizado* oculta los menús con `enabled = 0` en
+    `custom_menus` (claves de MiFutbolC). Los números no cambian al filtrar.
+  - Los atajos de letra (`c` calendario, `l`/`L` logros, `R` récords, `t` tutorial,
+    `C` comparador, `T`, `U`, `E`, `D`, `A`, `M`, `Y`, `P`, `n`) solo valen en el
+    menú; `g`, `!`, `?`, Ctrl+F y Ctrl+K siguen siendo globales.
+  - Al entrar con la base vacía, si hay un backup con datos en `Exportaciones/`,
+    se ofrece restaurarlo (S/N), una vez por sesión.
 - **Bienestar**: hábitos, entrenamientos, comidas, sesiones mentales y perfil de
   salud; el asistente (`a`) calcula preparación y riesgo de lesión y sugiere una
   rutina semanal (fórmulas de MiFutbolC).

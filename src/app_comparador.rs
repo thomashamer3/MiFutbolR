@@ -7,7 +7,39 @@ use crate::app::{App, Screen};
 use crate::domain::comparador::TipoComparacion;
 use crate::services::comparador_service;
 
+/// Opciones del hub Análisis (13 en el menú de MiFutbolC).
+pub const ANALISIS_SECCIONES: &[(&str, &str)] = &[
+    (
+        "Comparador A/B",
+        "Camisetas y canchas lado a lado con 9 métricas.",
+    ),
+    (
+        "Entrenador IA",
+        "Consejos, predicción, táctica y descanso según tus partidos.",
+    ),
+];
+
 impl App {
+    /// Teclas del hub Análisis.
+    pub(crate) fn handle_analisis_menu_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let len = ANALISIS_SECCIONES.len() as isize;
+        let actual = self.analisis_hub.selected().unwrap_or(0) as isize;
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self
+                .analisis_hub
+                .select(Some((actual + 1).rem_euclid(len) as usize)),
+            KeyCode::Up | KeyCode::Char('k') => self
+                .analisis_hub
+                .select(Some((actual - 1).rem_euclid(len) as usize)),
+            KeyCode::Enter => match actual {
+                0 => self.open_comparador()?,
+                _ => self.open_entrenador()?,
+            },
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
     /// Abre el comparador.
     pub(crate) fn open_comparador(&mut self) -> Result<()> {
         self.cargar_comparador()?;

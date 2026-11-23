@@ -178,6 +178,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             screens::torneos::draw_form(frame, body, app)
         }
         Screen::Ultimos => screens::ultimos::draw(frame, body, app),
+        Screen::AnalisisMenu => screens::comparador::draw_analisis(frame, body, app),
         Screen::Comparador => screens::comparador::draw(frame, body, app),
         Screen::TemporadasList => screens::temporadas::draw_list(frame, body, app),
         Screen::TemporadaDetail(_) => screens::temporadas::draw_detail(frame, body, app),
@@ -299,9 +300,10 @@ fn draw_sidebar(frame: &mut Frame, area: Rect, app: &mut App, colors: &Palette) 
     frame.render_widget(bloque, area);
     let mut lineas = Vec::new();
     let mut hits = Vec::new();
-    for (indice, module) in crate::app::Module::ALL.iter().enumerate() {
+    let modulos = app.menu_modulos();
+    for (indice, module) in modulos.iter().enumerate().take(interior.height as usize) {
         let seleccionado = *module == activo;
-        let texto = format!(" {:>2} {:<11}", indice + 1, module.short_label());
+        let texto = format!(" {:>2} {:<11}", module.numero(), module.short_label());
         let estilo = if seleccionado {
             Style::default()
                 .fg(colors.highlight_fg)
@@ -373,11 +375,12 @@ fn draw_module_tabs(frame: &mut Frame, area: Rect, app: &App, colors: &Palette) 
     let Some(activo) = app.active_module else {
         return;
     };
-    let titulos: Vec<ratatui::text::Line> = crate::app::Module::ALL
+    let modulos = app.menu_modulos();
+    let titulos: Vec<ratatui::text::Line> = modulos
         .iter()
         .map(|module| ratatui::text::Line::from(module.short_label()))
         .collect();
-    let seleccionado = crate::app::Module::ALL
+    let seleccionado = modulos
         .iter()
         .position(|module| *module == activo)
         .unwrap_or(0);
