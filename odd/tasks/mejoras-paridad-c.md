@@ -22,12 +22,23 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
 - B5 Limpieza: un helper de selección, un flujo de borrado común, textos de ayuda compartidos,
   quitar `Screen::Module`/`module_placeholder`.
 
-## Fuera de alcance (no pedido en la propuesta)
-Sincronización PocketBase, XLSX (ODS ya cubre hojas de cálculo), MiFutbolMobile, importar
-JSON/TXT/CSV/HTML, migración chrono → jiff.
+## Ampliación (reabierto: "Implementa Todo" incluye todo lo que el análisis listó como faltante)
+- B6 Sincronización PocketBase + sincronización/exportación MiFutbolMobile.
+- B7 Exportar/Importar: XLSX, importar JSON/TXT/CSV/HTML, recordatorios import/export y filtro por
+  tema, backup JSON de Colecciones.
+- B8 Ajustes y arranque: backup automático al inicio, editor de menús personalizados, comprobar
+  actualizaciones, restablecer valores, ver configuración, idioma y modo retro como en C.
+- B9 Módulos: simular partido con equipos guardados, lesiones (diferencias, actualizar estados),
+  estadísticas (reportes automáticos, filtros avanzados, tabla de posiciones global), amigos
+  "comparar conmigo", notificaciones (crear, cumpleaños, torneos por vencer), historial de
+  equipamiento, gráfico de uso de camisetas, administrar torneos/temporadas completo.
+- B10 Bienestar: pantallas de análisis (entrenamiento vs rendimiento, alimentación), informe
+  mensual PDF, abrir documentos con la app del sistema, optimizar imágenes al copiarlas,
+  importador copia `MiFutbolC\images`.
+- B11 Migrar chrono → jiff (RUSTSEC-2026-0543) y quitar el ignore de `deny.toml`.
 
 ## Restricciones
-- Sin dependencias nuevas.
+- Sin dependencias nuevas, salvo `jiff` para reemplazar `chrono` (B11).
 - Tests y docs junto al comportamiento; commit Conventional por tarea.
 
 ## Configuración
@@ -43,6 +54,12 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
 - [x] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
 - [x] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [x] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
+- [ ] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger).
+- [ ] B7 Exportar/Importar. Ruta: delegated (writer trigger).
+- [ ] B8 Ajustes y arranque. Ruta: delegated (writer trigger).
+- [ ] B9 Módulos faltantes. Ruta: delegated (writer trigger).
+- [ ] B10 Bienestar restante. Ruta: delegated (writer trigger).
+- [ ] B11 chrono → jiff. Ruta: delegated (writer trigger: todo el crate).
 
 ## Criterios de aceptación
 - Cada bloque: `cargo test --all-targets`, `cargo clippy --all-targets -- -D warnings`,
