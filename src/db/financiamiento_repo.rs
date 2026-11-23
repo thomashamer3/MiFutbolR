@@ -14,8 +14,8 @@ const FILTRO_SQL: &str = "WHERE (?1 = -1 OR f.tipo = ?1)
        AND (?2 = -1 OR f.categoria = ?2)
        AND (?3 = '' OR f.fecha >= ?3)
        AND (?4 = '' OR f.fecha <= ?4)
-       AND (?5 = '' OR f.descripcion LIKE '%' || ?5 || '%' COLLATE NOCASE
-                   OR f.item_especifico LIKE '%' || ?5 || '%' COLLATE NOCASE)";
+       AND (?5 = '' OR f.descripcion LIKE '%' || ?5 || '%' COLLATE NOCASE ESCAPE '\\'
+                   OR f.item_especifico LIKE '%' || ?5 || '%' COLLATE NOCASE ESCAPE '\\')";
 
 /// Lista transacciones con filtro.
 pub fn list(
@@ -39,7 +39,7 @@ pub fn list(
                 filter.categoria.map_or(-1, CategoriaFinanciera::as_i64),
                 desde,
                 hasta,
-                filter.texto.trim(),
+                super::helpers::like_escape(&filter.texto),
             ],
             |row| {
                 let fecha_texto: String = row.get(1)?;
@@ -184,7 +184,7 @@ pub fn resumen(
             filter.categoria.map_or(-1, CategoriaFinanciera::as_i64),
             desde,
             hasta,
-            filter.texto.trim(),
+            super::helpers::like_escape(&filter.texto),
         ],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;

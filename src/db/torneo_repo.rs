@@ -137,22 +137,17 @@ pub fn partidos(conn: &Connection, torneo_id: i64) -> Result<Vec<PartidoTorneoRo
     Ok(filas.collect::<Result<Vec<_>, _>>()?)
 }
 
-/// Borra el fixture actual.
-pub fn borrar_fixture(conn: &Connection, torneo_id: i64) -> Result<(), DbError> {
-    conn.execute(
-        "DELETE FROM partido_torneo WHERE torneo_id = ?1",
-        params![torneo_id],
-    )?;
-    Ok(())
-}
-
-/// Inserta el fixture en una transacción.
-pub fn insertar_fixture(
+/// Reemplaza el fixture (borra el actual e inserta el nuevo) en una transacción.
+pub fn reemplazar_fixture(
     conn: &Connection,
     torneo_id: i64,
     partidos: &[(i64, i64)],
 ) -> Result<usize, DbError> {
     let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "DELETE FROM partido_torneo WHERE torneo_id = ?1",
+        params![torneo_id],
+    )?;
     {
         let mut stmt = tx.prepare(
             "INSERT INTO partido_torneo (torneo_id, equipo1_id, equipo2_id, estado, fase)

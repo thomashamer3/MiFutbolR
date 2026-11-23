@@ -244,9 +244,12 @@ pub fn migrate(conn: &Connection) -> Result<(), DbError> {
     for (index, sql) in MIGRATIONS.iter().enumerate() {
         let target = index as i64 + 1;
         if version < target {
-            conn.execute_batch(sql)
+            // La migración y su `user_version` se aplican juntas o no se aplican.
+            let tx = conn.unchecked_transaction()?;
+            tx.execute_batch(sql)
                 .map_err(|error| DbError::Migration(format!("migración {target}: {error}")))?;
-            conn.pragma_update(None, "user_version", target)?;
+            tx.pragma_update(None, "user_version", target)?;
+            tx.commit()?;
         }
     }
     Ok(())

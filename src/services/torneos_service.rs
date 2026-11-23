@@ -76,8 +76,7 @@ pub fn generar_fixture(conn: &Connection, id: i64) -> Result<usize, ServiceError
             .collect();
         partidos.append(&mut vuelta);
     }
-    torneo_repo::borrar_fixture(conn, id)?;
-    Ok(torneo_repo::insertar_fixture(conn, id, &partidos)?)
+    Ok(torneo_repo::reemplazar_fixture(conn, id, &partidos)?)
 }
 
 /// Registra un resultado.
@@ -296,5 +295,9 @@ mod tests {
         registrar_resultado(db.conn(), partido.id, 3, 1).unwrap();
         let datos = ficha(db.conn(), id).unwrap();
         assert!(datos.tabla.iter().any(|fila| fila.puntos == 3));
+
+        // Si la inserción falla, el borrado del fixture anterior se revierte.
+        assert!(torneo_repo::reemplazar_fixture(db.conn(), id, &[(9_998, 9_999)]).is_err());
+        assert_eq!(ficha(db.conn(), id).unwrap().partidos.len(), 6);
     }
 }

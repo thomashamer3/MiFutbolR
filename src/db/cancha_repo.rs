@@ -35,8 +35,8 @@ pub fn list(conn: &Connection, filter: &CanchaFilter) -> Result<Vec<CanchaRow>, 
            FROM cancha c
            LEFT JOIN partido p ON p.cancha_id = c.id
           WHERE (?1 = 0 OR c.activa = CASE ?1 WHEN 1 THEN 1 ELSE 0 END)
-            AND (?2 = '' OR c.nombre LIKE '%' || ?2 || '%' COLLATE NOCASE
-                          OR c.localidad LIKE '%' || ?2 || '%' COLLATE NOCASE)
+            AND (?2 = '' OR c.nombre LIKE '%' || ?2 || '%' COLLATE NOCASE ESCAPE '\\'
+                          OR c.localidad LIKE '%' || ?2 || '%' COLLATE NOCASE ESCAPE '\\')
           GROUP BY c.id
           ORDER BY {}",
         filter.orden.sql_order()
@@ -44,7 +44,10 @@ pub fn list(conn: &Connection, filter: &CanchaFilter) -> Result<Vec<CanchaRow>, 
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(
-            params![filter.estado.sql_code(), filter.texto.trim()],
+            params![
+                filter.estado.sql_code(),
+                super::helpers::like_escape(&filter.texto)
+            ],
             |row| {
                 Ok(CanchaRow {
                     id: row.get(0)?,

@@ -17,9 +17,9 @@ pub fn list(conn: &Connection, filter: &LesionFilter) -> Result<Vec<LesionRow>, 
            LEFT JOIN camiseta c ON c.id = l.camiseta_id
            LEFT JOIN partido p ON p.id = l.partido_id
           WHERE (?1 = ''
-                 OR l.jugador LIKE '%' || ?1 || '%' COLLATE NOCASE
-                 OR l.tipo LIKE '%' || ?1 || '%' COLLATE NOCASE
-                 OR l.descripcion LIKE '%' || ?1 || '%' COLLATE NOCASE)
+                 OR l.jugador LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\'
+                 OR l.tipo LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\'
+                 OR l.descripcion LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\')
             AND (?2 = '' OR l.estado = ?2)
           ORDER BY {}",
         filter.orden.sql_order()
@@ -30,26 +30,29 @@ pub fn list(conn: &Connection, filter: &LesionFilter) -> Result<Vec<LesionRow>, 
         .unwrap_or_default();
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
-        .query_map(params![filter.texto.trim(), estado], |row| {
-            let fecha_texto: String = row.get(3)?;
-            let fecha = dates::parse_datetime(&fecha_texto).ok_or_else(|| {
-                rusqlite::Error::InvalidColumnType(
-                    3,
-                    "fecha".to_string(),
-                    rusqlite::types::Type::Text,
-                )
-            })?;
-            Ok(LesionRow {
-                id: row.get(0)?,
-                jugador: row.get(1)?,
-                tipo: row.get(2)?,
-                fecha,
-                estado: EstadoLesion::from_str(&row.get::<_, String>(4)?)
-                    .unwrap_or(EstadoLesion::Activa),
-                camiseta: row.get(5)?,
-                partido: row.get(6)?,
-            })
-        })?
+        .query_map(
+            params![super::helpers::like_escape(&filter.texto), estado],
+            |row| {
+                let fecha_texto: String = row.get(3)?;
+                let fecha = dates::parse_datetime(&fecha_texto).ok_or_else(|| {
+                    rusqlite::Error::InvalidColumnType(
+                        3,
+                        "fecha".to_string(),
+                        rusqlite::types::Type::Text,
+                    )
+                })?;
+                Ok(LesionRow {
+                    id: row.get(0)?,
+                    jugador: row.get(1)?,
+                    tipo: row.get(2)?,
+                    fecha,
+                    estado: EstadoLesion::from_str(&row.get::<_, String>(4)?)
+                        .unwrap_or(EstadoLesion::Activa),
+                    camiseta: row.get(5)?,
+                    partido: row.get(6)?,
+                })
+            },
+        )?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }

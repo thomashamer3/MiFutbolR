@@ -23,9 +23,9 @@ const COLUMNS: &str = "id, cancha_id, camiseta_id, botin_id, fecha_hora, mes_ani
     atajaste_todo_el_partido, diferencia_gol";
 
 const FILTER_SQL: &str = "WHERE (?1 = ''
-        OR p.rival_nombre LIKE '%' || ?1 || '%' COLLATE NOCASE
-        OR p.comentario_personal LIKE '%' || ?1 || '%' COLLATE NOCASE
-        OR p.tags LIKE '%' || ?1 || '%' COLLATE NOCASE)
+        OR p.rival_nombre LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\'
+        OR p.comentario_personal LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\'
+        OR p.tags LIKE '%' || ?1 || '%' COLLATE NOCASE ESCAPE '\\')
    AND (?2 = 0 OR p.cancha_id = ?2)
    AND (?3 = 0 OR p.camiseta_id = ?3)
    AND (?4 = -1 OR p.resultado = ?4)
@@ -58,7 +58,7 @@ pub fn list(
     let rows = stmt
         .query_map(
             params![
-                filter.texto.trim(),
+                super::helpers::like_escape(&filter.texto),
                 filter.cancha_id.unwrap_or(0),
                 filter.camiseta_id.unwrap_or(0),
                 filter.resultado.map_or(-1, Resultado::as_i64),
@@ -98,7 +98,7 @@ pub fn count(conn: &Connection, filter: &PartidoFilter) -> Result<i64, DbError> 
     let total = conn.query_row(
         &sql,
         params![
-            filter.texto.trim(),
+            super::helpers::like_escape(&filter.texto),
             filter.cancha_id.unwrap_or(0),
             filter.camiseta_id.unwrap_or(0),
             filter.resultado.map_or(-1, Resultado::as_i64),
@@ -127,7 +127,7 @@ pub fn resumen(conn: &Connection, filter: &PartidoFilter) -> Result<PartidoResum
     conn.query_row(
         &sql,
         params![
-            filter.texto.trim(),
+            super::helpers::like_escape(&filter.texto),
             filter.cancha_id.unwrap_or(0),
             filter.camiseta_id.unwrap_or(0),
             filter.resultado.map_or(-1, Resultado::as_i64),

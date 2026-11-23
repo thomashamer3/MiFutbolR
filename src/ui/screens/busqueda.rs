@@ -14,8 +14,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, colors: &Palette) {
     let Some(overlay) = &app.overlay else {
         return;
     };
-    let ancho = (area.width * 3 / 4).clamp(48, 110);
-    let alto = (area.height * 2 / 3).clamp(10, 28);
+    let ancho = (area.width * 3 / 4).clamp(48, 110).min(area.width);
+    let alto = (area.height * 2 / 3).clamp(10, 28).min(area.height);
     let popup = Rect {
         x: area.x + area.width.saturating_sub(ancho) / 2,
         y: area.y + area.height.saturating_sub(alto) / 2,

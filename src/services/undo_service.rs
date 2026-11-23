@@ -124,14 +124,16 @@ pub fn deshacer(conn: &Connection, entrada: &UndoEntry) -> Result<(), DbError> {
             entrada.tabla
         )));
     }
-    conn.execute_batch("UPDATE undo_control SET suspendido = 1 WHERE id = 1")?;
-    let resultado = aplicar(conn, entrada);
-    conn.execute_batch("UPDATE undo_control SET suspendido = 0 WHERE id = 1")?;
-    resultado?;
-    conn.execute(
+    // Todo en una transacción: si algo falla, `suspendido` no queda en 1.
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch("UPDATE undo_control SET suspendido = 1 WHERE id = 1")?;
+    aplicar(&tx, entrada)?;
+    tx.execute_batch("UPDATE undo_control SET suspendido = 0 WHERE id = 1")?;
+    tx.execute(
         "DELETE FROM undo_historial WHERE id = ?1",
         params![entrada.id],
     )?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -256,6 +258,29 @@ mod tests {
 
     fn db() -> Database {
         Database::open_in_memory().unwrap()
+    }
+
+    #[test]
+    fn failed_undo_rolls_back_and_keeps_entry() {
+        let db = db();
+        // "editar" sin snapshot anterior: aplicar falla a mitad de la transacción.
+        db.conn()
+            .execute(
+                "INSERT INTO undo_historial (tabla, registro_id, operacion) VALUES ('camiseta', 1, 'editar')",
+                [],
+            )
+            .unwrap();
+        assert!(deshacer_ultima(db.conn()).is_err());
+        let suspendido: i64 = db
+            .conn()
+            .query_row(
+                "SELECT suspendido FROM undo_control WHERE id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(suspendido, 0);
+        assert!(ultima(db.conn()).unwrap().is_some(), "la entrada sigue");
     }
 
     #[test]

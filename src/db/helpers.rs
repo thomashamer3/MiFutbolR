@@ -58,11 +58,20 @@ pub fn i64_from_bool(value: bool) -> i64 {
     i64::from(value)
 }
 
-/// Patrón `LIKE` para búsquedas de texto (§20.6).
+/// Patrón `LIKE` para búsquedas de texto (§20.6); va con `ESCAPE '\'`.
 #[must_use]
 pub fn like_pattern(query: &str) -> String {
-    let normalized = query.trim().replace('%', r"\%").replace('_', r"\_");
-    format!("%{normalized}%")
+    format!("%{}%", like_escape(query))
+}
+
+/// Escapa `\`, `%` y `_` para usar el texto literal en un `LIKE ... ESCAPE '\'`.
+#[must_use]
+pub fn like_escape(query: &str) -> String {
+    query
+        .trim()
+        .replace('\\', r"\\")
+        .replace('%', r"\%")
+        .replace('_', r"\_")
 }
 
 /// Lee una columna `TEXT` tolerando `NULL` (`NULL` → `""`).

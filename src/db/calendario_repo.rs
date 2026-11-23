@@ -8,11 +8,8 @@ use crate::domain::calendario::{EventoCalendario, EventoTipo};
 use crate::domain::{Cents, dates};
 
 fn fecha_de(texto: &str) -> Option<NaiveDate> {
-    if texto.len() >= 10 {
-        dates::parse_date(&texto[..10])
-    } else {
-        dates::parse_date(texto)
-    }
+    // `get` no entra en pánico si el byte 10 cae dentro de un carácter multibyte.
+    dates::parse_date(texto.get(..10).unwrap_or(texto))
 }
 
 /// Eventos (partidos y finanzas) de un mes.
@@ -133,6 +130,16 @@ pub fn eventos_mes(
 mod tests {
     use super::*;
     use crate::db::Database;
+
+    #[test]
+    fn fecha_de_tolerates_multibyte_text() {
+        // El byte 10 cae dentro de la "ñ": antes entraba en pánico.
+        assert_eq!(fecha_de("2026-03-0ñ"), None);
+        assert_eq!(
+            fecha_de("2026-03-05 20:00:00"),
+            NaiveDate::from_ymd_opt(2026, 3, 5)
+        );
+    }
 
     #[test]
     fn events_grouped_by_month() {

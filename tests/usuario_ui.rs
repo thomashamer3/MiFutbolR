@@ -82,6 +82,48 @@ fn portada_renders_at_any_size() {
     }
 }
 
+#[test]
+fn change_and_delete_ask_current_password() {
+    let (mut app, _dir) = test_app_con_bienvenida();
+    crear_cuenta(&mut app, "Beto", "clave");
+    abrir_usuario(&mut app);
+
+    // Cambiar contraseña: el formulario pide la actual y rechaza una incorrecta.
+    press(&mut app, KeyCode::Char('p'));
+    assert!(matches!(app.current_screen(), Screen::UsuarioForm(_)));
+    type_text(&mut app, "mala");
+    press_ctrl(&mut app, 's');
+    assert!(app.modal.take().is_some(), "contraseña actual incorrecta");
+    assert!(matches!(app.current_screen(), Screen::UsuarioForm(_)));
+    // Esc con cambios pide descartar: S confirma.
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.current_screen(), Screen::UsuarioList);
+
+    // Eliminar: tras confirmar se pide la contraseña actual.
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.current_screen(), Screen::UsuarioEliminar);
+    type_text(&mut app, "mala");
+    press_ctrl(&mut app, 's');
+    assert!(
+        app.modal.take().is_some(),
+        "rechaza la contraseña incorrecta"
+    );
+    let cuentas = mifutbol_rs::services::usuario_service::listar(app.cuentas.conn()).unwrap();
+    assert_eq!(cuentas.len(), 1);
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.current_screen(), Screen::UsuarioList);
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('s'));
+    type_text(&mut app, "clave");
+    press_ctrl(&mut app, 's');
+    // Era la cuenta en uso: vuelve a la portada como invitado.
+    assert_eq!(app.current_screen(), Screen::Bienvenida);
+    assert!(app.usuario_actual.is_none());
+}
+
 fn crear_cuenta(app: &mut App, nombre: &str, password: &str) {
     press(app, KeyCode::Char('n'));
     assert!(matches!(app.current_screen(), Screen::UsuarioForm(_)));

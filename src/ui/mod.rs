@@ -18,6 +18,11 @@ use crate::domain::models::FormMode;
 use crate::util::text::truncate_width;
 use theme::{Palette, palette};
 
+/// Tamaño mínimo de terminal para dibujar la interfaz.
+pub const MIN_ANCHO: u16 = 40;
+/// Alto mínimo de terminal.
+pub const MIN_ALTO: u16 = 12;
+
 /// Dibuja el frame completo.
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let colors = palette(app.settings.theme);
@@ -28,6 +33,18 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Block::default().style(Style::default().bg(colors.bg).fg(colors.fg)),
         area,
     );
+    if area.width < MIN_ANCHO || area.height < MIN_ALTO {
+        frame.render_widget(
+            Paragraph::new(format!(
+                "Terminal demasiado pequeña (mín. {MIN_ANCHO}x{MIN_ALTO})"
+            ))
+            .style(Style::default().fg(colors.warning))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true }),
+            area,
+        );
+        return;
+    }
 
     app.sidebar_hits.clear();
     app.menu_hits.clear();
@@ -187,7 +204,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Screen::PlanForm(_) => screens::progresion::draw_form(frame, body, app),
         Screen::Bienvenida => screens::bienvenida::draw(frame, body, app),
         Screen::UsuarioList => screens::usuario::draw_list(frame, body, app),
-        Screen::UsuarioForm(_) | Screen::UsuarioLogin => {
+        Screen::UsuarioForm(_) | Screen::UsuarioLogin | Screen::UsuarioEliminar => {
             screens::usuario::draw_form(frame, body, app)
         }
         Screen::AjustesForm | Screen::LegacyImportForm => {
@@ -430,8 +447,15 @@ fn draw_modal(frame: &mut Frame, area: Rect, modal: &Modal, colors: &Palette) {
         .map(|linea| linea.chars().count())
         .max()
         .unwrap_or(24);
-    let ancho = (largo as u16 + 8).clamp(36, area.width.saturating_sub(4));
-    let alto = (mensaje.lines().count() as u16 + 6).clamp(7, area.height.saturating_sub(2).max(7));
+    // max/min en vez de clamp: clamp entra en pánico si el área es menor que el mínimo.
+    let ancho = (largo as u16)
+        .saturating_add(8)
+        .max(36)
+        .min(area.width.saturating_sub(4));
+    let alto = (mensaje.lines().count() as u16)
+        .saturating_add(6)
+        .max(7)
+        .min(area.height.saturating_sub(2));
     let popup = Rect {
         x: area.x + area.width.saturating_sub(ancho) / 2,
         y: area.y + area.height.saturating_sub(alto) / 2,

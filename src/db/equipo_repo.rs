@@ -18,14 +18,17 @@ pub fn list(conn: &Connection, filter: &EquipoFilter) -> Result<Vec<EquipoRow>, 
                 e.imagen_ruta
            FROM equipo e
           WHERE (?1 = 0 OR e.activa = CASE ?1 WHEN 1 THEN 1 ELSE 0 END)
-            AND (?2 = '' OR e.nombre LIKE '%' || ?2 || '%' COLLATE NOCASE)
+            AND (?2 = '' OR e.nombre LIKE '%' || ?2 || '%' COLLATE NOCASE ESCAPE '\\')
           ORDER BY {}",
         filter.orden.sql_order()
     );
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(
-            params![filter.estado.sql_code(), filter.texto.trim()],
+            params![
+                filter.estado.sql_code(),
+                super::helpers::like_escape(&filter.texto)
+            ],
             |row| {
                 Ok(EquipoRow {
                     id: row.get(0)?,

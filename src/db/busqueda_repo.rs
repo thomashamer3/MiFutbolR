@@ -40,9 +40,9 @@ pub fn buscar(
     let mut stmt = conn.prepare(
         "SELECT p.id, p.rival_nombre, p.fecha_hora, c.nombre
            FROM partido p JOIN cancha c ON c.id = p.cancha_id
-          WHERE p.rival_nombre LIKE ?1 COLLATE NOCASE
-             OR p.comentario_personal LIKE ?1 COLLATE NOCASE
-             OR p.tags LIKE ?1 COLLATE NOCASE
+          WHERE p.rival_nombre LIKE ?1 COLLATE NOCASE ESCAPE '\\'
+             OR p.comentario_personal LIKE ?1 COLLATE NOCASE ESCAPE '\\'
+             OR p.tags LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY p.fecha_hora DESC LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -74,7 +74,7 @@ pub fn buscar(
 
     let mut stmt = conn.prepare(
         "SELECT id, nombre, marca FROM camiseta
-          WHERE nombre LIKE ?1 COLLATE NOCASE OR marca LIKE ?1 COLLATE NOCASE
+          WHERE nombre LIKE ?1 COLLATE NOCASE ESCAPE '\\' OR marca LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY nombre LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -101,7 +101,7 @@ pub fn buscar(
 
     let mut stmt = conn.prepare(
         "SELECT id, nombre, localidad FROM cancha
-          WHERE nombre LIKE ?1 COLLATE NOCASE OR localidad LIKE ?1 COLLATE NOCASE
+          WHERE nombre LIKE ?1 COLLATE NOCASE ESCAPE '\\' OR localidad LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY nombre LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -128,7 +128,7 @@ pub fn buscar(
 
     let mut stmt = conn.prepare(
         "SELECT id, nombre, tipo FROM equipo
-          WHERE nombre LIKE ?1 COLLATE NOCASE
+          WHERE nombre LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY nombre LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -157,7 +157,7 @@ pub fn buscar(
     let mut stmt = conn.prepare(
         "SELECT j.id, j.nombre, e.nombre FROM jugador j
            JOIN equipo e ON e.id = j.equipo_id
-          WHERE j.nombre LIKE ?1 COLLATE NOCASE
+          WHERE j.nombre LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY j.nombre LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -174,8 +174,8 @@ pub fn buscar(
 
     let mut stmt = conn.prepare(
         "SELECT id, jugador, tipo, descripcion FROM lesion
-          WHERE jugador LIKE ?1 COLLATE NOCASE OR tipo LIKE ?1 COLLATE NOCASE
-             OR descripcion LIKE ?1 COLLATE NOCASE
+          WHERE jugador LIKE ?1 COLLATE NOCASE ESCAPE '\\' OR tipo LIKE ?1 COLLATE NOCASE ESCAPE '\\'
+             OR descripcion LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY fecha DESC LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -199,7 +199,7 @@ pub fn buscar(
 
     let mut stmt = conn.prepare(
         "SELECT id, descripcion, fecha, monto_centavos FROM financiamiento
-          WHERE descripcion LIKE ?1 COLLATE NOCASE OR item_especifico LIKE ?1 COLLATE NOCASE
+          WHERE descripcion LIKE ?1 COLLATE NOCASE ESCAPE '\\' OR item_especifico LIKE ?1 COLLATE NOCASE ESCAPE '\\'
           ORDER BY fecha DESC LIMIT ?2",
     )?;
     let filas = stmt.query_map(params![patron, LIMITE_POR_TIPO], |row| {
@@ -252,5 +252,36 @@ mod tests {
                 .any(|r| r.tipo == TipoResultado::Cancha)
         );
         assert!(buscar(db.conn(), "   ", 20).unwrap().is_empty());
+    }
+
+    #[test]
+    fn percent_and_underscore_are_literal() {
+        let db = Database::open_in_memory().unwrap();
+        for nombre in ["Rebaja 50%", "Modelo 500", "a_b", "axb"] {
+            db.conn()
+                .execute("INSERT INTO camiseta (nombre) VALUES (?1)", [nombre])
+                .unwrap();
+        }
+        let nombres = |texto: &str| -> Vec<String> {
+            buscar(db.conn(), texto, 20)
+                .unwrap()
+                .into_iter()
+                .map(|r| r.titulo)
+                .collect()
+        };
+        assert_eq!(nombres("50%"), ["Rebaja 50%"]);
+        assert!(nombres("5%").is_empty(), "5% no debe coincidir con 500");
+        assert_eq!(nombres("a_b"), ["a_b"]);
+
+        // Los filtros de listado también tratan el texto como literal.
+        let filtro = crate::domain::models::CamisetaFilter {
+            texto: "5%".to_string(),
+            ..Default::default()
+        };
+        assert!(
+            crate::db::camiseta_repo::list(db.conn(), &filtro)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

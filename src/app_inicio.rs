@@ -123,10 +123,7 @@ impl App {
         match evento.tipo {
             EventoTipo::Partido => self.navegar_a(TipoResultado::Partido, id),
             EventoTipo::Financiamiento => self.open_module(Module::Financiamiento),
-            EventoTipo::Recordatorio => {
-                self.status = "El módulo de recordatorios todavía no está disponible".to_string();
-                Ok(())
-            }
+            EventoTipo::Recordatorio => self.open_module(Module::Recordatorios),
         }
     }
 

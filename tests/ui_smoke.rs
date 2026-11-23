@@ -113,3 +113,15 @@ fn mouse_wheel_moves_menu_selection() {
     app.handle_mouse(arriba).expect("mouse");
     assert_eq!(app.menu_state.selected(), Some(0));
 }
+
+#[test]
+fn tiny_terminal_with_modal_does_not_panic() {
+    let (mut app, _dir) = test_app();
+    app.modal = Some(mifutbol_rs::app::Modal::Error(
+        "Un mensaje largo de error que no entra en una terminal angosta".to_string(),
+    ));
+    let texto = render_con(&mut app, 30, 10);
+    assert!(texto.contains("Terminal demasiado"), "{texto}");
+    // En el mínimo exacto el modal se dibuja sin pánico.
+    render_con(&mut app, 40, 12);
+}

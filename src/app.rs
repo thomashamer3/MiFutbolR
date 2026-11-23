@@ -427,6 +427,8 @@ pub enum Screen {
     UsuarioForm(FormMode),
     /// Inicio de sesión.
     UsuarioLogin,
+    /// Contraseña actual antes de eliminar una cuenta.
+    UsuarioEliminar,
     /// Ayuda contextual.
     Ayuda,
 }
@@ -1752,6 +1754,7 @@ impl App {
             Screen::UsuarioList => "Usuario".to_string(),
             Screen::UsuarioForm(_) => "Usuario · formulario".to_string(),
             Screen::UsuarioLogin => "Iniciar sesión".to_string(),
+            Screen::UsuarioEliminar => "Eliminar cuenta".to_string(),
             Screen::Ayuda => "Ayuda".to_string(),
         }
     }
@@ -1792,7 +1795,8 @@ impl App {
             | Screen::RecordatorioForm(_)
             | Screen::ProgresionForm(_)
             | Screen::PlanForm(_)
-            | Screen::UsuarioForm(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
+            | Screen::UsuarioForm(_)
+            | Screen::UsuarioEliminar => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
             Screen::CanchasList => {
                 "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
@@ -2203,7 +2207,7 @@ impl App {
                 self.handle_form_key(key)?;
                 true
             }
-            Screen::UsuarioForm(_) => {
+            Screen::UsuarioForm(_) | Screen::UsuarioEliminar => {
                 self.handle_form_key(key)?;
                 true
             }
@@ -2481,17 +2485,7 @@ impl App {
                     let _ = app.refresh_progresion();
                 });
             }
-            ConfirmAction::DeleteUsuario(id) => {
-                let era_actual = self.usuario_actual.as_ref().is_some_and(|u| u.id == id);
-                let resultado = crate::services::usuario_service::eliminar(self.cuentas.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    if era_actual {
-                        app.salir_a_invitado();
-                    } else {
-                        let _ = app.refresh_usuarios();
-                    }
-                });
-            }
+            ConfirmAction::DeleteUsuario(id) => self.confirmar_eliminar_usuario(id),
             ConfirmAction::DeletePlan(id) => {
                 let resultado =
                     crate::services::progresion_service::eliminar_plan(self.db.conn(), id);
@@ -2921,6 +2915,7 @@ impl App {
             Screen::PlanForm(mode) => self.save_plan_form(mode),
             Screen::UsuarioForm(mode) => self.save_usuario_form(mode),
             Screen::UsuarioLogin => self.save_usuario_login(),
+            Screen::UsuarioEliminar => self.save_usuario_eliminar(),
             Screen::AjustesForm => self.save_ajustes_form(),
             Screen::LegacyImportForm => self.save_legacy_import(),
             Screen::ImagenViewer => Ok(()),

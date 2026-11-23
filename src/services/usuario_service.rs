@@ -94,12 +94,14 @@ pub fn hash_mifutbolc(salt: &str, hash: &str) -> String {
     format!("{PREFIJO_C}{salt}${hash}")
 }
 
-/// Cambia o quita la contraseña de una cuenta.
+/// Cambia o quita la contraseña de una cuenta; exige la actual si la tiene.
 pub fn cambiar_password(
     conn: &Connection,
     id: i64,
+    actual: Option<&str>,
     password: Option<&str>,
 ) -> Result<(), ServiceError> {
+    verificar_actual(conn, id, actual)?;
     let password = password.map(str::trim).filter(|valor| !valor.is_empty());
     let (hash, con_password) = match password {
         Some(password) => (hash_password(password), true),
@@ -109,8 +111,9 @@ pub fn cambiar_password(
     Ok(())
 }
 
-/// Elimina una cuenta.
-pub fn eliminar(conn: &Connection, id: i64) -> Result<(), ServiceError> {
+/// Elimina una cuenta; exige su contraseña actual si la tiene.
+pub fn eliminar(conn: &Connection, id: i64, actual: Option<&str>) -> Result<(), ServiceError> {
+    verificar_actual(conn, id, actual)?;
     let sesion = usuario_repo::sesion(conn)?;
     usuario_repo::delete(conn, id)?;
     if sesion
@@ -121,6 +124,22 @@ pub fn eliminar(conn: &Connection, id: i64) -> Result<(), ServiceError> {
         usuario_repo::set_sesion(conn, None)?;
     }
     Ok(())
+}
+
+/// Como `auth_confirm_current_password` de MiFutbolC: sin contraseña no se pide nada.
+fn verificar_actual(conn: &Connection, id: i64, actual: Option<&str>) -> Result<(), ServiceError> {
+    let usuario = usuario_repo::get(conn, id)?;
+    if !usuario.con_password {
+        return Ok(());
+    }
+    let hash = usuario_repo::password_hash(conn, &usuario.nombre)?.unwrap_or_default();
+    if verify_password(actual.unwrap_or(""), &hash) {
+        Ok(())
+    } else {
+        Err(ServiceError::Message(
+            "Contraseña actual incorrecta".to_string(),
+        ))
+    }
 }
 
 /// Sesión actual.
@@ -275,10 +294,39 @@ mod tests {
         crear(db.conn(), "Ana", None).unwrap();
         assert!(crear(db.conn(), "ana", Some("x")).is_err());
         let usuario = listar(db.conn()).unwrap().remove(0);
-        cambiar_password(db.conn(), usuario.id, Some("clave")).unwrap();
+        // Sin contraseña previa no se pide la actual.
+        cambiar_password(db.conn(), usuario.id, None, Some("clave")).unwrap();
         assert!(autenticar(db.conn(), "Ana", None).is_err());
         assert!(autenticar(db.conn(), "Ana", Some("clave")).is_ok());
         cerrar_sesion(db.conn()).unwrap();
         assert!(sesion(db.conn()).unwrap().usuario.is_none());
+    }
+
+    #[test]
+    fn change_and_delete_require_current_password() {
+        let db = Database::open_in_memory().unwrap();
+        let beto = crear(db.conn(), "Beto", Some("clave")).unwrap();
+        assert!(cambiar_password(db.conn(), beto.id, None, None).is_err());
+        assert!(cambiar_password(db.conn(), beto.id, Some("mala"), Some("otra")).is_err());
+        assert!(eliminar(db.conn(), beto.id, Some("mala")).is_err());
+        assert!(
+            autenticar(db.conn(), "Beto", Some("clave")).is_ok(),
+            "nada cambió"
+        );
+
+        cambiar_password(db.conn(), beto.id, Some("clave"), Some("otra")).unwrap();
+        assert!(autenticar(db.conn(), "Beto", Some("otra")).is_ok());
+        assert!(eliminar(db.conn(), beto.id, Some("clave")).is_err());
+        eliminar(db.conn(), beto.id, Some("otra")).unwrap();
+        assert!(listar(db.conn()).unwrap().is_empty());
+
+        // Hash heredado de MiFutbolC: también vale como contraseña actual.
+        let hash = hash_mifutbolc("abc123", &hash_c("clave", "abc123"));
+        let vieja = importar_cuenta(db.conn(), "Vieja", &hash, true).unwrap();
+        assert!(eliminar(db.conn(), vieja.id, None).is_err());
+        eliminar(db.conn(), vieja.id, Some("clave")).unwrap();
+
+        let ana = crear(db.conn(), "Ana", None).unwrap();
+        eliminar(db.conn(), ana.id, None).unwrap();
     }
 }

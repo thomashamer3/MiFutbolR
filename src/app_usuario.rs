@@ -300,7 +300,9 @@ impl App {
                     self.modal = Some(Modal::Error("Cuenta no válida".to_string()));
                     return Ok(());
                 };
-                usuario_service::cambiar_password(self.cuentas.conn(), id, password).map(|()| None)
+                let actual = form.value("actual");
+                usuario_service::cambiar_password(self.cuentas.conn(), id, actual, password)
+                    .map(|()| None)
             }
         };
         match resultado {
@@ -320,6 +322,54 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Tras confirmar: elimina directo o pide la contraseña actual si la cuenta tiene.
+    pub(crate) fn confirmar_eliminar_usuario(&mut self, id: i64) {
+        if self.usuarios.iter().any(|u| u.id == id && u.con_password) {
+            self.usuario_edit_id = Some(id);
+            self.form = Some(Form::new(
+                "Eliminar cuenta",
+                vec![Field::password("actual", "Contraseña actual", "", 100).required()],
+            ));
+            self.push_screen(Screen::UsuarioEliminar);
+            return;
+        }
+        self.eliminar_usuario(id, None);
+    }
+
+    /// Elimina la cuenta validando la contraseña ingresada.
+    pub(crate) fn save_usuario_eliminar(&mut self) -> Result<()> {
+        let (Some(form), Some(id)) = (self.form.as_ref(), self.usuario_edit_id) else {
+            return Ok(());
+        };
+        let actual = form.value("actual").unwrap_or("").to_string();
+        if self.eliminar_usuario(id, Some(&actual)) {
+            // Se eliminó otra cuenta: se cierra el formulario y se vuelve al listado.
+            self.form = None;
+            self.go_back();
+        }
+        Ok(())
+    }
+
+    /// Devuelve `true` si se eliminó y la app sigue en la misma base.
+    fn eliminar_usuario(&mut self, id: i64, actual: Option<&str>) -> bool {
+        let era_actual = self.usuario_actual.as_ref().is_some_and(|u| u.id == id);
+        match usuario_service::eliminar(self.cuentas.conn(), id, actual) {
+            Ok(()) if era_actual => {
+                self.salir_a_invitado();
+                false
+            }
+            Ok(()) => {
+                let _ = self.refresh_usuarios();
+                self.status = "Cuenta eliminada".to_string();
+                true
+            }
+            Err(error) => {
+                self.modal = Some(Modal::Error(error.to_string()));
+                false
+            }
+        }
     }
 
     /// Autentica con el formulario de login.
@@ -353,6 +403,9 @@ fn usuario_form(mode: FormMode, usuario: Option<&Usuario>) -> Form {
     let mut campos = Vec::new();
     if mode == FormMode::Create {
         campos.push(Field::text("nombre", "Nombre", nombre, 40).required());
+    }
+    if usuario.is_some_and(|usuario| usuario.con_password) {
+        campos.push(Field::password("actual", "Contraseña actual", "", 100).required());
     }
     let etiqueta = if mode == FormMode::Create {
         "Contraseña (opcional)"

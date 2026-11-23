@@ -28,16 +28,18 @@ pub fn listar(conn: &Connection) -> Result<Vec<Temporada>, ServiceError> {
 /// Crea una temporada, sus fases y asocia los torneos existentes.
 pub fn crear(conn: &Connection, ficha: &Temporada) -> Result<i64, ServiceError> {
     validar(ficha)?;
+    let tx = conn.unchecked_transaction().map_err(DbError::from)?;
     let id = temporada_repo::insert(
-        conn,
+        &tx,
         &ficha.nombre,
         ficha.anio,
         ficha.fecha_inicio,
         ficha.fecha_fin,
         &ficha.descripcion,
     )?;
-    temporada_repo::insertar_fases_default(conn, id, ficha.fecha_inicio, ficha.fecha_fin)?;
-    temporada_repo::asociar_todos_torneos(conn, id)?;
+    temporada_repo::insertar_fases_default(&tx, id, ficha.fecha_inicio, ficha.fecha_fin)?;
+    temporada_repo::asociar_todos_torneos(&tx, id)?;
+    tx.commit().map_err(DbError::from)?;
     Ok(id)
 }
 
