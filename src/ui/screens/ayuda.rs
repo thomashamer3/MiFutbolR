@@ -58,6 +58,14 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Backups: Enter restaura, d elimina, b crea uno nuevo",
     ),
     (
+        "Ctrl+T (Ajustes)",
+        "Mantenimiento: backup, VACUUM, ANALYZE e integridad",
+    ),
+    (
+        "Ctrl+X (Ajustes)",
+        "Exportar todo: tablas a JSON y listados a Markdown",
+    ),
+    (
         "m (Evolución)",
         "Análisis → Evolución temporal: goles / asistencias / rendimiento",
     ),

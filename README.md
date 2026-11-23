@@ -95,7 +95,11 @@ Las capturas se generan desde la TUI real con
 - **Ajustes**: tema, idioma, modo, tamaño, visor, botín predeterminado, backup,
   exportación, integridad y restauración en vivo. `Ctrl+G` administra los backups
   (`backup_*.db` con fecha, tamaño y partidos; Enter restaura el elegido, `d` lo
-  elimina, `b` crea otro; ambas con confirmación).
+  elimina, `b` crea otro; ambas con confirmación). `Ctrl+T` hace el mantenimiento
+  de la base (backup previo, VACUUM, ANALYZE, `integrity_check` y
+  `foreign_key_check`) y `Ctrl+X` exporta todo: un `.json` con todas las tablas de
+  usuario (sin undo ni credenciales) y un `.md` con partidos, camisetas, canchas,
+  botines, lesiones, financiamiento y torneos.
 - **Migración legacy**: importa una base de MiFutbolC convirtiendo fechas,
   importes y códigos de cancha; ignora tablas vacías/no usadas como `amigo`.
 - **Torneos**: alta, equipos automáticos, fixture ida/vuelta, resultados y tabla de posiciones.

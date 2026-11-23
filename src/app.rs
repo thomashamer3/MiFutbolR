@@ -542,6 +542,8 @@ pub enum ConfirmAction {
     RestoreBackupSel(usize),
     /// Eliminar el backup de la fila indicada de `App::backups`.
     DeleteBackupSel(usize),
+    /// VACUUM + ANALYZE + integridad, con backup previo.
+    Mantenimiento,
     /// Reiniciar el sorteo de botines.
     ResetSorteoBotines,
     /// Deshacer la última operación.
@@ -1986,7 +1988,7 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Ctrl+X: exportar todo JSON+MD  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -2254,6 +2256,18 @@ impl App {
                 }
                 KeyCode::Char('g') => {
                     self.open_backups();
+                    return Ok(());
+                }
+                KeyCode::Char('t') => {
+                    self.modal = Some(Modal::confirm(
+                        "Mantenimiento de la base",
+                        "Se creará un backup y luego VACUUM, ANALYZE e integridad. (S = sí, N = no)",
+                        ConfirmAction::Mantenimiento,
+                    ));
+                    return Ok(());
+                }
+                KeyCode::Char('x') => {
+                    self.exportar_todo_ajustes();
                     return Ok(());
                 }
                 KeyCode::Char('p') => {
@@ -2860,6 +2874,7 @@ impl App {
                     self.refresh_backups();
                 }
             }
+            ConfirmAction::Mantenimiento => self.mantenimiento_ajustes(),
             ConfirmAction::DeleteBackupSel(indice) => {
                 if let Some(ruta) = self.backups.get(indice).map(|b| b.ruta.clone()) {
                     let resultado = crate::services::backup_service::eliminar(&ruta);

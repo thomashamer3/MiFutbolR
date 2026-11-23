@@ -254,6 +254,48 @@ impl App {
         }
     }
 
+    /// VACUUM + ANALYZE + integridad; antes guarda un backup como hace C
+    /// (`backup_base_datos_automatico("antes de VACUUM")`).
+    pub(crate) fn mantenimiento_ajustes(&mut self) {
+        let previo = self.exportaciones_dir().join(format!(
+            "backup_{}_pre_vacuum.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S")
+        ));
+        if let Err(error) = self.db.backup(&previo) {
+            self.modal = Some(Modal::Error(format!(
+                "No se pudo crear el backup previo; no se hizo el mantenimiento: {error}"
+            )));
+            return;
+        }
+        match self.db.mantenimiento() {
+            Ok(resumen) => {
+                self.status = "Mantenimiento completado".to_string();
+                self.modal = Some(Modal::Info(format!(
+                    "{resumen}\nBackup previo: {}",
+                    previo.display()
+                )));
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+    }
+
+    /// Exporta todas las tablas a JSON y los listados principales a Markdown
+    /// (Ctrl+X en Ajustes; "Exportar todo" de C).
+    pub fn exportar_todo_ajustes(&mut self) {
+        let dir = self.exportaciones_dir();
+        match crate::services::informe_service::exportar_todo(self.db.conn(), &dir) {
+            Ok((json, md)) => {
+                self.status = format!("Exportado: {}", json.display());
+                self.modal = Some(Modal::Info(format!(
+                    "Exportación completa:\n{}\n{}",
+                    json.display(),
+                    md.display()
+                )));
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.0)),
+        }
+    }
+
     /// Comprueba la integridad de la base.
     pub fn integridad_ajustes(&mut self) -> Result<()> {
         match self.db.integrity() {

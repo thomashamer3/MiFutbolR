@@ -230,3 +230,40 @@ fn administrar_backups_restaura_y_elimina_el_elegido() {
     assert_eq!(app.backups.len(), 1);
     assert_eq!(app.current_screen(), Screen::BackupsList);
 }
+
+#[test]
+fn mantenimiento_y_exportar_todo() {
+    let (mut app, _dir) = test_app();
+    preparar_partidos(&app);
+    open_ajustes(&mut app);
+
+    press_ctrl(&mut app, 't');
+    assert!(matches!(
+        app.modal,
+        Some(mifutbol_rs::app::Modal::Confirm { .. })
+    ));
+    press(&mut app, KeyCode::Char('s'));
+    match &app.modal {
+        Some(mifutbol_rs::app::Modal::Info(texto)) => {
+            assert!(texto.contains("VACUUM y ANALYZE completados"), "{texto}");
+            assert!(texto.contains("Integridad: ok"), "{texto}");
+        }
+        otro => panic!("modal inesperado: {otro:?}"),
+    }
+    assert!(
+        archivos_export(&app)
+            .iter()
+            .any(|n| n.starts_with("backup_") && n.ends_with("_pre_vacuum.db"))
+    );
+    press(&mut app, KeyCode::Enter);
+
+    press_ctrl(&mut app, 'x');
+    assert!(matches!(app.modal, Some(mifutbol_rs::app::Modal::Info(_))));
+    let archivos = archivos_export(&app);
+    let json = archivos.iter().find(|n| n.ends_with(".json")).unwrap();
+    let valor: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(app.paths.export_dir.join(json)).unwrap())
+            .unwrap();
+    assert_eq!(valor["partido"].as_array().unwrap().len(), 3);
+    assert!(archivos.iter().any(|n| n.ends_with(".md")), "{archivos:?}");
+}

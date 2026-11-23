@@ -185,6 +185,32 @@ impl Database {
         Ok(())
     }
 
+    /// Mantenimiento (`menu_integridad_bd` de C): VACUUM, ANALYZE, checkpoint del
+    /// WAL e integridad. VACUUM no corre dentro de una transacción; la app no deja
+    /// ninguna abierta entre teclas.
+    pub fn mantenimiento(&self) -> Result<String, DbError> {
+        let tamano = |conn: &Connection| -> Result<i64, DbError> {
+            Ok(conn.query_row(
+                "SELECT page_count * page_size FROM pragma_page_count, pragma_page_size",
+                [],
+                |row| row.get(0),
+            )?)
+        };
+        let antes = tamano(&self.conn)?;
+        self.conn.execute_batch("VACUUM; ANALYZE;")?;
+        // En WAL, VACUUM deja las páginas en el -wal: volcarlas y truncarlo.
+        // En memoria no hay WAL y el pragma no hace nada.
+        self.conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+        let despues = tamano(&self.conn)?;
+        Ok(format!(
+            "VACUUM y ANALYZE completados. Tamaño: {} KB → {} KB.\n{}",
+            antes / 1024,
+            despues / 1024,
+            self.integrity()?
+        ))
+    }
+
     /// Ejecuta las comprobaciones de integridad (§18.5) y devuelve un resumen.
     pub fn integrity(&self) -> Result<String, DbError> {
         let mut stmt = self.conn.prepare("PRAGMA integrity_check")?;
@@ -312,6 +338,37 @@ fn backup_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mantenimiento_compacta_y_verifica() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open(&dir.path().join("m.db")).unwrap();
+        db.conn()
+            .execute_batch(
+                "CREATE TABLE relleno (x TEXT);
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2000)
+                 INSERT INTO relleno SELECT hex(randomblob(100)) FROM n;
+                 DELETE FROM relleno;",
+            )
+            .unwrap();
+        let resumen = db.mantenimiento().unwrap();
+        assert!(
+            resumen.contains("VACUUM y ANALYZE completados"),
+            "{resumen}"
+        );
+        assert!(resumen.contains("Integridad: ok"), "{resumen}");
+        assert!(
+            resumen.contains("Claves foráneas inválidas: 0"),
+            "{resumen}"
+        );
+        let analizadas: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM sqlite_stat1", [], |r| r.get(0))
+            .unwrap();
+        assert!(analizadas > 0);
+        // En memoria también funciona (sin WAL).
+        assert!(Database::open_in_memory().unwrap().mantenimiento().is_ok());
+    }
 
     #[test]
     fn migrations_apply_and_are_idempotent() {

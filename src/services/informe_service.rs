@@ -327,6 +327,115 @@ pub fn exportar_pdf(
     )
 }
 
+// Botines y torneos para el Markdown (las demás consultas son las del ODS).
+const BOTINES: &str = "SELECT nombre AS Nombre,
+        CASE activa WHEN 1 THEN 'Sí' ELSE 'No' END AS Activo FROM botin ORDER BY nombre";
+const TORNEOS: &str = "SELECT nombre AS Nombre, cantidad_equipos AS Equipos,
+        fase_actual AS Fase FROM torneo ORDER BY nombre";
+
+/// Tablas que no se exportan: internas de SQLite, historial de undo y credenciales
+/// (hashes de contraseña de `usuario`/`cuenta`).
+const EXCLUIDAS_JSON: &[&str] = &[
+    "undo_control",
+    "undo_historial",
+    "usuario",
+    "cuenta",
+    "cuenta_sesion",
+];
+
+/// Todas las tablas de usuario como `{tabla: [fila, ...]}`. Los BLOB salen como
+/// `null` (el esquema no tiene columnas BLOB).
+pub fn json_todo(conn: &Connection) -> Result<serde_json::Value, ExportError> {
+    use serde_json::{Map, Value};
+    let mut stmt = conn
+        .prepare(
+            "SELECT name FROM sqlite_master
+              WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        )
+        .map_err(db)?;
+    let tablas = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(db)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db)?;
+    let mut raiz = Map::new();
+    for tabla in tablas
+        .into_iter()
+        .filter(|t| !EXCLUIDAS_JSON.contains(&t.as_str()))
+    {
+        let mut stmt = conn
+            .prepare(&format!("SELECT * FROM \"{tabla}\""))
+            .map_err(db)?;
+        let columnas: Vec<String> = stmt.column_names().map(str::to_string).collect();
+        let filas = stmt
+            .query_map([], |row| {
+                let mut objeto = Map::new();
+                for (i, columna) in columnas.iter().enumerate() {
+                    let valor = match row.get_ref(i)? {
+                        ValueRef::Integer(n) => Value::from(n),
+                        ValueRef::Real(x) => Value::from(x),
+                        ValueRef::Text(t) => Value::from(String::from_utf8_lossy(t).into_owned()),
+                        ValueRef::Null | ValueRef::Blob(_) => Value::Null,
+                    };
+                    objeto.insert(columna.clone(), valor);
+                }
+                Ok(Value::Object(objeto))
+            })
+            .map_err(db)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(db)?;
+        raiz.insert(tabla, Value::Array(filas));
+    }
+    Ok(Value::Object(raiz))
+}
+
+/// Informe Markdown con los listados principales (una tabla por sección).
+pub fn markdown_todo(conn: &Connection) -> Result<String, ExportError> {
+    let celda = |v: &String| v.replace('|', "\\|").replace('\n', " ");
+    let mut texto = format!(
+        "# MiFutbolR · Exportación completa\n\nGenerado {}\n",
+        chrono::Local::now().format("%d/%m/%Y %H:%M")
+    );
+    for (titulo, sql) in [
+        ("Partidos", PARTIDOS),
+        ("Camisetas", CAMISETAS),
+        ("Canchas", CANCHAS),
+        ("Botines", BOTINES),
+        ("Lesiones", LESIONES),
+        ("Financiamiento", FINANZAS),
+        ("Torneos", TORNEOS),
+    ] {
+        let (cabeceras, filas) = tabla(conn, sql)?;
+        texto.push_str(&format!("\n## {titulo} ({})\n\n", filas.len()));
+        if filas.is_empty() {
+            texto.push_str("Sin registros.\n");
+            continue;
+        }
+        texto.push_str(&format!("| {} |\n|", cabeceras.join(" | ")));
+        texto.push_str(&" --- |".repeat(cabeceras.len()));
+        texto.push('\n');
+        for fila in filas {
+            let valores: Vec<String> = fila.iter().map(celda).collect();
+            texto.push_str(&format!("| {} |\n", valores.join(" | ")));
+        }
+    }
+    Ok(texto)
+}
+
+/// "Exportar todo": `mifutbol_{sello}.json` y `mifutbol_{sello}.md` en `dir`.
+pub fn exportar_todo(conn: &Connection, dir: &Path) -> Result<(PathBuf, PathBuf), ExportError> {
+    let marca = sello();
+    let json = serde_json::to_string_pretty(&json_todo(conn)?)?;
+    Ok((
+        escribir(dir, &format!("mifutbol_{marca}.json"), json.as_bytes())?,
+        escribir(
+            dir,
+            &format!("mifutbol_{marca}.md"),
+            markdown_todo(conn)?.as_bytes(),
+        )?,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,5 +540,31 @@ mod tests {
         assert!(pdf.contains("(Bienestar del mes"));
         assert!(pdf.contains("(Colecciones)"));
         assert!(pdf.contains("(Entrenador IA)"));
+    }
+
+    #[test]
+    fn exportar_todo_json_y_markdown() {
+        let db = base();
+        let dir = tempfile::tempdir().unwrap();
+        let (json, md) = exportar_todo(db.conn(), dir.path()).unwrap();
+        let valor: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(json).unwrap()).unwrap();
+        assert_eq!(valor["partido"][0]["rival_nombre"], "Los Ñandúes");
+        assert_eq!(valor["partido"][0]["goles"], 2);
+        assert!(valor.get("cancha").is_some());
+        for excluida in ["undo_historial", "cuenta", "usuario", "sqlite_sequence"] {
+            assert!(valor.get(excluida).is_none(), "{excluida}");
+        }
+        let md = std::fs::read_to_string(md).unwrap();
+        for cabecera in [
+            "# MiFutbolR",
+            "## Partidos (1)",
+            "## Camisetas",
+            "## Botines",
+            "## Torneos",
+        ] {
+            assert!(md.contains(cabecera), "{cabecera}");
+        }
+        assert!(md.contains("| La Bombonera |"));
     }
 }
