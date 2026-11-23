@@ -54,6 +54,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Activar / reactivar la camiseta (borrar con historial la desactiva)",
     ),
     (
+        "Ctrl+G (Ajustes)",
+        "Backups: Enter restaura, d elimina, b crea uno nuevo",
+    ),
+    (
         "m (Evolución)",
         "Análisis → Evolución temporal: goles / asistencias / rendimiento",
     ),

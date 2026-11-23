@@ -413,6 +413,8 @@ pub enum Screen {
     ResumenPreview,
     /// Formulario de ajustes.
     AjustesForm,
+    /// Administración de backups (Ajustes → Ctrl+G).
+    BackupsList,
     /// Visor de imagen a pantalla completa.
     ImagenViewer,
     /// Formulario de importación legacy.
@@ -536,6 +538,10 @@ pub enum ConfirmAction {
     DeleteHito(i64),
     /// Restaurar el backup más reciente.
     RestoreBackup,
+    /// Restaurar el backup de la fila indicada de `App::backups`.
+    RestoreBackupSel(usize),
+    /// Eliminar el backup de la fila indicada de `App::backups`.
+    DeleteBackupSel(usize),
     /// Reiniciar el sorteo de botines.
     ResetSorteoBotines,
     /// Deshacer la última operación.
@@ -1484,6 +1490,10 @@ pub struct App {
     pub amigos_table: TableState,
     /// Amigo en edición.
     pub amigo_edit_id: Option<i64>,
+    /// Backups listados en Ajustes → Ctrl+G.
+    pub backups: Vec<crate::services::backup_service::BackupInfo>,
+    /// Selección de backups.
+    pub backups_table: TableState,
     /// Análisis básico calculado.
     pub analisis_basico: Option<crate::domain::analisis::AnalisisBasico>,
     /// Evolución temporal calculada.
@@ -1731,6 +1741,8 @@ impl App {
             amigos_ranking: Vec::new(),
             amigos_table: TableState::default(),
             amigo_edit_id: None,
+            backups: Vec::new(),
+            backups_table: TableState::default(),
             analisis_basico: None,
             analisis_evolucion: None,
             analisis_metrica: crate::domain::analisis::Metrica::default(),
@@ -1829,6 +1841,7 @@ impl App {
             Screen::CarreraLogros => "Carrera · logros".to_string(),
             Screen::ResumenPreview => "Resumen compartible".to_string(),
             Screen::AjustesForm => "Ajustes".to_string(),
+            Screen::BackupsList => "Ajustes · backups".to_string(),
             Screen::ImagenViewer => "Imagen".to_string(),
             Screen::LegacyImportForm => "Ajustes · importar legacy".to_string(),
             Screen::Calendario => format!(
@@ -1973,10 +1986,13 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+E: exportar BD  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+L: importar legacy  Ctrl+P: informe PDF  Ctrl+O: ODS  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
+            }
+            Screen::BackupsList => {
+                "Enter: restaurar  d: eliminar  b: crear backup  r: refrescar  Esc: volver"
             }
             Screen::Calendario => {
                 "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
@@ -2236,6 +2252,10 @@ impl App {
                     self.open_legacy_import_form()?;
                     return Ok(());
                 }
+                KeyCode::Char('g') => {
+                    self.open_backups();
+                    return Ok(());
+                }
                 KeyCode::Char('p') => {
                     self.exportar_pdf_ajustes();
                     return Ok(());
@@ -2281,6 +2301,7 @@ impl App {
                 self.handle_form_key(key)?;
                 true
             }
+            Screen::BackupsList => self.handle_backups_key(key)?,
             Screen::CanchasList => self.handle_canchas_list_key(key)?,
             Screen::CanchaDetail(_) => self.handle_cancha_detail_key(key)?,
             Screen::BotinesList => self.handle_botines_list_key(key)?,
@@ -2832,6 +2853,21 @@ impl App {
             ConfirmAction::RestoreBackup => {
                 let resultado = self.restaurar_backup();
                 self.confirmar_eliminacion(resultado, |_| {});
+            }
+            ConfirmAction::RestoreBackupSel(indice) => {
+                if let Some(ruta) = self.backups.get(indice).map(|b| b.ruta.clone()) {
+                    self.restaurar_backup_desde(&ruta);
+                    self.refresh_backups();
+                }
+            }
+            ConfirmAction::DeleteBackupSel(indice) => {
+                if let Some(ruta) = self.backups.get(indice).map(|b| b.ruta.clone()) {
+                    let resultado = crate::services::backup_service::eliminar(&ruta);
+                    self.confirmar_eliminacion(resultado, |app| {
+                        app.refresh_backups();
+                        app.status = "Backup eliminado".to_string();
+                    });
+                }
             }
             ConfirmAction::ResetSorteoBotines => {
                 let resultado = botin_service::reiniciar_sorteo(self.db.conn());

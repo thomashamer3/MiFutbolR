@@ -182,3 +182,51 @@ fn ofrece_restaurar_backup_si_la_base_esta_vacia() {
     nueva.ofrecer_restaurar_backup_inicio();
     assert!(nueva.modal.is_none());
 }
+
+#[test]
+fn administrar_backups_restaura_y_elimina_el_elegido() {
+    let (mut app, _dir) = test_app();
+    open_ajustes(&mut app);
+    press(&mut app, KeyCode::Right);
+    press_ctrl(&mut app, 's');
+    assert_eq!(app.settings.theme, Theme::Dark);
+    open_ajustes(&mut app);
+    press_ctrl(&mut app, 'b');
+    press(&mut app, KeyCode::Enter);
+    // Renombrarlo como más antiguo para que no lo pise el segundo backup.
+    let viejo = app.paths.export_dir.join("backup_20000101_000000.db");
+    let nombre = archivos_export(&app)
+        .into_iter()
+        .find(|n| n.starts_with("backup_"))
+        .unwrap();
+    std::fs::rename(app.paths.export_dir.join(nombre), &viejo).unwrap();
+
+    press(&mut app, KeyCode::Right);
+    press_ctrl(&mut app, 's');
+    assert_eq!(app.settings.theme, Theme::Blue);
+    open_ajustes(&mut app);
+    press_ctrl(&mut app, 'g');
+    assert_eq!(app.current_screen(), Screen::BackupsList);
+    press(&mut app, KeyCode::Char('b'));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.backups.len(), 2);
+    let texto = render_con(&mut app, 110, 30);
+    assert!(texto.contains("backup_20000101_000000.db"), "{texto}");
+
+    // El más reciente va primero: bajar al viejo (Dark) y restaurarlo.
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(
+        app.modal,
+        Some(mifutbol_rs::app::Modal::Confirm { .. })
+    ));
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.db.settings().unwrap().theme, Theme::Dark);
+    press(&mut app, KeyCode::Enter);
+
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('s'));
+    assert!(!viejo.exists());
+    assert_eq!(app.backups.len(), 1);
+    assert_eq!(app.current_screen(), Screen::BackupsList);
+}

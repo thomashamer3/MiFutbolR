@@ -212,6 +212,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Screen::UsuarioForm(_) | Screen::UsuarioLogin | Screen::UsuarioEliminar => {
             screens::usuario::draw_form(frame, body, app)
         }
+        Screen::BackupsList => screens::ajustes::draw_backups(frame, body, app),
         Screen::AjustesForm | Screen::LegacyImportForm => {
             screens::ajustes::draw(frame, body, app);
         }

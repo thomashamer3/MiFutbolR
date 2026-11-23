@@ -93,7 +93,9 @@ Las capturas se generan desde la TUI real con
   perfil dinámico, modo retro y logros.
 - **Resumen Compartible**: Markdown/HTML/texto con vista previa y exportación.
 - **Ajustes**: tema, idioma, modo, tamaño, visor, botín predeterminado, backup,
-  exportación, integridad y restauración en vivo.
+  exportación, integridad y restauración en vivo. `Ctrl+G` administra los backups
+  (`backup_*.db` con fecha, tamaño y partidos; Enter restaura el elegido, `d` lo
+  elimina, `b` crea otro; ambas con confirmación).
 - **Migración legacy**: importa una base de MiFutbolC convirtiendo fechas,
   importes y códigos de cancha; ignora tablas vacías/no usadas como `amigo`.
 - **Torneos**: alta, equipos automáticos, fixture ida/vuelta, resultados y tabla de posiciones.

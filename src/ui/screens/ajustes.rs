@@ -66,3 +66,61 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         );
     }
 }
+
+/// Administración de backups (`menu_backup_restore` de MiFutbolC).
+pub fn draw_backups(frame: &mut Frame, area: Rect, app: &mut App) {
+    use crate::services::backup_service::tamano;
+    use ratatui::widgets::{Cell, Row, Table};
+
+    let colors = palette(app.settings.theme);
+    if app.backups.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No hay backups en Exportaciones/. Presioná b para crear uno.")
+                .block(colors.panel(" Backups "))
+                .style(Style::default().fg(colors.muted)),
+            area,
+        );
+        return;
+    }
+    let filas: Vec<Row> = app
+        .backups
+        .iter()
+        .map(|b| {
+            Row::new(vec![
+                Cell::from(b.nombre.clone()),
+                Cell::from(b.fecha.clone()),
+                Cell::from(tamano(b.bytes)),
+                Cell::from(
+                    b.partidos
+                        .map_or_else(|| "?".to_string(), |n| n.to_string()),
+                ),
+            ])
+        })
+        .collect();
+    let tabla = Table::new(
+        filas,
+        [
+            Constraint::Min(30),
+            Constraint::Length(17),
+            Constraint::Length(10),
+            Constraint::Length(9),
+        ],
+    )
+    .header(
+        Row::new(vec!["Archivo", "Fecha", "Tamaño", "Partidos"]).style(
+            Style::default()
+                .fg(colors.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+    )
+    .block(colors.panel(format!(" Backups · {} ", app.backups.len())))
+    .style(Style::default().fg(colors.fg))
+    .row_highlight_style(
+        Style::default()
+            .fg(colors.highlight_fg)
+            .bg(colors.highlight_bg)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("▶ ");
+    frame.render_stateful_widget(tabla, area, &mut app.backups_table);
+}

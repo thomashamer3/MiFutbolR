@@ -1,12 +1,14 @@
 //! Formulario y acciones del módulo Ajustes (§18).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{APP_NAME, App, ConfirmAction, Field, Form, Modal, Screen};
 use crate::domain::models::{AppSettings, Language, Mode, TextSize, Theme};
 use crate::domain::validation::DomainError;
+use crate::services::backup_service;
 use crate::services::botin_service;
 use crate::services::legacy_import_service;
 
@@ -287,15 +289,23 @@ impl App {
             self.status = "No hay backups en Exportaciones/".to_string();
             return Ok(());
         };
+        self.restaurar_backup_desde(&ruta);
+        Ok(())
+    }
+
+    /// Restaura `ruta` sobre la conexión viva, con copia de seguridad previa.
+    pub(crate) fn restaurar_backup_desde(&mut self, ruta: &Path) {
         // Backup de seguridad antes de restaurar.
         let seguridad = self.exportaciones_dir().join(format!(
             "pre_restore_{}.db",
             chrono::Local::now().format("%Y%m%d_%H%M%S")
         ));
         let _ = self.db.backup(&seguridad);
-        match self.db.restore_from(&ruta) {
+        match self.db.restore_from(ruta) {
             Ok(()) => {
-                self.settings = self.db.settings()?;
+                if let Ok(settings) = self.db.settings() {
+                    self.settings = settings;
+                }
                 self.menu_ocultos = crate::db::settings_repo::menus_ocultos(self.db.conn());
                 // El backup API no cuenta en `total_changes()`: marcar el Inicio a mano.
                 self.inicio_sucio = true;
@@ -304,7 +314,65 @@ impl App {
             }
             Err(error) => self.modal = Some(Modal::Error(error.to_string())),
         }
-        Ok(())
+    }
+
+    /// Abre la administración de backups (`menu_backup_restore` de C).
+    pub(crate) fn open_backups(&mut self) {
+        self.refresh_backups();
+        self.push_screen(Screen::BackupsList);
+    }
+
+    /// Relee los `backup_*.db` de Exportaciones/.
+    pub(crate) fn refresh_backups(&mut self) {
+        self.backups = backup_service::listar(&self.exportaciones_dir());
+        let total = self.backups.len();
+        let actual = self.backups_table.selected().unwrap_or(0);
+        self.backups_table
+            .select((total > 0).then(|| actual.min(total - 1)));
+    }
+
+    /// Teclas de la lista de backups.
+    pub(crate) fn handle_backups_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let seleccion = self
+            .backups_table
+            .selected()
+            .and_then(|indice| self.backups.get(indice).map(|b| (indice, b.nombre.clone())));
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.backups_table, self.backups.len(), 1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.backups_table, self.backups.len(), -1);
+            }
+            KeyCode::Enter => {
+                if let Some((indice, nombre)) = seleccion {
+                    self.modal = Some(Modal::confirm(
+                        "Restaurar backup",
+                        format!("Se reemplazará la base actual con {nombre}. (S = sí, N = no)"),
+                        ConfirmAction::RestoreBackupSel(indice),
+                    ));
+                }
+            }
+            KeyCode::Char('d') => {
+                if let Some((indice, nombre)) = seleccion {
+                    self.modal = Some(Modal::confirm(
+                        "Eliminar backup",
+                        format!("¿Eliminar {nombre}? No se puede deshacer. (S = sí, N = no)"),
+                        ConfirmAction::DeleteBackupSel(indice),
+                    ));
+                }
+            }
+            KeyCode::Char('b') => {
+                self.backup_ajustes()?;
+                self.refresh_backups();
+            }
+            KeyCode::Char('r') => {
+                self.refresh_backups();
+                self.status = "Backups actualizados".to_string();
+            }
+            _ => return Ok(false),
+        }
+        Ok(true)
     }
 
     /// Al entrar al menú, una vez por sesión: si la base está vacía y hay un
@@ -347,20 +415,10 @@ impl App {
     }
 
     fn backup_mas_reciente(&self) -> Option<PathBuf> {
-        let dir = self.exportaciones_dir();
-        let mut archivos: Vec<PathBuf> = std::fs::read_dir(&dir)
-            .ok()?
-            .filter_map(std::result::Result::ok)
-            .map(|entry| entry.path())
-            .filter(|ruta| {
-                ruta.extension().is_some_and(|ext| ext == "db")
-                    && ruta
-                        .file_name()
-                        .is_some_and(|name| name.to_string_lossy().starts_with("backup_"))
-            })
-            .collect();
-        archivos.sort();
-        archivos.pop()
+        backup_service::listar(&self.exportaciones_dir())
+            .into_iter()
+            .next()
+            .map(|backup| backup.ruta)
     }
 
     fn exportaciones_dir(&self) -> PathBuf {
