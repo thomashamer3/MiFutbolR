@@ -46,3 +46,32 @@ impl Dupla {
         }
     }
 }
+
+/// Mejor combinación calculada desde los equipos asignados a partidos
+/// (`mostrar_mejor_quimica_jugadores` de MiFutbolC).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MejorDupla {
+    /// Jugador A.
+    pub jugador_a: String,
+    /// Jugador B.
+    pub jugador_b: String,
+    /// Victorias juntos.
+    pub victorias: i64,
+    /// Derrotas juntos.
+    pub derrotas: i64,
+    /// Empates juntos.
+    pub empates: i64,
+}
+
+impl MejorDupla {
+    /// Winrate como en C: victorias / (victorias + derrotas), sin empates.
+    #[must_use]
+    pub fn winrate(&self) -> f64 {
+        let decididos = self.victorias + self.derrotas;
+        if decididos == 0 {
+            0.0
+        } else {
+            self.victorias as f64 * 100.0 / decididos as f64
+        }
+    }
+}

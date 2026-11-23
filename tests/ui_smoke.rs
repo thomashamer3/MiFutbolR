@@ -177,12 +177,21 @@ fn analisis_abre_comparador_y_entrenador() {
     abrir_opcion(&mut app, Module::Analisis);
     let text = render_con(&mut app, 100, 30);
     assert!(text.contains("Comparador A/B") && text.contains("Entrenador IA"));
-    press(&mut app, KeyCode::Enter);
-    assert_eq!(app.current_screen(), Screen::Comparador);
-    press(&mut app, KeyCode::Esc);
-    press(&mut app, KeyCode::Down);
-    press(&mut app, KeyCode::Enter);
-    assert_eq!(app.current_screen(), Screen::EntrenadorIa);
+    assert!(text.contains("Análisis básico") && text.contains("Química"));
+    for (indice, pantalla) in [
+        (0, Screen::AnalisisBasico),
+        (1, Screen::Comparador),
+        (2, Screen::EntrenadorIa),
+        (3, Screen::Quimica),
+        (4, Screen::AnalisisEvolucion),
+    ] {
+        app.analisis_hub.select(Some(indice));
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.current_screen(), pantalla);
+        let _ = render_con(&mut app, 100, 30);
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(app.current_screen(), Screen::AnalisisMenu);
+    }
 }
 
 #[test]

@@ -5,6 +5,7 @@
 //! reserva para mantener estable la estructura del proyecto.
 
 pub mod amigos_service;
+pub mod analisis_service;
 pub mod bienestar_service;
 pub mod botin_service;
 pub mod busqueda_service;

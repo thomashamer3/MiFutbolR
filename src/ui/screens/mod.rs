@@ -2,6 +2,7 @@
 
 pub mod ajustes;
 pub mod amigos;
+pub mod analisis;
 pub mod ayuda;
 pub mod bienestar;
 pub mod bienvenida;

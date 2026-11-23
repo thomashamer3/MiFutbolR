@@ -282,7 +282,7 @@ impl Module {
         match self {
             Self::Calendario => "Partidos, lesiones y recordatorios del mes.",
             Self::Logros => "Logros y badges con su progreso.",
-            Self::Analisis => "Comparador A/B y Entrenador IA.",
+            Self::Analisis => "Básico, evolución, comparador, Entrenador IA y química.",
             Self::Records => "Récords personales y rankings.",
             Self::Tutorial => "Recorrido guiado por la aplicación.",
             Self::Camisetas => "Catálogo de camisetas, costo, estado y sorteo.",
@@ -441,6 +441,14 @@ pub enum Screen {
     AnalisisMenu,
     /// Comparador A/B.
     Comparador,
+    /// Análisis básico (últimos 5, rachas, mensaje).
+    AnalisisBasico,
+    /// Evolución temporal mensual.
+    AnalisisEvolucion,
+    /// Química entre jugadores.
+    Quimica,
+    /// Formulario de dupla.
+    QuimicaForm(FormMode),
     /// Listado de temporadas.
     TemporadasList,
     /// Detalle de una temporada.
@@ -548,6 +556,8 @@ pub enum ConfirmAction {
     DeleteColeccion(i64),
     /// Eliminar el amigo indicado.
     DeleteAmigo(i64),
+    /// Eliminar la dupla de química indicada.
+    DeleteQuimica(i64),
     /// Eliminar la referencia multimedia indicada.
     DeleteMedia(i64),
     /// Eliminar el recordatorio indicado.
@@ -1474,6 +1484,22 @@ pub struct App {
     pub amigos_table: TableState,
     /// Amigo en edición.
     pub amigo_edit_id: Option<i64>,
+    /// Análisis básico calculado.
+    pub analisis_basico: Option<crate::domain::analisis::AnalisisBasico>,
+    /// Evolución temporal calculada.
+    pub analisis_evolucion: Option<crate::domain::analisis::Evolucion>,
+    /// Métrica del gráfico de evolución.
+    pub analisis_metrica: crate::domain::analisis::Metrica,
+    /// Desplazamiento de los reportes de análisis.
+    pub analisis_scroll: u16,
+    /// Duplas de química cargadas a mano.
+    pub quimica_duplas: Vec<crate::domain::quimica::Dupla>,
+    /// Mejor combinación según equipos de partidos.
+    pub quimica_mejor: Option<crate::domain::quimica::MejorDupla>,
+    /// Selección de duplas.
+    pub quimica_table: TableState,
+    /// Dupla en edición.
+    pub quimica_edit_id: Option<i64>,
     /// Referencias multimedia.
     pub media: Vec<MediaItem>,
     /// Selección de multimedia.
@@ -1705,6 +1731,14 @@ impl App {
             amigos_ranking: Vec::new(),
             amigos_table: TableState::default(),
             amigo_edit_id: None,
+            analisis_basico: None,
+            analisis_evolucion: None,
+            analisis_metrica: crate::domain::analisis::Metrica::default(),
+            analisis_scroll: 0,
+            quimica_duplas: Vec::new(),
+            quimica_mejor: None,
+            quimica_table: TableState::default(),
+            quimica_edit_id: None,
             media: Vec::new(),
             media_table: TableState::default(),
             media_edit_id: None,
@@ -1812,6 +1846,10 @@ impl App {
             Screen::Ultimos => "Últimos".to_string(),
             Screen::AnalisisMenu => "Análisis".to_string(),
             Screen::Comparador => "Comparador A/B".to_string(),
+            Screen::AnalisisBasico => "Análisis básico".to_string(),
+            Screen::AnalisisEvolucion => "Evolución temporal".to_string(),
+            Screen::Quimica => "Química entre jugadores".to_string(),
+            Screen::QuimicaForm(_) => "Química · formulario".to_string(),
             Screen::TemporadasList => "Temporadas".to_string(),
             Screen::TemporadaDetail(id) => format!("Temporadas · #{id}"),
             Screen::TemporadaForm(_) => "Temporadas · formulario".to_string(),
@@ -1878,6 +1916,7 @@ impl App {
             | Screen::BienestarForm(_)
             | Screen::ColeccionForm(_)
             | Screen::AmigoForm(_)
+            | Screen::QuimicaForm(_)
             | Screen::MediaForm(_)
             | Screen::RecordatorioForm(_)
             | Screen::ProgresionForm(_)
@@ -1960,6 +1999,11 @@ impl App {
                 "e: editar  d: borrar  c: comparar  ↑↓: desplazar  Esc: volver"
             }
             Screen::AnalisisMenu => "↑↓: opción  Enter: abrir  Esc: volver",
+            Screen::AnalisisBasico => "↑↓: desplazar  Esc: volver",
+            Screen::AnalisisEvolucion => {
+                "m: métrica (goles/asistencias/rendimiento)  ↑↓: desplazar  Esc: volver"
+            }
+            Screen::Quimica => "n: nueva dupla  e: editar  d: borrar  r: refrescar  Esc: volver",
             Screen::Comparador => {
                 "1/2: tipo  Tab: A/B  j/k: mover  Enter: comparar  r: recargar  Esc: volver"
             }
@@ -2299,8 +2343,13 @@ impl App {
             Screen::Ultimos => self.handle_ultimos_key(key)?,
             Screen::AnalisisMenu => self.handle_analisis_menu_key(key)?,
             Screen::Comparador => self.handle_comparador_key(key)?,
+            Screen::AnalisisBasico | Screen::AnalisisEvolucion => {
+                self.handle_analisis_reporte_key(key)?
+            }
+            Screen::Quimica => self.handle_quimica_key(key)?,
             Screen::TiendaForm(_)
             | Screen::AmigoForm(_)
+            | Screen::QuimicaForm(_)
             | Screen::BienestarForm(_)
             | Screen::ColeccionForm(_) => {
                 self.handle_form_key(key)?;
@@ -2707,6 +2756,10 @@ impl App {
                 self.confirmar_eliminacion(resultado, |app| {
                     let _ = app.refresh_amigos();
                 });
+            }
+            ConfirmAction::DeleteQuimica(id) => {
+                let resultado = crate::services::quimica_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, App::refresh_quimica);
             }
             ConfirmAction::DeleteTemporada(id) => {
                 let resultado = crate::services::temporadas_service::eliminar(self.db.conn(), id);
@@ -3146,6 +3199,7 @@ impl App {
             Screen::BienestarForm(_) => self.save_bienestar_form(),
             Screen::ColeccionForm(_) => self.save_coleccion_form(),
             Screen::AmigoForm(mode) => self.save_amigo_form(mode),
+            Screen::QuimicaForm(mode) => self.save_quimica_form(mode),
             Screen::MediaForm(mode) => self.save_media_form(mode),
             Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),
             Screen::ProgresionForm(mode) => self.save_progresion_form(mode),

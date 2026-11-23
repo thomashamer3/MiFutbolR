@@ -30,8 +30,8 @@ Las capturas se generan desde la TUI real con
 
 - **Menú principal como MiFutbolC**, numerado: 1 Calendario, 2 Camisetas, 3 Canchas,
   4 Botines, 5 Equipos, 6 Partidos, 7 Lesiones, 8 Estadísticas, 9 Logros,
-  10 Financiamiento, 11 Torneos, 12 Temporada, 13 Análisis (Comparador A/B y
-  Entrenador IA), 14 Bienestar, 15 Carrera Futbolística, 16 Recordatorios,
+  10 Financiamiento, 11 Torneos, 12 Temporada, 13 Análisis (Básico, Comparador
+  A/B, Entrenador IA, Química y Evolución temporal), 14 Bienestar, 15 Carrera Futbolística, 16 Recordatorios,
   17 Colecciones, 18 Records & Rankings, 19 Tiendas, 20 Referencias Multimedia,
   21 Tutorial, 22 Resumen Compartible, 23 Ranking Amigos, 24 Ajustes; extras de
   MiFutbolR: 25 Progresión, 26 Entrenador IA, 27 Usuario; 0 Salir.
@@ -47,6 +47,12 @@ Las capturas se generan desde la TUI real con
     menú; `g`, `!`, `?`, Ctrl+F y Ctrl+K siguen siendo globales.
   - Al entrar con la base vacía, si hay un backup con datos en `Exportaciones/`,
     se ofrece restaurarlo (S/N), una vez por sesión.
+- **Análisis** (port de `analisis.c`): *Básico* compara los últimos 5 partidos con
+  el promedio (goles, asistencias, rendimiento, cansancio, ánimo), rachas y mensaje
+  motivacional; *Evolución temporal* muestra promedios por mes con gráfico de barras
+  (`m` cambia la métrica), mejor/peor mes, inicio vs fin de año, meses fríos vs
+  cálidos y progreso total; *Química* calcula la mejor dupla desde los equipos
+  asignados a partidos y lista/edita duplas cargadas a mano (`n`/`e`/`d`).
 - **Bienestar**: hábitos, entrenamientos, comidas, sesiones mentales y perfil de
   salud; el asistente (`a`) calcula preparación y riesgo de lesión y sugiere una
   rutina semanal (fórmulas de MiFutbolC).

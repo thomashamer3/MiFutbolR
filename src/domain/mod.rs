@@ -4,6 +4,7 @@
 //! dependencias externas (ADR-06).
 
 pub mod amigos;
+pub mod analisis;
 pub mod bienestar;
 pub mod busqueda;
 pub mod calendario;

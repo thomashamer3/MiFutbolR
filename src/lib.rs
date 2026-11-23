@@ -7,6 +7,7 @@
 pub mod app;
 mod app_ajustes;
 mod app_amigos;
+mod app_analisis;
 mod app_bienestar;
 mod app_botines;
 mod app_canchas;

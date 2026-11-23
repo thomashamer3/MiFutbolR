@@ -4,6 +4,7 @@
 //! los servicios orquestan transacciones.
 
 pub mod amigo_repo;
+pub mod analisis_repo;
 pub mod bienestar_repo;
 pub mod botin_repo;
 pub mod busqueda_repo;

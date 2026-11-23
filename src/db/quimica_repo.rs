@@ -3,7 +3,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::error::DbError;
-use crate::domain::quimica::Dupla;
+use crate::domain::quimica::{Dupla, MejorDupla};
 
 /// Jugadores disponibles (id, nombre con equipo).
 pub fn jugadores(conn: &Connection) -> Result<Vec<(i64, String)>, DbError> {
@@ -125,4 +125,36 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), DbError> {
         params![id],
     )?;
     Ok(())
+}
+
+/// Mejor dupla según los equipos asignados a partidos (CTE `duplas_auto` de C):
+/// mayor winrate sin empates, luego más victorias y más partidos.
+pub fn mejor_combinacion(conn: &Connection) -> Result<Option<MejorDupla>, DbError> {
+    Ok(conn
+        .query_row(
+            "WITH resumen AS (
+                SELECT j1.nombre AS a, j2.nombre AS b,
+                       SUM(p.resultado = 1) AS v, SUM(p.resultado = 3) AS d,
+                       SUM(p.resultado = 2) AS e
+                  FROM equipo eq
+                  JOIN partido p ON p.id = eq.partido_id
+                  JOIN jugador j1 ON j1.equipo_id = eq.id
+                  JOIN jugador j2 ON j2.equipo_id = eq.id AND j1.id < j2.id
+                 GROUP BY j1.id, j2.id)
+             SELECT a, b, v, d, e FROM resumen
+              ORDER BY CASE WHEN v + d > 0 THEN v * 100.0 / (v + d) ELSE 0 END DESC,
+                       v DESC, v + d + e DESC
+              LIMIT 1",
+            [],
+            |row| {
+                Ok(MejorDupla {
+                    jugador_a: row.get(0)?,
+                    jugador_b: row.get(1)?,
+                    victorias: row.get(2)?,
+                    derrotas: row.get(3)?,
+                    empates: row.get(4)?,
+                })
+            },
+        )
+        .optional()?)
 }

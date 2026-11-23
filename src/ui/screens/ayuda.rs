@@ -48,10 +48,16 @@ const ATAJOS_MENU: &[(&str, &str)] = &[
 ];
 
 /// Atajos propios de algunos módulos.
-const ATAJOS_MODULOS: &[(&str, &str)] = &[(
-    "a (Camisetas)",
-    "Activar / reactivar la camiseta (borrar con historial la desactiva)",
-)];
+const ATAJOS_MODULOS: &[(&str, &str)] = &[
+    (
+        "a (Camisetas)",
+        "Activar / reactivar la camiseta (borrar con historial la desactiva)",
+    ),
+    (
+        "m (Evolución)",
+        "Análisis → Evolución temporal: goles / asistencias / rendimiento",
+    ),
+];
 
 /// Dibuja la pantalla de ayuda.
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {

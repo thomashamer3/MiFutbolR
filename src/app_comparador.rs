@@ -7,8 +7,13 @@ use crate::app::{App, Screen};
 use crate::domain::comparador::TipoComparacion;
 use crate::services::comparador_service;
 
-/// Opciones del hub Análisis (13 en el menú de MiFutbolC).
+/// Opciones del hub Análisis (13 en el menú de MiFutbolC, en su orden; la
+/// evolución temporal es otro submenú en C).
 pub const ANALISIS_SECCIONES: &[(&str, &str)] = &[
+    (
+        "Análisis básico",
+        "Últimos 5 contra tu promedio, rachas y mensaje motivacional.",
+    ),
     (
         "Comparador A/B",
         "Camisetas y canchas lado a lado con 9 métricas.",
@@ -16,6 +21,14 @@ pub const ANALISIS_SECCIONES: &[(&str, &str)] = &[
     (
         "Entrenador IA",
         "Consejos, predicción, táctica y descanso según tus partidos.",
+    ),
+    (
+        "Química entre jugadores",
+        "Mejor combinación según tus equipos y duplas cargadas a mano.",
+    ),
+    (
+        "Evolución temporal",
+        "Promedios por mes, mejor/peor mes, semestres, estaciones y progreso.",
     ),
 ];
 
@@ -32,8 +45,11 @@ impl App {
                 .analisis_hub
                 .select(Some((actual - 1).rem_euclid(len) as usize)),
             KeyCode::Enter => match actual {
-                0 => self.open_comparador()?,
-                _ => self.open_entrenador()?,
+                0 => self.open_analisis_basico()?,
+                1 => self.open_comparador()?,
+                2 => self.open_entrenador()?,
+                3 => self.open_quimica()?,
+                _ => self.open_analisis_evolucion()?,
             },
             _ => return Ok(false),
         }
