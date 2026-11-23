@@ -170,7 +170,8 @@ JSON/TXT/CSV/HTML, migración chrono → jiff.
     mejor combinación), `set_activa`, `backup_service`, `mantenimiento`, `exportar_todo`
     (JSON parseado con serde_json + cabeceras MD) y UI (camisetas `a`, 3 pantallas de
     Análisis, hub con 5 entradas, backups, Ctrl+T/Ctrl+X).
-  - Engram `odd/mejoras-paridad-c/tasks`: pendiente (lo sincroniza el orquestador).
+  - Engram `odd/mejoras-paridad-c/tasks`: sincronizado por el orquestador (obs. #71) tras cada bloque.
+- Cierre: 10 commits en `feature/mejoras-paridad-c`, 89 archivos, +4193/−970; 298 tests OK, clippy y fmt limpios (verificado por el orquestador). Sin push ni PR (decisión del usuario).
 - B5 (`28b58fe`; RDD unmanaged; 298 OK en `cargo test --all-targets`, clippy `-D warnings` y
   `cargo fmt --check` limpios; `git diff --stat`: 34 archivos, +417 / -618):
   - 1 Selección: `app::mover_seleccion` (vuelve al otro extremo; lista vacía = `None`) y
