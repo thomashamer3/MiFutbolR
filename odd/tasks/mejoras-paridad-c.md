@@ -54,7 +54,7 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
 - [x] B3 Rendimiento. Ruta: delegated (writer trigger: repos + migración + app).
 - [x] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [x] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
-- [ ] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger).
+- [x] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger). Commit `e9cd489`.
 - [ ] B7 Exportar/Importar. Ruta: delegated (writer trigger).
 - [ ] B8 Ajustes y arranque. Ruta: delegated (writer trigger).
 - [ ] B9 Módulos faltantes. Ruta: delegated (writer trigger).
@@ -217,3 +217,47 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
     `write!` a `String`.
   - No hecho: las listas de los overlays (búsqueda global, paleta) y el selector A/B del
     comparador siguen frenando en el borde (no son tablas).
+- B6 (`e9cd489`; RDD unmanaged; 322 OK en `cargo test --all-targets` (298 + 24), clippy
+  `-D warnings` y `cargo fmt --check` limpios; 20 archivos, +4212 / -27 — supera la
+  heurística de ~400 líneas: es un port completo de 4 archivos de C más el formato móvil y
+  no se partió en dos commits porque `app_sync.rs` y el bloque Ctrl de Ajustes cruzan 6a/6b):
+  - 6a PocketBase: migración `016_sync.sql` (uuid en partido/camiseta/botin, columnas de
+    botín que C sincroniza, `sync_config`, `sync_dirty`, `sync_conflicto`,
+    `sync_tombstones`, triggers de cola y lápidas). `db::sync_repo` (cola, payload con los
+    nombres/textos de C, aplicar remoto con deshacer suspendido, entidades, lápidas) y
+    `services::sync_service` (ureq con 5 s/25 s, auth-with-password, auth-refresh, orden de
+    `sync_ejecutar`: subir partidos → bajar entidades → subir entidades → bajar partidos;
+    hasta 2 servidores; `SyncWorker` en hilo con conexión propia). Menú 25 con las 8 opciones
+    de C (`app_sync.rs`, `ui/screens/sincronizacion.rs`); extras renumerados 26/27/28; visible
+    en Simple y siempre en Personalizado (C no tiene getter). Auto-sync al entrar al menú en
+    segundo plano, solo si hay sesión y la base es un archivo. La contraseña nunca se guarda;
+    el token no se muestra ni se exporta (`EXCLUIDAS_JSON` + test que busca el token en el JSON).
+  - 6b MiFutbolMobile: `services::mobile_service` exporta
+    `Exportaciones/mifutbolmobile_import.json` (formato `mifutbolmobile-import` v1, claves y
+    códigos de C: clima, categoría, tipo, tipoFutbol, tipoCancha/superficie como texto) e
+    importa `Importaciones/partidos.json` (cancha se crea, camiseta debe existir, sin duplicar
+    cancha+fecha+camiseta, una transacción). Marcador `.sync_partidos_auto`: al iniciar importa
+    y renombra a `partidos_importados_<sello>.json`. Ajustes: Ctrl+W / Ctrl+Y / Ctrl+A.
+  - Tests: 6 repo, 11 servicio de sync con PocketBase falso en `127.0.0.1:0` (login ok, 400,
+    500, subida POST, bajada con páginas, conflicto + resolución, 400 no frena + 401 con
+    refresh, puerto cerrado, hilo), 3 móvil (formato, importación sin duplicar, marcador +
+    renombre), 4 UI (`tests/sincronizacion_ui.rs`) y ajustes de `ui_smoke`/`informe_service`.
+    Sin red real en ningún test.
+  - Errores de C corregidos: (1) un registro rechazado bloqueaba la cola para siempre (ahora
+    queda en error y sigue); (2) con 401 persistente podía reintentar sin fin (ahora un refresh
+    por fase); (3) la bajada cambiaba el filtro del cursor entre páginas y salteaba registros;
+    (4) códigos de enum numéricos se leían como 0; (5) `sync_aplicar_remoto` hacía ROLLBACK
+    sin BEGIN y creaba cancha/camiseta fuera de la transacción; (6) `sync_normalizar_url`
+    anteponía http:// a esquemas como ftp:// (ahora se rechazan); (7) campos de texto NULL en
+    columnas NOT NULL.
+  - Se conserva por compatibilidad: `camiseta_uuid` lleva el nombre de la camiseta (como C);
+    el filtro del cursor es `>` estricto (registros del mismo segundo pueden saltearse, igual
+    que en C).
+  - Diferencias: el borrado remoto de una camiseta en uso la desactiva; `esfuerzoPercibido`
+    sale 0 (MiFutbolR no tiene la columna); `favorito` sale de `partido_meta` (C fijaba false);
+    recordatorios desde la tabla (C leía `Importaciones/recordatorios.json`); el orden de
+    claves del JSON es alfabético (serde_json sin `preserve_order`).
+  - No hecho: variables de entorno `MIFUTBOL_SYNC_URL`/`MIFUTBOL_SYNC_EMAIL` de C; importar
+    partidos desde una ruta elegida (solo `Importaciones/partidos.json`); el inicio de sesión
+    corre en el hilo de la UI (acción explícita, máx. 5 s de conexión por servidor, como C);
+    timeout de lectura no probado (tardaría 25 s), sí el puerto cerrado.
