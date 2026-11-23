@@ -47,8 +47,12 @@ impl App {
     /// Teclas de la portada de inicio de sesión.
     pub(crate) fn handle_bienvenida_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.mover_usuario(1),
-            KeyCode::Up | KeyCode::Char('k') => self.mover_usuario(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.usuarios_table, self.usuarios.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.usuarios_table, self.usuarios.len(), -1)
+            }
             KeyCode::Enter => match self.usuario_seleccionado() {
                 Some(usuario) => self.entrar_seleccionado(&usuario)?,
                 None => self.entrar_al_menu()?,
@@ -92,16 +96,6 @@ impl App {
         }
     }
 
-    fn mover_usuario(&mut self, delta: isize) {
-        let total = self.usuarios.len();
-        if total == 0 {
-            return;
-        }
-        let actual = self.usuarios_table.selected().unwrap_or(0);
-        let siguiente = actual.saturating_add_signed(delta).min(total - 1);
-        self.usuarios_table.select(Some(siguiente));
-    }
-
     /// Entra con la cuenta elegida: directo si no tiene contraseña.
     fn entrar_seleccionado(&mut self, usuario: &Usuario) -> Result<()> {
         if usuario.con_password {
@@ -123,13 +117,15 @@ impl App {
         match nueva {
             Ok(app) => {
                 *self = app;
-                let _ = usuario_service::marcar_bienvenida(self.db.conn());
                 self.bienvenida_vista = true;
                 self.status = format!(
                     "Sesión iniciada como {} · BD: {}",
                     usuario.nombre,
                     ruta.display()
                 );
+                if let Err(error) = usuario_service::marcar_bienvenida(self.db.conn()) {
+                    self.status = format!("No se pudo guardar la bienvenida: {error}");
+                }
                 self.usuario_actual = Some(usuario);
                 // App::new ya calculó el resumen de Inicio de esta base.
                 self.stack = vec![Screen::MainMenu];
@@ -205,8 +201,12 @@ impl App {
     /// Teclas del listado de cuentas.
     pub(crate) fn handle_usuario_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.mover_usuario(1),
-            KeyCode::Up | KeyCode::Char('k') => self.mover_usuario(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.usuarios_table, self.usuarios.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.usuarios_table, self.usuarios.len(), -1)
+            }
             KeyCode::Enter => {
                 if let Some(usuario) = self.usuario_seleccionado() {
                     self.entrar_seleccionado(&usuario)?;

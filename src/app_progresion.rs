@@ -67,19 +67,10 @@ impl App {
     pub(crate) fn handle_progresion_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.progresion.len();
-                if total > 0 {
-                    let indice = (self.progresion_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.progresion_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.progresion_table, self.progresion.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .progresion_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.progresion_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.progresion_table, self.progresion.len(), -1);
             }
             KeyCode::Char('n') => {
                 if self.progresion_jugadores.is_empty() {
@@ -138,15 +129,10 @@ impl App {
     pub(crate) fn handle_planes_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.planes.len();
-                if total > 0 {
-                    let indice = (self.planes_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.planes_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.planes_table, self.planes.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.planes_table.selected().unwrap_or(0).saturating_sub(1);
-                self.planes_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.planes_table, self.planes.len(), -1);
             }
             KeyCode::Char('n') => {
                 self.plan_edit_id = None;

@@ -12,8 +12,12 @@ impl App {
     /// Teclas del listado de botines.
     pub(crate) fn handle_botines_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_botin_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_botin_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.botines_table, self.botines.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.botines_table, self.botines.len(), -1)
+            }
             KeyCode::Enter => self.open_botin_detail()?,
             KeyCode::Char('n') => self.open_botin_form(FormMode::Create)?,
             KeyCode::Char('e') => {
@@ -90,20 +94,6 @@ impl App {
         self.botines.get(index).map(|row| row.id)
     }
 
-    fn move_botin_selection(&mut self, delta: isize) {
-        if self.botines.is_empty() {
-            return;
-        }
-        let len = self.botines.len() as isize;
-        let current = self
-            .botines_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.botines.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.botines_table.select(Some(next));
-    }
-
     fn open_botin_detail(&mut self) -> Result<()> {
         let Some(id) = self.selected_botin_id() else {
             self.status = "No hay botines para mostrar".to_string();
@@ -161,27 +151,22 @@ impl App {
 
     /// Elimina o desactiva un botín.
     pub(crate) fn delete_botin(&mut self, id: i64) -> Result<()> {
-        match botin_service::eliminar(self.db.conn(), id) {
-            Ok(ResultadoEliminacion::Eliminada) => {
-                self.status = "Botín eliminado".to_string();
-            }
-            Ok(ResultadoEliminacion::Desactivada(dependencias)) => {
-                self.status = format!(
+        let mensaje =
+            botin_service::eliminar(self.db.conn(), id).map(|resultado| match resultado {
+                ResultadoEliminacion::Eliminada => "Botín eliminado".to_string(),
+                ResultadoEliminacion::Desactivada(dependencias) => format!(
                     "Botín desactivado ({} partidos asociados)",
                     dependencias.partidos
-                );
-            }
-            Err(error) => {
-                self.modal = Some(Modal::Error(error.to_string()));
-                return Ok(());
-            }
-        }
-        if matches!(self.current_screen(), Screen::BotinDetail(_)) {
-            self.stack.pop();
-        }
-        self.botin_detail = None;
-        self.refresh_botines()?;
-        Ok(())
+                ),
+            });
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::BotinDetail(_)),
+            |app| {
+                app.botin_detail = None;
+                app.refresh_botines()
+            },
+        )
     }
 
     fn toggle_botin_activa(&mut self) {

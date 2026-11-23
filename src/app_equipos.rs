@@ -14,8 +14,12 @@ impl App {
     /// Teclas del listado de equipos.
     pub(crate) fn handle_equipos_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_equipo_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_equipo_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.equipos_table, self.equipos.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.equipos_table, self.equipos.len(), -1)
+            }
             KeyCode::Enter => self.open_equipo_detail()?,
             KeyCode::Char('n') => self.open_equipo_form(FormMode::Create)?,
             KeyCode::Char('e') => {
@@ -50,9 +54,17 @@ impl App {
 
     /// Teclas del detalle: gestión de jugadores.
     pub(crate) fn handle_equipo_detail_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let jugadores = self
+            .equipo_detail
+            .as_ref()
+            .map_or(0, |equipo| equipo.jugadores.len());
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_jugador_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_jugador_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.jugadores_table, jugadores, 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.jugadores_table, jugadores, -1)
+            }
             KeyCode::Char('a') => self.open_jugador_form(FormMode::Create)?,
             KeyCode::Char('e') => {
                 if self.selected_jugador().is_some() {
@@ -101,37 +113,6 @@ impl App {
         let equipo = self.equipo_detail.as_ref()?;
         let index = self.jugadores_table.selected()?;
         equipo.jugadores.get(index).cloned()
-    }
-
-    fn move_equipo_selection(&mut self, delta: isize) {
-        if self.equipos.is_empty() {
-            return;
-        }
-        let len = self.equipos.len() as isize;
-        let current = self
-            .equipos_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.equipos.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.equipos_table.select(Some(next));
-    }
-
-    fn move_jugador_selection(&mut self, delta: isize) {
-        let Some(equipo) = &self.equipo_detail else {
-            return;
-        };
-        if equipo.jugadores.is_empty() {
-            return;
-        }
-        let len = equipo.jugadores.len() as isize;
-        let current = self
-            .jugadores_table
-            .selected()
-            .unwrap_or(0)
-            .min(equipo.jugadores.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.jugadores_table.select(Some(next));
     }
 
     fn open_equipo_detail(&mut self) -> Result<()> {
@@ -210,27 +191,22 @@ impl App {
 
     /// Elimina o desactiva un equipo.
     pub(crate) fn delete_equipo(&mut self, id: i64) -> Result<()> {
-        match equipo_service::eliminar(self.db.conn(), id) {
-            Ok(ResultadoEliminacion::Eliminada) => {
-                self.status = "Equipo eliminado".to_string();
-            }
-            Ok(ResultadoEliminacion::Desactivada(dependencias)) => {
-                self.status = format!(
+        let mensaje =
+            equipo_service::eliminar(self.db.conn(), id).map(|resultado| match resultado {
+                ResultadoEliminacion::Eliminada => "Equipo eliminado".to_string(),
+                ResultadoEliminacion::Desactivada(dependencias) => format!(
                     "Equipo desactivado ({} partidos de torneo, {} torneos)",
                     dependencias.partido_torneo, dependencias.torneos
-                );
-            }
-            Err(error) => {
-                self.modal = Some(Modal::Error(error.to_string()));
-                return Ok(());
-            }
-        }
-        if matches!(self.current_screen(), Screen::EquipoDetail(_)) {
-            self.stack.pop();
-        }
-        self.equipo_detail = None;
-        self.refresh_equipos()?;
-        Ok(())
+                ),
+            });
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::EquipoDetail(_)),
+            |app| {
+                app.equipo_detail = None;
+                app.refresh_equipos()
+            },
+        )
     }
 
     fn toggle_equipo_activa(&mut self) {
@@ -291,15 +267,16 @@ impl App {
 
     /// Elimina un jugador y recarga el detalle.
     pub(crate) fn delete_jugador(&mut self, id: i64) -> Result<()> {
-        match equipo_service::eliminar_jugador(self.db.conn(), id) {
-            Ok(()) => {
-                self.status = "Jugador eliminado".to_string();
-                self.reload_equipo_detail()?;
-                self.refresh_equipos()?;
-            }
-            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
-        }
-        Ok(())
+        let mensaje = equipo_service::eliminar_jugador(self.db.conn(), id)
+            .map(|()| "Jugador eliminado".to_string());
+        self.tras_eliminar(
+            mensaje,
+            |_| false,
+            |app| {
+                app.reload_equipo_detail()?;
+                app.refresh_equipos()
+            },
+        )
     }
 
     /// Guarda el formulario de equipo.

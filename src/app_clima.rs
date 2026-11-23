@@ -23,8 +23,11 @@ impl App {
                 Err(error) => self.status = format!("Clima: {error}"),
             }
         }
-        if cambio && matches!(self.current_screen(), Screen::PartidosList) {
-            let _ = self.refresh_partidos();
+        if cambio
+            && matches!(self.current_screen(), Screen::PartidosList)
+            && let Err(error) = self.refresh_partidos()
+        {
+            self.status = format!("No se pudieron recargar los partidos: {error}");
         }
         if !self.clima.ocupado() && self.clima_proxima_consulta <= Instant::now() {
             self.clima_proxima_consulta = Instant::now() + ESPERA_COLA;

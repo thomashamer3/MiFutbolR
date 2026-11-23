@@ -147,8 +147,12 @@ impl App {
             Ok(progresos) => match logros_service::registrar_nuevos(self.db.conn(), &progresos) {
                 Ok(nuevos) => {
                     if !nuevos.is_empty() {
-                        let _ = notificacion_service::notificar_logros(self.db.conn(), &nuevos);
                         self.status = format!("{} logro(s) desbloqueado(s)", nuevos.len());
+                        if let Err(error) =
+                            notificacion_service::notificar_logros(self.db.conn(), &nuevos)
+                        {
+                            self.status = format!("No se pudo avisar de los logros: {error}");
+                        }
                     }
                     self.logros = logros_service::listar(self.db.conn(), None).unwrap_or(progresos);
                 }
@@ -198,14 +202,11 @@ impl App {
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 let total = self.logros_filtrados().len();
-                if total > 0 {
-                    let indice = (self.logros_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.logros_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.logros_table, total, 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.logros_table.selected().unwrap_or(0).saturating_sub(1);
-                self.logros_table.select(Some(indice));
+                let total = self.logros_filtrados().len();
+                Self::mover_tabla_seleccion(&mut self.logros_table, total, -1);
             }
             KeyCode::Char('r') => {
                 self.refrescar_logros()?;
@@ -222,7 +223,9 @@ impl App {
 
     /// Abre la bandeja de notificaciones.
     pub(crate) fn open_notificaciones(&mut self) -> Result<()> {
-        let _ = notificacion_service::generar(self.db.conn());
+        if let Err(error) = notificacion_service::generar(self.db.conn()) {
+            self.status = format!("No se pudieron generar los avisos: {error}");
+        }
         self.refrescar_notificaciones();
         if !matches!(self.current_screen(), Screen::Notificaciones) {
             self.push_screen(Screen::Notificaciones);
@@ -246,20 +249,18 @@ impl App {
     pub(crate) fn handle_notificaciones_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.notificaciones.len();
-                if total > 0 {
-                    let indice =
-                        (self.notificaciones_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.notificaciones_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(
+                    &mut self.notificaciones_table,
+                    self.notificaciones.len(),
+                    1,
+                );
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .notificaciones_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.notificaciones_table.select(Some(indice));
+                Self::mover_tabla_seleccion(
+                    &mut self.notificaciones_table,
+                    self.notificaciones.len(),
+                    -1,
+                );
             }
             KeyCode::Char('m') => {
                 if let Some(notificacion) = self
@@ -268,12 +269,16 @@ impl App {
                     .and_then(|indice| self.notificaciones.get(indice))
                 {
                     let id = notificacion.id;
-                    let _ = notificacion_repo::marcar_leida(self.db.conn(), id);
+                    if let Err(error) = notificacion_repo::marcar_leida(self.db.conn(), id) {
+                        self.modal = Some(Modal::Error(error.to_string()));
+                    }
                     self.refrescar_notificaciones();
                 }
             }
             KeyCode::Char('M') => {
-                let _ = notificacion_service::marcar(self.db.conn(), None);
+                if let Err(error) = notificacion_service::marcar(self.db.conn(), None) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                }
                 self.refrescar_notificaciones();
             }
             KeyCode::Enter => {
@@ -314,8 +319,10 @@ impl App {
             && let Ok(nuevos) = logros_service::registrar_nuevos(self.db.conn(), &progresos)
             && !nuevos.is_empty()
         {
-            let _ = notificacion_service::notificar_logros(self.db.conn(), &nuevos);
             self.status = format!("{} logro(s) desbloqueado(s)", nuevos.len());
+            if let Err(error) = notificacion_service::notificar_logros(self.db.conn(), &nuevos) {
+                self.status = format!("No se pudo avisar de los logros: {error}");
+            }
         }
         self.no_leidas = notificacion_service::no_leidas(self.db.conn()).unwrap_or(0);
         self.inicio_sucio = true;
@@ -604,13 +611,10 @@ impl App {
     pub(crate) fn handle_ultimos_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let indice = (self.ultimos_table.selected().unwrap_or(0) + 1)
-                    .min(self.ultimos.len().saturating_sub(1));
-                self.ultimos_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.ultimos_table, self.ultimos.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.ultimos_table.selected().unwrap_or(0).saturating_sub(1);
-                self.ultimos_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.ultimos_table, self.ultimos.len(), -1);
             }
             KeyCode::Enter => {
                 if let Some(partido_id) = self
@@ -674,39 +678,25 @@ impl App {
         ) {
             self.go_back();
         }
-        match self.current_screen() {
-            Screen::CamisetasList => {
-                let _ = self.refresh_camisetas();
+        let resultado = match self.current_screen() {
+            Screen::CamisetasList => self.refresh_camisetas(),
+            Screen::CanchasList => self.refresh_canchas(),
+            Screen::BotinesList => self.refresh_botines(),
+            Screen::EquiposList => self.refresh_equipos(),
+            Screen::PartidosList => self.refresh_partidos(),
+            Screen::LesionesList => self.refresh_lesiones(),
+            Screen::FinanciamientoList => self.refresh_financiamiento(),
+            Screen::Calendario => self.refrescar_calendario(),
+            Screen::Logros => self.refrescar_logros(),
+            Screen::Records => self.refrescar_records(),
+            Screen::Notificaciones => {
+                self.refrescar_notificaciones();
+                Ok(())
             }
-            Screen::CanchasList => {
-                let _ = self.refresh_canchas();
-            }
-            Screen::BotinesList => {
-                let _ = self.refresh_botines();
-            }
-            Screen::EquiposList => {
-                let _ = self.refresh_equipos();
-            }
-            Screen::PartidosList => {
-                let _ = self.refresh_partidos();
-            }
-            Screen::LesionesList => {
-                let _ = self.refresh_lesiones();
-            }
-            Screen::FinanciamientoList => {
-                let _ = self.refresh_financiamiento();
-            }
-            Screen::Calendario => {
-                let _ = self.refrescar_calendario();
-            }
-            Screen::Logros => {
-                let _ = self.refrescar_logros();
-            }
-            Screen::Records => {
-                let _ = self.refrescar_records();
-            }
-            Screen::Notificaciones => self.refrescar_notificaciones(),
-            _ => {}
+            _ => Ok(()),
+        };
+        if let Err(error) = resultado {
+            self.modal = Some(Modal::Error(error.to_string()));
         }
         self.inicio_sucio = true;
     }
@@ -744,15 +734,10 @@ impl App {
     pub(crate) fn handle_records_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.records.len();
-                if total > 0 {
-                    let indice = (self.records_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.records_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.records_table, self.records.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.records_table.selected().unwrap_or(0).saturating_sub(1);
-                self.records_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.records_table, self.records.len(), -1);
             }
             KeyCode::Enter => {
                 if let Some(partido_id) = self
@@ -792,9 +777,12 @@ impl App {
         match key.code {
             KeyCode::Right | KeyCode::Enter | KeyCode::Char('n') => {
                 if self.tutorial_paso + 1 >= PASOS {
-                    let _ = crate::db::settings_repo::marcar_tutorial(self.db.conn());
+                    let guardado = crate::db::settings_repo::marcar_tutorial(self.db.conn());
                     self.tutorial_completado = true;
                     self.go_back();
+                    if let Err(error) = guardado {
+                        self.status = format!("No se pudo guardar el tutorial: {error}");
+                    }
                 } else {
                     self.tutorial_paso += 1;
                 }

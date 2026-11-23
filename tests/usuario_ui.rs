@@ -56,8 +56,7 @@ fn each_account_keeps_its_own_data() {
     assert_eq!(canchas(&app), base);
 
     cerrar_sesion(&mut app);
-    // Las cuentas se listan por nombre: Ana es la primera.
-    press(&mut app, KeyCode::Up);
+    // Las cuentas se listan por nombre: Ana es la primera y queda seleccionada.
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.current_screen(), Screen::MainMenu);
     assert_eq!(app.usuario_actual.as_ref().unwrap().nombre, "Ana");

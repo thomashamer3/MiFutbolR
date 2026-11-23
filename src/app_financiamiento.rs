@@ -20,8 +20,16 @@ impl App {
     pub(crate) fn handle_financiamiento_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         self.ensure_mes();
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_transaccion_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_transaccion_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => Self::mover_tabla_seleccion(
+                &mut self.transacciones_table,
+                self.transacciones.len(),
+                1,
+            ),
+            KeyCode::Up | KeyCode::Char('k') => Self::mover_tabla_seleccion(
+                &mut self.transacciones_table,
+                self.transacciones.len(),
+                -1,
+            ),
             KeyCode::Char('n') => self.open_transaccion_form(FormMode::Create)?,
             KeyCode::Char('e') => {
                 if let Some(id) = self.selected_transaccion_id() {
@@ -94,20 +102,6 @@ impl App {
         self.transacciones.get(index).map(|row| row.id)
     }
 
-    fn move_transaccion_selection(&mut self, delta: isize) {
-        if self.transacciones.is_empty() {
-            return;
-        }
-        let len = self.transacciones.len() as isize;
-        let current = self
-            .transacciones_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.transacciones.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.transacciones_table.select(Some(next));
-    }
-
     fn open_transaccion_form(&mut self, mode: FormMode) -> Result<()> {
         match mode {
             FormMode::Create => {
@@ -150,14 +144,9 @@ impl App {
 
     /// Elimina una transacción.
     pub(crate) fn delete_transaccion(&mut self, id: i64) -> Result<()> {
-        match financiamiento_service::eliminar(self.db.conn(), id) {
-            Ok(()) => {
-                self.status = "Transacción eliminada".to_string();
-                self.refresh_financiamiento()?;
-            }
-            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
-        }
-        Ok(())
+        let mensaje = financiamiento_service::eliminar(self.db.conn(), id)
+            .map(|()| "Transacción eliminada".to_string());
+        self.tras_eliminar(mensaje, |_| false, App::refresh_financiamiento)
     }
 
     /// Guarda una transacción.

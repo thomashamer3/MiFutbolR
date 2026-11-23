@@ -278,7 +278,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             }
             lineas.push(Line::from(""));
             lineas.push(Line::from(Span::styled(
-                "e: editar   d: eliminar   p: presupuesto",
+                "e: editar   d: borrar   p: presupuesto",
                 Style::default().fg(colors.muted),
             )));
         }

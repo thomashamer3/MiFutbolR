@@ -66,19 +66,10 @@ impl App {
     pub(crate) fn handle_temporadas_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.temporadas.len();
-                if total > 0 {
-                    let indice = (self.temporadas_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.temporadas_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.temporadas_table, self.temporadas.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .temporadas_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.temporadas_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.temporadas_table, self.temporadas.len(), -1);
             }
             KeyCode::Enter => {
                 if let Some(id) = self

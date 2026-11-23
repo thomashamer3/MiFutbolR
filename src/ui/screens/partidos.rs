@@ -162,7 +162,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 }
                 lineas.push(Line::from(""));
                 lineas.push(Line::from(Span::styled(
-                    "Enter: ficha   e: editar   d: eliminar",
+                    detail::AYUDA_VISTA_PREVIA,
                     Style::default().fg(colors.muted),
                 )));
                 detail::panel(frame, panel, &colors, "Vista previa", lineas);

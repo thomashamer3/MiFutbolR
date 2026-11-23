@@ -3,7 +3,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::{App, Screen};
+use crate::app::{App, Screen, mover_seleccion};
 use crate::domain::comparador::TipoComparacion;
 use crate::services::comparador_service;
 
@@ -35,16 +35,17 @@ pub const ANALISIS_SECCIONES: &[(&str, &str)] = &[
 impl App {
     /// Teclas del hub Análisis.
     pub(crate) fn handle_analisis_menu_key(&mut self, key: KeyEvent) -> Result<bool> {
-        let len = ANALISIS_SECCIONES.len() as isize;
-        let actual = self.analisis_hub.selected().unwrap_or(0) as isize;
+        let actual = self.analisis_hub.selected();
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self
-                .analisis_hub
-                .select(Some((actual + 1).rem_euclid(len) as usize)),
-            KeyCode::Up | KeyCode::Char('k') => self
-                .analisis_hub
-                .select(Some((actual - 1).rem_euclid(len) as usize)),
-            KeyCode::Enter => match actual {
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.analisis_hub
+                    .select(mover_seleccion(actual, ANALISIS_SECCIONES.len(), 1))
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.analisis_hub
+                    .select(mover_seleccion(actual, ANALISIS_SECCIONES.len(), -1))
+            }
+            KeyCode::Enter => match actual.unwrap_or(0) {
                 0 => self.open_analisis_basico()?,
                 1 => self.open_comparador()?,
                 2 => self.open_entrenador()?,

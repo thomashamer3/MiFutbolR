@@ -3,7 +3,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::{App, ConfirmAction, Field, FieldKind, Form, Modal, Screen};
+use crate::app::{App, ConfirmAction, Field, FieldKind, Form, Modal, Screen, mover_seleccion};
 use crate::db::helpers::Page;
 use crate::domain::dates;
 use crate::domain::models::{CarreraIdentidad, FormMode, PartidoFilter};
@@ -54,18 +54,16 @@ impl App {
     /// Teclas del hub de carrera.
     pub(crate) fn handle_carrera_menu_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                let len = CARRERA_SECCIONES.len() as isize;
-                let actual = self.carrera_hub.selected().unwrap_or(0) as isize;
-                self.carrera_hub
-                    .select(Some((actual + 1).rem_euclid(len) as usize));
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let len = CARRERA_SECCIONES.len() as isize;
-                let actual = self.carrera_hub.selected().unwrap_or(0) as isize;
-                self.carrera_hub
-                    .select(Some((actual - 1).rem_euclid(len) as usize));
-            }
+            KeyCode::Down | KeyCode::Char('j') => self.carrera_hub.select(mover_seleccion(
+                self.carrera_hub.selected(),
+                CARRERA_SECCIONES.len(),
+                1,
+            )),
+            KeyCode::Up | KeyCode::Char('k') => self.carrera_hub.select(mover_seleccion(
+                self.carrera_hub.selected(),
+                CARRERA_SECCIONES.len(),
+                -1,
+            )),
             KeyCode::Enter => {
                 self.carrera_scroll = 0;
                 match self.carrera_hub.selected().unwrap_or(0) {
@@ -113,30 +111,16 @@ impl App {
     /// Teclas del listado de hitos.
     pub(crate) fn handle_carrera_hitos_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                if !self.carrera_hitos.is_empty() {
-                    let len = self.carrera_hitos.len() as isize;
-                    let actual =
-                        self.carrera_hitos_table
-                            .selected()
-                            .unwrap_or(0)
-                            .min(self.carrera_hitos.len() - 1) as isize;
-                    self.carrera_hitos_table
-                        .select(Some((actual + 1).rem_euclid(len) as usize));
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if !self.carrera_hitos.is_empty() {
-                    let len = self.carrera_hitos.len() as isize;
-                    let actual =
-                        self.carrera_hitos_table
-                            .selected()
-                            .unwrap_or(0)
-                            .min(self.carrera_hitos.len() - 1) as isize;
-                    self.carrera_hitos_table
-                        .select(Some((actual - 1).rem_euclid(len) as usize));
-                }
-            }
+            KeyCode::Down | KeyCode::Char('j') => Self::mover_tabla_seleccion(
+                &mut self.carrera_hitos_table,
+                self.carrera_hitos.len(),
+                1,
+            ),
+            KeyCode::Up | KeyCode::Char('k') => Self::mover_tabla_seleccion(
+                &mut self.carrera_hitos_table,
+                self.carrera_hitos.len(),
+                -1,
+            ),
             KeyCode::Char('n') => self.open_carrera_hito_form(None)?,
             KeyCode::Char('e') => {
                 if let Some(hito) = self.selected_hito() {

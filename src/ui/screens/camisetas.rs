@@ -158,7 +158,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             );
             lineas.push(Line::from(""));
             lineas.push(Line::from(Span::styled(
-                "Enter: ficha completa   e: editar   d: eliminar",
+                detail::AYUDA_VISTA_PREVIA,
                 Style::default().fg(colors.muted),
             )));
         }
@@ -178,13 +178,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Layout::vertical([Constraint::Min(6), Constraint::Length(alto_imagen)]).areas(interior);
         frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
         if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
-            crate::ui::images::dibujar_miniatura(
-                frame,
-                imagen_area,
-                &mut app.images,
-                &ruta,
-                &colors,
-            );
+            crate::ui::images::dibujar_miniatura(frame, imagen_area, &mut app.images, &ruta);
         }
     }
 }

@@ -90,12 +90,6 @@ impl ImageCache {
             .ok()
     }
 
-    /// Limpia la caché (por ejemplo al cambiar de tema o recargar datos).
-    pub fn limpiar(&mut self) {
-        self.cache.clear();
-        self.logo.clear();
-    }
-
     /// Logo de la aplicación embebido en el binario.
     pub fn logo(&mut self, tamano: Size) -> Option<&Protocol> {
         let clave = (tamano.width, tamano.height);
@@ -163,13 +157,7 @@ pub fn dibujar_grande(
 }
 
 /// Dibuja una miniatura sin borde, centrada.
-pub fn dibujar_miniatura(
-    frame: &mut Frame,
-    area: Rect,
-    cache: &mut ImageCache,
-    ruta: &Path,
-    _colors: &Palette,
-) {
+pub fn dibujar_miniatura(frame: &mut Frame, area: Rect, cache: &mut ImageCache, ruta: &Path) {
     if area.width < 8 || area.height < 4 {
         return;
     }
@@ -189,7 +177,7 @@ pub fn dibujar_miniatura(
 }
 
 /// Dibuja el logo embebido centrado, sin borde.
-pub fn dibujar_logo(frame: &mut Frame, area: Rect, cache: &mut ImageCache, colors: &Palette) {
+pub fn dibujar_logo(frame: &mut Frame, area: Rect, cache: &mut ImageCache) {
     if area.width < 10 || area.height < 4 {
         return;
     }
@@ -205,7 +193,6 @@ pub fn dibujar_logo(frame: &mut Frame, area: Rect, cache: &mut ImageCache, color
             height: alto,
         };
         frame.render_widget(Image::new(protocolo), destino);
-        let _ = colors;
     }
 }
 

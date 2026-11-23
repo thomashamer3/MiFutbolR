@@ -257,17 +257,13 @@ impl App {
     /// Elimina un ítem confirmado.
     pub(crate) fn eliminar_inventario_item(&mut self, id: i64) {
         let resultado = colecciones_service::eliminar_item(self.db.conn(), id);
-        self.confirmar_eliminacion(resultado, |app| {
-            let _ = app.refresh_colecciones();
-        });
+        self.confirmar_eliminacion(resultado, App::refresh_colecciones);
     }
 
     /// Elimina una colección confirmada.
     pub(crate) fn eliminar_coleccion(&mut self, id: i64) {
         let resultado = colecciones_service::eliminar_coleccion(self.db.conn(), id);
-        self.confirmar_eliminacion(resultado, |app| {
-            let _ = app.refresh_colecciones();
-        });
+        self.confirmar_eliminacion(resultado, App::refresh_colecciones);
     }
 
     /// Guarda el formulario activo (ítem, colección o asignación).

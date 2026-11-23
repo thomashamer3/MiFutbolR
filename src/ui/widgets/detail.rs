@@ -14,6 +14,9 @@ use crate::ui::theme::Palette;
 /// Ancho mínimo para mostrar el panel lateral.
 pub const ANCHO_MINIMO: u16 = 110;
 
+/// Teclas al pie de la vista previa; mismas palabras que la barra inferior.
+pub const AYUDA_VISTA_PREVIA: &str = "Enter: detalle   e: editar   d: borrar";
+
 /// Divide el área en tabla + panel de vista previa cuando hay ancho suficiente.
 #[must_use]
 pub fn split(area: Rect) -> Option<(Rect, Rect)> {
@@ -84,6 +87,6 @@ pub fn preview_con_imagen(
     .areas(interior);
     frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
     if let (Some(ruta), true) = (ruta_imagen, con_imagen) {
-        dibujar_miniatura(frame, imagen_area, images, &ruta, colors);
+        dibujar_miniatura(frame, imagen_area, images, &ruta);
     }
 }

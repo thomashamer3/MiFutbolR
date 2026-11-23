@@ -168,7 +168,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         Layout::vertical([Constraint::Min(6), Constraint::Length(alto_logo)]).areas(interior);
     frame.render_widget(Paragraph::new(lineas).wrap(Wrap { trim: true }), texto_area);
     if con_logo {
-        crate::ui::images::dibujar_logo(frame, logo_area, &mut app.images, &colors);
+        crate::ui::images::dibujar_logo(frame, logo_area, &mut app.images);
     }
 }
 

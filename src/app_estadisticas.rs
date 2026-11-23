@@ -4,7 +4,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
-use crate::app::{App, Modal, Screen};
+use crate::app::{App, Modal, Screen, mover_seleccion};
 use crate::domain::models::{EstadisticaKind, Estadisticas};
 use crate::services::estadisticas_service;
 
@@ -27,18 +27,16 @@ impl App {
     /// Teclas del hub.
     pub(crate) fn handle_estadisticas_hub_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                let len = EstadisticaKind::ALL.len() as isize;
-                let actual = self.estadisticas_hub.selected().unwrap_or(0) as isize;
-                self.estadisticas_hub
-                    .select(Some((actual + 1).rem_euclid(len) as usize));
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let len = EstadisticaKind::ALL.len() as isize;
-                let actual = self.estadisticas_hub.selected().unwrap_or(0) as isize;
-                self.estadisticas_hub
-                    .select(Some((actual - 1).rem_euclid(len) as usize));
-            }
+            KeyCode::Down | KeyCode::Char('j') => self.estadisticas_hub.select(mover_seleccion(
+                self.estadisticas_hub.selected(),
+                EstadisticaKind::ALL.len(),
+                1,
+            )),
+            KeyCode::Up | KeyCode::Char('k') => self.estadisticas_hub.select(mover_seleccion(
+                self.estadisticas_hub.selected(),
+                EstadisticaKind::ALL.len(),
+                -1,
+            )),
             KeyCode::Enter => {
                 let kind = EstadisticaKind::ALL
                     .get(self.estadisticas_hub.selected().unwrap_or(0))

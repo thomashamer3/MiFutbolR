@@ -125,7 +125,6 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
     match app.current_screen() {
         Screen::MainMenu => screens::main_menu::draw(frame, body, app),
-        Screen::Module(module) => screens::module_placeholder(frame, body, app, module),
         Screen::CamisetasList => screens::camisetas::draw_list(frame, body, app),
         Screen::CamisetaDetail(id) => screens::camisetas::draw_detail(frame, body, app, id),
         Screen::CamisetaForm(_) => screens::camisetas::draw_form(frame, body, app),

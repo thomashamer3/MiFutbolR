@@ -342,7 +342,12 @@ impl App {
             "pre_restore_{}.db",
             chrono::Local::now().format("%Y%m%d_%H%M%S")
         ));
-        let _ = self.db.backup(&seguridad);
+        let sin_copia = self
+            .db
+            .backup(&seguridad)
+            .err()
+            .map(|error| format!("\nNo se pudo hacer la copia previa: {error}"))
+            .unwrap_or_default();
         match self.db.restore_from(ruta) {
             Ok(()) => {
                 if let Ok(settings) = self.db.settings() {
@@ -352,7 +357,9 @@ impl App {
                 // El backup API no cuenta en `total_changes()`: marcar el Inicio a mano.
                 self.inicio_sucio = true;
                 self.status = format!("Backup restaurado: {}", ruta.display());
-                self.modal = Some(Modal::Info("Backup restaurado correctamente.".to_string()));
+                self.modal = Some(Modal::Info(format!(
+                    "Backup restaurado correctamente.{sin_copia}"
+                )));
             }
             Err(error) => self.modal = Some(Modal::Error(error.to_string())),
         }

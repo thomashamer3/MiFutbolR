@@ -127,9 +127,7 @@ impl App {
     /// Elimina el registro confirmado de la sección activa.
     pub(crate) fn eliminar_bienestar(&mut self, id: i64) {
         let resultado = bienestar_service::eliminar(self.db.conn(), self.bienestar_seccion, id);
-        self.confirmar_eliminacion(resultado, |app| {
-            let _ = app.refresh_bienestar();
-        });
+        self.confirmar_eliminacion(resultado, App::refresh_bienestar);
     }
 
     fn open_bienestar_asistente(&mut self) {

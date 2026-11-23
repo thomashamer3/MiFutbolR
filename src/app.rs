@@ -337,8 +337,6 @@ pub enum TableHitTarget {
 pub enum Screen {
     /// Menú principal.
     MainMenu,
-    /// Módulo aún no implementado.
-    Module(Module),
     /// Listado de camisetas.
     CamisetasList,
     /// Detalle de una camiseta.
@@ -1801,7 +1799,6 @@ impl App {
     pub fn screen_title(&self) -> String {
         match self.current_screen() {
             Screen::MainMenu => "Menú principal".to_string(),
-            Screen::Module(module) => module.label().to_string(),
             Screen::CamisetasList => "Camisetas".to_string(),
             Screen::CamisetaDetail(_) => "Camisetas · detalle".to_string(),
             Screen::CamisetaForm(_) => "Camisetas · formulario".to_string(),
@@ -1812,9 +1809,7 @@ impl App {
             Screen::BotinDetail(_) => "Botines · detalle".to_string(),
             Screen::BotinForm(_) => "Botines · formulario".to_string(),
             Screen::EquiposList => "Equipos".to_string(),
-            Screen::EquipoDetail(_) => {
-                "a: jugador  e: editar  d: borrar  v: imagen  Esc: volver".to_string()
-            }
+            Screen::EquipoDetail(_) => "Equipos · detalle".to_string(),
             Screen::EquipoForm(_) => "Equipos · formulario".to_string(),
             Screen::JugadorForm(_) => "Equipos · jugador".to_string(),
             Screen::PartidosList => "Partidos".to_string(),
@@ -1994,7 +1989,7 @@ impl App {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
             }
             Screen::BackupsList => {
-                "Enter: restaurar  d: eliminar  b: crear backup  r: refrescar  Esc: volver"
+                "Enter: restaurar  d: borrar  b: crear backup  r: refrescar  Esc: volver"
             }
             Screen::Calendario => {
                 "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
@@ -2054,7 +2049,7 @@ impl App {
                 "n: nueva  l: iniciar  p: contraseña  d: borrar  c: cerrar sesión"
             }
             Screen::UsuarioLogin => "Enter: iniciar sesión  Esc: volver",
-            Screen::Module(_) | Screen::Ayuda | Screen::ImagenViewer => "Esc: volver",
+            Screen::Ayuda | Screen::ImagenViewer => "Esc: volver",
         }
     }
 
@@ -2407,7 +2402,7 @@ impl App {
                 true
             }
             Screen::UsuarioLogin => self.handle_usuario_login_key(key)?,
-            Screen::Module(_) | Screen::Ayuda => false,
+            Screen::Ayuda => false,
         };
         if !consumed {
             self.handle_common_key(key)?;
@@ -2552,8 +2547,12 @@ impl App {
 
     fn handle_camisetas_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_table_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_table_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.camisetas_table, self.camisetas.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.camisetas_table, self.camisetas.len(), -1)
+            }
             KeyCode::Enter => self.open_camiseta_detail()?,
             KeyCode::Char('n') => self.open_camiseta_form(FormMode::Create)?,
             KeyCode::Char('e') => {
@@ -2747,103 +2746,96 @@ impl App {
                 let resultado = crate::services::torneos_service::eliminar(self.db.conn(), id);
                 self.confirmar_eliminacion(resultado, |app| {
                     app.go_back();
-                    let _ = app.refresh_torneos();
+                    app.refresh_torneos()
                 });
             }
             ConfirmAction::DeleteTienda(id) => {
                 let resultado = crate::services::tiendas_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_tiendas();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_tiendas);
             }
             ConfirmAction::DeleteBienestar(id) => self.eliminar_bienestar(id),
             ConfirmAction::DeleteInventarioItem(id) => self.eliminar_inventario_item(id),
             ConfirmAction::DeleteColeccion(id) => self.eliminar_coleccion(id),
             ConfirmAction::DeleteProgresion(id) => {
                 let resultado = crate::services::progresion_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_progresion();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_progresion);
             }
             ConfirmAction::DeleteUsuario(id) => self.confirmar_eliminar_usuario(id),
             ConfirmAction::DeletePlan(id) => {
                 let resultado =
                     crate::services::progresion_service::eliminar_plan(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_planes();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_planes);
             }
             ConfirmAction::DeleteRecordatorio(id) => {
                 let resultado =
                     crate::services::recordatorios_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_recordatorios();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_recordatorios);
             }
             ConfirmAction::DeleteMedia(id) => {
                 let resultado = crate::services::media_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_media();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_media);
             }
             ConfirmAction::DeleteAmigo(id) => {
                 let resultado = crate::services::amigos_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, |app| {
-                    let _ = app.refresh_amigos();
-                });
+                self.confirmar_eliminacion(resultado, App::refresh_amigos);
             }
             ConfirmAction::DeleteQuimica(id) => {
                 let resultado = crate::services::quimica_service::eliminar(self.db.conn(), id);
-                self.confirmar_eliminacion(resultado, App::refresh_quimica);
+                self.confirmar_eliminacion(resultado, |app| {
+                    app.refresh_quimica();
+                    Ok(())
+                });
             }
             ConfirmAction::DeleteTemporada(id) => {
                 let resultado = crate::services::temporadas_service::eliminar(self.db.conn(), id);
                 self.confirmar_eliminacion(resultado, |app| {
                     app.go_back();
-                    let _ = app.refresh_temporadas();
+                    app.refresh_temporadas()
                 });
             }
             ConfirmAction::DeleteCamiseta(id) => {
                 let resultado = self.delete_camiseta(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteCancha(id) => {
                 let resultado = self.delete_cancha(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteBotin(id) => {
                 let resultado = self.delete_botin(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteEquipo(id) => {
                 let resultado = self.delete_equipo(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteHito(id) => {
                 let resultado = self.delete_carrera_hito(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteTransaccion(id) => {
                 let resultado = self.delete_transaccion(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteLesion(id) => {
                 let resultado = self.delete_lesion(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeletePartido(id) => {
                 let resultado = self.delete_partido(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::DeleteJugador(id) => {
                 let resultado = self.delete_jugador(id);
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::GenerarFixture(id) => {
                 match crate::services::torneos_service::generar_fixture(self.db.conn(), id) {
                     Ok(cantidad) => {
                         self.status = format!("Fixture generado: {cantidad} partidos");
-                        let _ = self.refresh_torneo_detail();
+                        if let Err(error) = self.refresh_torneo_detail() {
+                            self.modal = Some(Modal::Error(error.to_string()));
+                        }
                     }
                     Err(error) => {
                         self.modal = Some(Modal::Error(error.to_string()));
@@ -2866,7 +2858,7 @@ impl App {
             }
             ConfirmAction::RestoreBackup => {
                 let resultado = self.restaurar_backup();
-                self.confirmar_eliminacion(resultado, |_| {});
+                self.confirmar_eliminacion(resultado, |_| Ok(()));
             }
             ConfirmAction::RestoreBackupSel(indice) => {
                 if let Some(ruta) = self.backups.get(indice).map(|b| b.ruta.clone()) {
@@ -2881,6 +2873,7 @@ impl App {
                     self.confirmar_eliminacion(resultado, |app| {
                         app.refresh_backups();
                         app.status = "Backup eliminado".to_string();
+                        Ok(())
                     });
                 }
             }
@@ -2888,12 +2881,14 @@ impl App {
                 let resultado = botin_service::reiniciar_sorteo(self.db.conn());
                 self.confirmar_eliminacion(resultado, |app| {
                     app.status = "Sorteo de botines reiniciado".to_string();
+                    Ok(())
                 });
             }
             ConfirmAction::ResetSorteo => {
                 let resultado = camiseta_service::reiniciar_sorteo(self.db.conn());
                 self.confirmar_eliminacion(resultado, |app| {
                     app.status = "Sorteo reiniciado".to_string();
+                    Ok(())
                 });
             }
             ConfirmAction::Quit => self.should_quit = true,
@@ -2901,46 +2896,54 @@ impl App {
         }
     }
 
-    /// Mueve la selección de una tabla sin salir de sus límites.
+    /// Mueve la selección de una tabla; al pasar un extremo vuelve al otro.
     pub(crate) fn mover_tabla_seleccion(state: &mut TableState, total: usize, delta: isize) {
-        if total == 0 {
-            state.select(None);
-            return;
-        }
-        let actual = state.selected().unwrap_or(0).min(total - 1) as isize;
-        let siguiente = (actual + delta).clamp(0, total as isize - 1) as usize;
-        state.select(Some(siguiente));
+        state.select(mover_seleccion(state.selected(), total, delta));
     }
 
     pub(crate) fn confirmar_eliminacion<T, E, F>(&mut self, resultado: Result<T, E>, despues: F)
     where
         E: std::fmt::Display,
-        F: FnOnce(&mut Self),
+        F: FnOnce(&mut Self) -> Result<()>,
     {
-        match resultado {
-            Ok(_) => despues(self),
-            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        let error = match resultado {
+            Ok(_) => despues(self).err().map(|error| error.to_string()),
+            Err(error) => Some(error.to_string()),
+        };
+        if let Some(error) = error {
+            self.modal = Some(Modal::Error(error));
         }
-    }
-    fn move_menu_selection(&mut self, delta: isize) {
-        let len = self.menu_modulos().len().max(1) as isize;
-        let current = (self.menu_state.selected().unwrap_or(0) as isize).min(len - 1);
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.menu_state.select(Some(next));
     }
 
-    fn move_table_selection(&mut self, delta: isize) {
-        if self.camisetas.is_empty() {
-            return;
+    /// Cierre común de un borrado: ante error muestra el modal; si salió bien deja
+    /// `mensaje` en la barra, sale de la ficha (si `es_ficha`) y llama a `recargar`.
+    pub(crate) fn tras_eliminar<E, F>(
+        &mut self,
+        mensaje: Result<String, E>,
+        es_ficha: fn(Screen) -> bool,
+        recargar: F,
+    ) -> Result<()>
+    where
+        E: std::fmt::Display,
+        F: FnOnce(&mut Self) -> Result<()>,
+    {
+        match mensaje {
+            Ok(mensaje) => self.status = mensaje,
+            Err(error) => {
+                self.modal = Some(Modal::Error(error.to_string()));
+                return Ok(());
+            }
         }
-        let len = self.camisetas.len() as isize;
-        let current = self
-            .camisetas_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.camisetas.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.camisetas_table.select(Some(next));
+        if es_ficha(self.current_screen()) {
+            self.stack.pop();
+        }
+        recargar(self)
+    }
+
+    fn move_menu_selection(&mut self, delta: isize) {
+        let total = self.menu_modulos().len();
+        self.menu_state
+            .select(mover_seleccion(self.menu_state.selected(), total, delta));
     }
 
     /// En el menú o la portada pide confirmar la salida; en otra pantalla vuelve.
@@ -3162,28 +3165,23 @@ impl App {
     }
 
     fn delete_camiseta(&mut self, id: i64) -> Result<()> {
-        match camiseta_service::eliminar(self.db.conn(), id) {
-            Ok(ResultadoEliminacion::Eliminada) => {
-                self.status = "Camiseta eliminada".to_string();
-            }
-            Ok(ResultadoEliminacion::Desactivada(dependencias)) => {
-                self.status = format!(
+        let mensaje =
+            camiseta_service::eliminar(self.db.conn(), id).map(|resultado| match resultado {
+                ResultadoEliminacion::Eliminada => "Camiseta eliminada".to_string(),
+                ResultadoEliminacion::Desactivada(dependencias) => format!(
                     "Camiseta desactivada ({} partidos, {} lesiones)",
                     dependencias.partidos, dependencias.lesiones
-                );
-            }
-            Err(error) => {
-                self.modal = Some(Modal::Error(error.to_string()));
-                return Ok(());
-            }
-        }
-        if matches!(self.current_screen(), Screen::CamisetaDetail(_)) {
-            self.stack.pop();
-        }
-        self.camiseta_detail = None;
-        self.camiseta_ficha = None;
-        self.refresh_camisetas()?;
-        Ok(())
+                ),
+            });
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::CamisetaDetail(_)),
+            |app| {
+                app.camiseta_detail = None;
+                app.camiseta_ficha = None;
+                app.refresh_camisetas()
+            },
+        )
     }
 
     fn sortear_camiseta(&mut self) -> Result<()> {
@@ -3546,4 +3544,27 @@ pub fn procesar_eventos(
         }
     }
     Ok(cambio)
+}
+
+/// Índice siguiente en una lista de `total` filas: al pasar un extremo vuelve al otro.
+pub(crate) fn mover_seleccion(actual: Option<usize>, total: usize, delta: isize) -> Option<usize> {
+    if total == 0 {
+        return None;
+    }
+    let actual = actual.unwrap_or(0).min(total - 1) as isize;
+    Some((actual + delta).rem_euclid(total as isize) as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mover_seleccion;
+
+    #[test]
+    fn mover_seleccion_da_la_vuelta_y_lista_vacia_queda_sin_seleccion() {
+        assert_eq!(mover_seleccion(Some(2), 3, 1), Some(0));
+        assert_eq!(mover_seleccion(Some(0), 3, -1), Some(2));
+        assert_eq!(mover_seleccion(Some(0), 3, 1), Some(1));
+        assert_eq!(mover_seleccion(None, 0, 1), None);
+        assert_eq!(mover_seleccion(Some(4), 0, -1), None);
+    }
 }

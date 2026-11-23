@@ -121,7 +121,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 ],
             ));
             lineas.push(Line::from(Span::styled(
-                "Enter: detalle   e: editar   d: eliminar",
+                detail::AYUDA_VISTA_PREVIA,
                 Style::default().fg(colors.muted),
             )));
         }

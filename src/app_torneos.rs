@@ -76,15 +76,10 @@ impl App {
     pub(crate) fn handle_torneos_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.torneos.len();
-                if total > 0 {
-                    let indice = (self.torneos_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.torneos_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.torneos_table, self.torneos.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.torneos_table.selected().unwrap_or(0).saturating_sub(1);
-                self.torneos_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.torneos_table, self.torneos.len(), -1);
             }
             KeyCode::Enter => {
                 if let Some(id) = self
@@ -137,20 +132,18 @@ impl App {
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = ficha.partidos.len();
-                if total > 0 {
-                    let indice =
-                        (self.torneo_partidos_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.torneo_partidos_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(
+                    &mut self.torneo_partidos_table,
+                    ficha.partidos.len(),
+                    1,
+                );
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .torneo_partidos_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.torneo_partidos_table.select(Some(indice));
+                Self::mover_tabla_seleccion(
+                    &mut self.torneo_partidos_table,
+                    ficha.partidos.len(),
+                    -1,
+                );
             }
             KeyCode::Char('g') => {
                 self.modal = Some(Modal::confirm(

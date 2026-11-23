@@ -18,8 +18,12 @@ impl App {
     /// Teclas del listado.
     pub(crate) fn handle_lesiones_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_lesion_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_lesion_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.lesiones_table, self.lesiones.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.lesiones_table, self.lesiones.len(), -1)
+            }
             KeyCode::Enter => self.open_lesion_detail()?,
             KeyCode::Char('n') => self.open_lesion_form(FormMode::Create)?,
             KeyCode::Char('e') => {
@@ -97,20 +101,6 @@ impl App {
         self.lesiones.get(index).map(|row| row.id)
     }
 
-    fn move_lesion_selection(&mut self, delta: isize) {
-        if self.lesiones.is_empty() {
-            return;
-        }
-        let len = self.lesiones.len() as isize;
-        let current = self
-            .lesiones_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.lesiones.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.lesiones_table.select(Some(next));
-    }
-
     fn open_lesion_detail(&mut self) -> Result<()> {
         let Some(id) = self.selected_lesion_id() else {
             self.status = "No hay lesiones para mostrar".to_string();
@@ -175,18 +165,16 @@ impl App {
 
     /// Elimina una lesión.
     pub(crate) fn delete_lesion(&mut self, id: i64) -> Result<()> {
-        match lesion_service::eliminar(self.db.conn(), id) {
-            Ok(()) => {
-                self.status = "Lesión eliminada".to_string();
-                if matches!(self.current_screen(), Screen::LesionDetail(_)) {
-                    self.stack.pop();
-                }
-                self.lesion_detail = None;
-                self.refresh_lesiones()?;
-            }
-            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
-        }
-        Ok(())
+        let mensaje =
+            lesion_service::eliminar(self.db.conn(), id).map(|()| "Lesión eliminada".to_string());
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::LesionDetail(_)),
+            |app| {
+                app.lesion_detail = None;
+                app.refresh_lesiones()
+            },
+        )
     }
 
     /// Guarda el formulario de lesión.

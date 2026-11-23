@@ -22,8 +22,12 @@ impl App {
     /// Teclas del listado de partidos.
     pub(crate) fn handle_partidos_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_partido_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_partido_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.partidos_table, self.partidos.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.partidos_table, self.partidos.len(), -1)
+            }
             KeyCode::PageDown => self.cambiar_pagina(1)?,
             KeyCode::PageUp => self.cambiar_pagina(-1)?,
             KeyCode::Enter => self.open_partido_detail()?,
@@ -131,20 +135,6 @@ impl App {
         self.partidos.get(index).map(|row| row.id)
     }
 
-    fn move_partido_selection(&mut self, delta: isize) {
-        if self.partidos.is_empty() {
-            return;
-        }
-        let len = self.partidos.len() as isize;
-        let current = self
-            .partidos_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.partidos.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.partidos_table.select(Some(next));
-    }
-
     fn cambiar_pagina(&mut self, delta: i64) -> Result<()> {
         let page_size = self.partido_page_size.max(1);
         let max_page = ((self.partido_total + page_size - 1) / page_size).max(1);
@@ -212,18 +202,16 @@ impl App {
 
     /// Elimina un partido.
     pub(crate) fn delete_partido(&mut self, id: i64) -> Result<()> {
-        match partido_service::eliminar(self.db.conn_mut(), id) {
-            Ok(()) => {
-                self.status = "Partido eliminado".to_string();
-                if matches!(self.current_screen(), Screen::PartidoDetail(_)) {
-                    self.stack.pop();
-                }
-                self.partido_detail = None;
-                self.refresh_partidos()?;
-            }
-            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
-        }
-        Ok(())
+        let mensaje = partido_service::eliminar(self.db.conn_mut(), id)
+            .map(|()| "Partido eliminado".to_string());
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::PartidoDetail(_)),
+            |app| {
+                app.partido_detail = None;
+                app.refresh_partidos()
+            },
+        )
     }
 
     fn alternar_favorito(&mut self) {

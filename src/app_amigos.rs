@@ -42,15 +42,10 @@ impl App {
     pub(crate) fn handle_amigos_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.amigos_ranking.len();
-                if total > 0 {
-                    let indice = (self.amigos_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.amigos_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.amigos_table, self.amigos_ranking.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.amigos_table.selected().unwrap_or(0).saturating_sub(1);
-                self.amigos_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.amigos_table, self.amigos_ranking.len(), -1);
             }
             KeyCode::Char('n') => {
                 self.amigo_edit_id = None;

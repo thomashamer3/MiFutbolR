@@ -40,20 +40,18 @@ impl App {
     pub(crate) fn handle_recordatorios_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.recordatorios.len();
-                if total > 0 {
-                    let indice =
-                        (self.recordatorios_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.recordatorios_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(
+                    &mut self.recordatorios_table,
+                    self.recordatorios.len(),
+                    1,
+                );
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self
-                    .recordatorios_table
-                    .selected()
-                    .unwrap_or(0)
-                    .saturating_sub(1);
-                self.recordatorios_table.select(Some(indice));
+                Self::mover_tabla_seleccion(
+                    &mut self.recordatorios_table,
+                    self.recordatorios.len(),
+                    -1,
+                );
             }
             KeyCode::Char('n') => {
                 self.recordatorio_edit_id = None;
@@ -134,15 +132,10 @@ impl App {
     pub(crate) fn handle_agenda_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                let total = self.agenda.len();
-                if total > 0 {
-                    let indice = (self.agenda_table.selected().unwrap_or(0) + 1).min(total - 1);
-                    self.agenda_table.select(Some(indice));
-                }
+                Self::mover_tabla_seleccion(&mut self.agenda_table, self.agenda.len(), 1);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                let indice = self.agenda_table.selected().unwrap_or(0).saturating_sub(1);
-                self.agenda_table.select(Some(indice));
+                Self::mover_tabla_seleccion(&mut self.agenda_table, self.agenda.len(), -1);
             }
             _ => return Ok(false),
         }

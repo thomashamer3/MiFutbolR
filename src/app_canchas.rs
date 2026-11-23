@@ -19,8 +19,12 @@ impl App {
     /// Teclas del listado de canchas.
     pub(crate) fn handle_canchas_list_key(&mut self, key: KeyEvent) -> Result<bool> {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.move_cancha_selection(1),
-            KeyCode::Up | KeyCode::Char('k') => self.move_cancha_selection(-1),
+            KeyCode::Down | KeyCode::Char('j') => {
+                Self::mover_tabla_seleccion(&mut self.canchas_table, self.canchas.len(), 1)
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                Self::mover_tabla_seleccion(&mut self.canchas_table, self.canchas.len(), -1)
+            }
             KeyCode::Enter => self.open_cancha_detail()?,
             KeyCode::Char('n') => self.open_cancha_form(FormMode::Create)?,
             KeyCode::Char('e') => {
@@ -99,20 +103,6 @@ impl App {
         self.canchas.get(index).map(|row| row.id)
     }
 
-    fn move_cancha_selection(&mut self, delta: isize) {
-        if self.canchas.is_empty() {
-            return;
-        }
-        let len = self.canchas.len() as isize;
-        let current = self
-            .canchas_table
-            .selected()
-            .unwrap_or(0)
-            .min(self.canchas.len() - 1) as isize;
-        let next = (current + delta).rem_euclid(len) as usize;
-        self.canchas_table.select(Some(next));
-    }
-
     fn open_cancha_detail(&mut self) -> Result<()> {
         let Some(id) = self.selected_cancha_id() else {
             self.status = "No hay canchas para mostrar".to_string();
@@ -170,27 +160,22 @@ impl App {
 
     /// Elimina o desactiva una cancha según dependencias.
     pub(crate) fn delete_cancha(&mut self, id: i64) -> Result<()> {
-        match cancha_service::eliminar(self.db.conn(), id) {
-            Ok(ResultadoEliminacion::Eliminada) => {
-                self.status = "Cancha eliminada".to_string();
-            }
-            Ok(ResultadoEliminacion::Desactivada(dependencias)) => {
-                self.status = format!(
+        let mensaje =
+            cancha_service::eliminar(self.db.conn(), id).map(|resultado| match resultado {
+                ResultadoEliminacion::Eliminada => "Cancha eliminada".to_string(),
+                ResultadoEliminacion::Desactivada(dependencias) => format!(
                     "Cancha desactivada ({} partidos asociados)",
                     dependencias.partidos
-                );
-            }
-            Err(error) => {
-                self.modal = Some(Modal::Error(error.to_string()));
-                return Ok(());
-            }
-        }
-        if matches!(self.current_screen(), Screen::CanchaDetail(_)) {
-            self.stack.pop();
-        }
-        self.cancha_detail = None;
-        self.refresh_canchas()?;
-        Ok(())
+                ),
+            });
+        self.tras_eliminar(
+            mensaje,
+            |pantalla| matches!(pantalla, Screen::CanchaDetail(_)),
+            |app| {
+                app.cancha_detail = None;
+                app.refresh_canchas()
+            },
+        )
     }
 
     fn toggle_cancha_activa(&mut self) {
