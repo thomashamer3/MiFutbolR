@@ -50,6 +50,8 @@ Las capturas se generan desde la TUI real con
 - **Bienestar**: hábitos, entrenamientos, comidas, sesiones mentales y perfil de
   salud; el asistente (`a`) calcula preparación y riesgo de lesión y sugiere una
   rutina semanal (fórmulas de MiFutbolC).
+- **Camisetas**: borrar una camiseta con partidos o lesiones la desactiva (como C);
+  `a` en el listado o la ficha la reactiva o desactiva, y `f` filtra activas/inactivas.
 - **Colecciones**: inventario de camisetas, botines y accesorios agrupado en
   colecciones; `s` sincroniza las camisetas cargadas.
 - **Entrenador IA**: consejos por reglas a partir de los últimos 10 partidos,

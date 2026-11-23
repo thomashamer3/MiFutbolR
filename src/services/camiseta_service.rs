@@ -288,6 +288,10 @@ mod tests {
         let resultado = eliminar(db.conn(), id).unwrap();
         assert!(matches!(resultado, ResultadoEliminacion::Desactivada(_)));
         assert!(!camiseta_repo::get(db.conn(), id).unwrap().activa);
+
+        // Reactivar la camiseta desactivada (`reactivar_camiseta` de C).
+        set_activa(db.conn(), id, true).unwrap();
+        assert!(camiseta_repo::get(db.conn(), id).unwrap().activa);
     }
 
     #[test]

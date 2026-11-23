@@ -128,3 +128,29 @@ fn draw_awards_a_jersey_and_marks_it() {
         .unwrap();
     assert_eq!(sorteada, 1);
 }
+
+#[test]
+fn toggle_reactivates_jersey_from_list_and_detail() {
+    let (mut app, _dir) = test_app();
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
+    press(&mut app, KeyCode::Char('n'));
+    type_text(&mut app, "Vuelve");
+    press_ctrl(&mut app, 's');
+    let activa = |app: &App| -> i64 {
+        app.db
+            .conn()
+            .query_row("SELECT activa FROM camiseta LIMIT 1", [], |row| row.get(0))
+            .unwrap()
+    };
+
+    press(&mut app, KeyCode::Char('a'));
+    assert_eq!(activa(&app), 0);
+    let text = render_con(&mut app, 120, 32);
+    assert!(text.contains("INACTIVA"), "falta el indicador: {text}");
+
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.current_screen(), Screen::CamisetaDetail(_)));
+    press(&mut app, KeyCode::Char('a'));
+    assert_eq!(activa(&app), 1);
+    assert!(app.camiseta_detail.as_ref().unwrap().activa);
+}

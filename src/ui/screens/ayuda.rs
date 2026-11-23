@@ -47,6 +47,12 @@ const ATAJOS_MENU: &[(&str, &str)] = &[
     ("Y / P / L", "Recordatorios / progresión / logros"),
 ];
 
+/// Atajos propios de algunos módulos.
+const ATAJOS_MODULOS: &[(&str, &str)] = &[(
+    "a (Camisetas)",
+    "Activar / reactivar la camiseta (borrar con historial la desactiva)",
+)];
+
 /// Dibuja la pantalla de ayuda.
 pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
     let colors = palette(app.settings.theme);
@@ -70,6 +76,13 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
             .add_modifier(Modifier::BOLD),
     )));
     lines.extend(ATAJOS_MENU.iter().map(fila));
+    lines.push(Line::from(Span::styled(
+        "Módulos",
+        Style::default()
+            .fg(colors.accent)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.extend(ATAJOS_MODULOS.iter().map(fila));
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         "Esc: volver al menú",

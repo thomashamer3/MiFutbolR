@@ -1859,9 +1859,11 @@ impl App {
                 "↑↓/jk: mover  Enter/número: abrir  0/Esc/q: salir  Ctrl+F: buscar  !: avisos  ?: ayuda"
             }
             Screen::CamisetasList => {
-                "n: nueva  e: editar  d: borrar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  a: activar/reactivar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
             }
-            Screen::CamisetaDetail(_) => "e: editar  d: borrar  v: imagen  Esc: volver",
+            Screen::CamisetaDetail(_) => {
+                "e: editar  d: borrar  a: activar/reactivar  v: imagen  Esc: volver"
+            }
             Screen::CamisetaForm(_)
             | Screen::CanchaForm(_)
             | Screen::BotinForm(_)
@@ -2476,6 +2478,7 @@ impl App {
                 }
             }
             KeyCode::Char('d') => self.confirm_delete_camiseta(),
+            KeyCode::Char('a') => self.toggle_camiseta_activa()?,
             KeyCode::Char('s') => self.sortear_camiseta()?,
             KeyCode::Char('f') => {
                 self.camiseta_filter.estado = self.camiseta_filter.estado.next();
@@ -2509,6 +2512,7 @@ impl App {
                 }
             }
             KeyCode::Char('d') => self.confirm_delete_camiseta(),
+            KeyCode::Char('a') => self.toggle_camiseta_activa()?,
             KeyCode::Char('v') => {
                 if let Some(camiseta) = &self.camiseta_detail {
                     let ruta = camiseta.imagen_ruta.clone();
@@ -2961,6 +2965,40 @@ impl App {
     pub fn selected_camiseta_id(&self) -> Option<i64> {
         let index = self.camisetas_table.selected()?;
         self.camisetas.get(index).map(|row| row.id)
+    }
+
+    /// Reactiva o desactiva la camiseta (listado o detalle), como
+    /// `reactivar_camiseta` de MiFutbolC: borrar una con historial la desactiva.
+    fn toggle_camiseta_activa(&mut self) -> Result<()> {
+        let actual = if matches!(self.current_screen(), Screen::CamisetaDetail(_)) {
+            self.camiseta_detail
+                .as_ref()
+                .map(|camiseta| (camiseta.id, camiseta.activa))
+        } else {
+            self.camisetas_table
+                .selected()
+                .and_then(|indice| self.camisetas.get(indice))
+                .map(|row| (row.id, row.activa))
+        };
+        let Some((id, activa)) = actual else {
+            return Ok(());
+        };
+        match camiseta_service::set_activa(self.db.conn(), id, !activa) {
+            Ok(()) => {
+                if let Some(camiseta) = self.camiseta_detail.as_mut().filter(|c| c.id == id) {
+                    camiseta.activa = !activa;
+                }
+                self.refresh_camisetas()?;
+                self.status = if activa {
+                    "Camiseta desactivada"
+                } else {
+                    "Camiseta reactivada"
+                }
+                .to_string();
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+        Ok(())
     }
 
     fn open_camiseta_detail(&mut self) -> Result<()> {
