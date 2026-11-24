@@ -19,6 +19,7 @@ impl Eleccion {
             Self::SimularEquipos => "Partidos · simular con equipos guardados",
             Self::FiltrosPartidos => "Estadísticas · filtros avanzados",
             Self::GenerarReporte => "Estadísticas · reportes automáticos",
+            Self::NuevaNotificacion => "Notificaciones · nueva",
         }
     }
 }
@@ -83,6 +84,7 @@ impl App {
             Eleccion::SimularEquipos => self.simular_equipos(&form),
             Eleccion::FiltrosPartidos => self.filtrar_partidos(&form),
             Eleccion::GenerarReporte => self.generar_reporte(&form),
+            Eleccion::NuevaNotificacion => self.crear_notificacion(&form),
         };
         match resultado {
             Ok(Some(reporte)) => {
@@ -216,6 +218,34 @@ impl App {
         reportes_service::generados(self.db.conn(), &dir)
             .map(Some)
             .map_err(|e| e.to_string())
+    }
+
+    /// Notificaciones → `n` (`crear_notificacion` de C).
+    pub(crate) fn abrir_nueva_notificacion(&mut self) {
+        let tipos = crate::services::notificacion_service::TIPOS_MANUALES
+            .iter()
+            .map(|t| ((*t).to_string(), (*t).to_string()))
+            .collect();
+        let campos = vec![
+            Field::select("tipo", "Tipo", "general", tipos),
+            Field::text("titulo", "Título", "", 80).required(),
+            Field::text("mensaje", "Mensaje", "", 240).required(),
+        ];
+        self.abrir_eleccion(Eleccion::NuevaNotificacion, campos);
+    }
+
+    fn crear_notificacion(&mut self, form: &Form) -> Result<Option<Reporte>, String> {
+        let valor = |clave: &str| form.value(clave).unwrap_or("").trim().to_string();
+        crate::services::notificacion_service::crear(
+            self.db.conn(),
+            &valor("tipo"),
+            &valor("titulo"),
+            &valor("mensaje"),
+        )
+        .map_err(|e| e.to_string())?;
+        self.refrescar_notificaciones();
+        self.status = "Notificación creada".to_string();
+        Ok(None)
     }
 
     fn simular_equipos(&self, form: &Form) -> Result<Option<Reporte>, String> {

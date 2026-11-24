@@ -172,6 +172,7 @@ mod tests {
                     numero: i as i64 + 1,
                     posicion: Posicion::Arquero,
                     es_capitan: false,
+                    fecha_nacimiento: String::new(),
                 })
                 .collect(),
         }

@@ -275,6 +275,7 @@ impl App {
                     self.refrescar_notificaciones();
                 }
             }
+            KeyCode::Char('n') => self.abrir_nueva_notificacion(),
             KeyCode::Char('M') => {
                 if let Err(error) = notificacion_service::marcar(self.db.conn(), None) {
                     self.modal = Some(Modal::Error(error.to_string()));

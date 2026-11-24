@@ -70,6 +70,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/016_sync.sql"),
     include_str!("../../migrations/017_ajustes.sql"),
     include_str!("../../migrations/018_reportes.sql"),
+    include_str!("../../migrations/019_notificaciones.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

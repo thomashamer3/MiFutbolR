@@ -161,3 +161,43 @@ fn amigos_comparar_conmigo() {
     assert!(texto.contains("Comparar conmigo"), "{texto}");
     assert!(texto.contains("Arquera"), "{texto}");
 }
+
+#[test]
+fn notificaciones_crear_a_mano_y_cumpleanos_del_jugador() {
+    let (mut app, _dir) = test_app();
+    dos_equipos(&app);
+    let hoy = chrono::Local::now().date_naive();
+    app.db
+        .conn()
+        .execute(
+            "UPDATE jugador SET fecha_nacimiento = ?1 WHERE nombre = 'Ana'",
+            [hoy.format("2000-%m-%d").to_string()],
+        )
+        .unwrap();
+    press(&mut app, KeyCode::Char('!'));
+    assert_eq!(app.current_screen(), Screen::Notificaciones);
+    assert!(
+        app.notificaciones
+            .iter()
+            .any(|n| n.mensaje == "Ana cumple años ¡hoy!")
+    );
+
+    press(&mut app, KeyCode::Char('n'));
+    assert_eq!(
+        app.current_screen(),
+        Screen::Eleccion(Eleccion::NuevaNotificacion)
+    );
+    press(&mut app, KeyCode::Tab);
+    type_text(&mut app, "Pagar cancha");
+    press(&mut app, KeyCode::Tab);
+    type_text(&mut app, "Antes del viernes");
+    press_ctrl(&mut app, 's');
+    assert_eq!(app.current_screen(), Screen::Notificaciones);
+    assert!(
+        app.notificaciones
+            .iter()
+            .any(|n| n.titulo == "Pagar cancha")
+    );
+    let texto = render_con(&mut app, 120, 30);
+    assert!(texto.contains("Pagar cancha"), "{texto}");
+}

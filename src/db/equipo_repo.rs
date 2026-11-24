@@ -66,7 +66,7 @@ pub fn get(conn: &Connection, id: i64) -> Result<Equipo, DbError> {
 /// Jugadores de un equipo ordenados por dorsal.
 pub fn list_jugadores(conn: &Connection, equipo_id: i64) -> Result<Vec<Jugador>, DbError> {
     let mut stmt = conn.prepare(
-        "SELECT id, equipo_id, nombre, numero, posicion, es_capitan
+        "SELECT id, equipo_id, nombre, numero, posicion, es_capitan, fecha_nacimiento
            FROM jugador WHERE equipo_id = ?1 ORDER BY numero",
     )?;
     let rows = stmt
@@ -78,6 +78,7 @@ pub fn list_jugadores(conn: &Connection, equipo_id: i64) -> Result<Vec<Jugador>,
                 numero: row.get(3)?,
                 posicion: Posicion::try_from(row.get::<_, i64>(4)?).unwrap_or(Posicion::Arquero),
                 es_capitan: row.get::<_, i64>(5)? != 0,
+                fecha_nacimiento: row.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -189,14 +190,15 @@ pub fn dependencias(conn: &Connection, id: i64) -> Result<EquipoDependencias, Db
 /// Inserta un jugador.
 pub fn insert_jugador(conn: &Connection, jugador: &Jugador) -> Result<i64, DbError> {
     conn.execute(
-        "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan, fecha_nacimiento)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             jugador.equipo_id,
             jugador.nombre,
             jugador.numero,
             jugador.posicion.as_i64(),
             i64::from(jugador.es_capitan),
+            jugador.fecha_nacimiento,
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -206,7 +208,7 @@ pub fn insert_jugador(conn: &Connection, jugador: &Jugador) -> Result<i64, DbErr
 pub fn update_jugador(conn: &Connection, jugador: &Jugador) -> Result<(), DbError> {
     let updated = conn.execute(
         "UPDATE jugador
-            SET nombre = ?1, numero = ?2, posicion = ?3, es_capitan = ?4
+            SET nombre = ?1, numero = ?2, posicion = ?3, es_capitan = ?4, fecha_nacimiento = ?6
           WHERE id = ?5",
         params![
             jugador.nombre,
@@ -214,6 +216,7 @@ pub fn update_jugador(conn: &Connection, jugador: &Jugador) -> Result<(), DbErro
             jugador.posicion.as_i64(),
             i64::from(jugador.es_capitan),
             jugador.id,
+            jugador.fecha_nacimiento,
         ],
     )?;
     if updated == 0 {
@@ -272,14 +275,15 @@ fn insert_jugadores(
 ) -> rusqlite::Result<()> {
     for jugador in jugadores {
         tx.execute(
-            "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan, fecha_nacimiento)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 equipo_id,
                 jugador.nombre,
                 jugador.numero,
                 jugador.posicion.as_i64(),
                 i64::from(jugador.es_capitan),
+                jugador.fecha_nacimiento,
             ],
         )?;
     }

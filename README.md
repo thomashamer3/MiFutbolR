@@ -182,6 +182,11 @@ Las capturas se generan desde la TUI real con
 - **Temporadas**: fases, torneos asociados, resumen del rango, fatiga y comparación.
 - **Comparador A/B**: camisetas y canchas lado a lado con 9 métricas y ganador por métrica.
 - **Estadísticas de canchas**: 10 reportes (más/menos usadas, rendimiento, goles/asistencias, tipo, superficie, techada, localidad y franja).
+- **Notificaciones** (`notificaciones.c`): además de lesiones, partido próximo,
+  presupuesto, racha y logros, avisan de *cumpleaños* de jugadores (campo
+  "Fecha de nacimiento" del jugador; desde 7 días antes) y de *torneos por
+  vencer* (sin finalizar, con su temporada terminando en los próximos 30 días),
+  una vez por día. `n` en la bandeja crea una notificación a mano.
 - **Ola 0**: panel "Hoy", calendario mensual, búsqueda global (Ctrl+F), paleta (Ctrl+K),
   logros (65), récords/rankings (16 reportes), notificaciones, undo (Ctrl+Z), tutorial y
   exportación de listados a CSV/JSON/HTML/Markdown.

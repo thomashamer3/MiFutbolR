@@ -110,6 +110,36 @@ pub fn lesiones_recientes(conn: &Connection) -> Result<Vec<(i64, String, String)
     Ok(filas.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// Jugadores con fecha de nacimiento: `(id, nombre, AAAA-MM-DD)`.
+pub fn cumpleanos(conn: &Connection) -> Result<Vec<(i64, String, String)>, DbError> {
+    let mut stmt = conn
+        .prepare("SELECT id, nombre, fecha_nacimiento FROM jugador WHERE fecha_nacimiento <> ''")?;
+    let filas = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    Ok(filas.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// Torneos sin finalizar cuya temporada termina en los próximos 30 días:
+/// `(torneo_id, torneo, temporada, fecha_fin)`. El torneo no tiene fecha de
+/// fin propia (en C tampoco: `torneos_por_vencer` consultaba una columna inexistente).
+pub fn torneos_por_vencer(
+    conn: &Connection,
+) -> Result<Vec<(i64, String, String, String)>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.nombre, s.nombre, s.fecha_fin
+           FROM torneo t
+           JOIN torneo_temporada tt ON tt.torneo_id = t.id
+           JOIN temporada s ON s.id = tt.temporada_id
+          WHERE t.fase_actual <> 'Finalizado'
+            AND date(s.fecha_fin) BETWEEN date('now', 'localtime')
+                                      AND date('now', 'localtime', '+30 days')
+          ORDER BY s.fecha_fin, t.id",
+    )?;
+    let filas = stmt.query_map([], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+    })?;
+    Ok(filas.collect::<Result<Vec<_>, _>>()?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

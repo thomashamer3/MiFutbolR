@@ -549,6 +549,8 @@ pub enum Eleccion {
     FiltrosPartidos,
     /// Estadísticas → generar un reporte automático.
     GenerarReporte,
+    /// Notificaciones → crear una a mano.
+    NuevaNotificacion,
 }
 
 /// Acción confirmable en un modal.
@@ -2115,7 +2117,9 @@ impl App {
                 "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
             }
             Screen::Logros => "h/l: pestaña  j/k: mover  r: refrescar  Esc: volver",
-            Screen::Notificaciones => "j/k: mover  m: leída  M: todas  Enter: abrir  Esc: volver",
+            Screen::Notificaciones => {
+                "j/k: mover  n: nueva  m: leída  M: todas  Enter: abrir  Esc: volver"
+            }
             Screen::Tutorial => "←/→: paso  Enter: siguiente  Esc: salir",
             Screen::Records => "j/k: mover  Enter: abrir partido  r: recalcular  Esc: volver",
             Screen::TorneosList => {

@@ -133,6 +133,7 @@ pub fn agregar_jugador(conn: &mut Connection, jugador: &mut Jugador) -> Result<i
     let numero = jugador.numero;
     let posicion = jugador.posicion.as_i64();
     let es_capitan = jugador.es_capitan;
+    let nacimiento = jugador.fecha_nacimiento.clone();
 
     let resultado = (|| -> Result<i64, DbError> {
         let tx = conn.transaction()?;
@@ -143,9 +144,16 @@ pub fn agregar_jugador(conn: &mut Connection, jugador: &mut Jugador) -> Result<i
             )?;
         }
         tx.execute(
-            "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![equipo_id, nombre, numero, posicion, i64::from(es_capitan)],
+            "INSERT INTO jugador (equipo_id, nombre, numero, posicion, es_capitan, fecha_nacimiento)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                equipo_id,
+                nombre,
+                numero,
+                posicion,
+                i64::from(es_capitan),
+                nacimiento
+            ],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;
@@ -172,6 +180,7 @@ pub fn actualizar_jugador(conn: &mut Connection, jugador: &Jugador) -> Result<()
     let numero = jugador.numero;
     let posicion = jugador.posicion.as_i64();
     let es_capitan = jugador.es_capitan;
+    let nacimiento = jugador.fecha_nacimiento.clone();
 
     let resultado = (|| -> Result<(), DbError> {
         let tx = conn.transaction()?;
@@ -182,8 +191,16 @@ pub fn actualizar_jugador(conn: &mut Connection, jugador: &Jugador) -> Result<()
             )?;
         }
         tx.execute(
-            "UPDATE jugador SET nombre = ?1, numero = ?2, posicion = ?3, es_capitan = ?4 WHERE id = ?5",
-            rusqlite::params![nombre, numero, posicion, i64::from(es_capitan), jugador_id],
+            "UPDATE jugador SET nombre = ?1, numero = ?2, posicion = ?3, es_capitan = ?4,
+                    fecha_nacimiento = ?6 WHERE id = ?5",
+            rusqlite::params![
+                nombre,
+                numero,
+                posicion,
+                i64::from(es_capitan),
+                jugador_id,
+                nacimiento
+            ],
         )?;
         tx.commit()?;
         Ok(())
@@ -250,6 +267,7 @@ mod tests {
             numero,
             posicion: Posicion::Defensor,
             es_capitan: false,
+            fecha_nacimiento: String::new(),
         }
     }
 

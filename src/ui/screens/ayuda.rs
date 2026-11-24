@@ -110,6 +110,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Comparar conmigo: mis totales contra los del amigo elegido",
     ),
     (
+        "n (Notificaciones)",
+        "Crear una notificación a mano (tipo, título y mensaje)",
+    ),
+    (
         "x (cualquier reporte)",
         "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
     ),

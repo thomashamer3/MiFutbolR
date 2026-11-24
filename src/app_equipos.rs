@@ -6,6 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use crate::app::{
     App, ConfirmAction, Field, FieldKind, Form, Modal, Screen, SearchState, SearchTarget,
 };
+use crate::domain::dates;
 use crate::domain::models::{Equipo, FormMode, Jugador, Posicion, TipoEquipo, TipoFutbol};
 use crate::domain::validation::DomainError;
 use crate::services::equipo_service::{self, ResultadoEliminacion};
@@ -417,6 +418,9 @@ impl App {
             numero,
             posicion: Posicion::try_from(posicion_code)?,
             es_capitan: get("es_capitan") == "Sí",
+            fecha_nacimiento: dates::parse_date(&get("fecha_nacimiento"))
+                .map(|d| d.format("%Y-%m-%d").to_string())
+                .unwrap_or_default(),
         })
     }
 }
@@ -471,6 +475,10 @@ fn jugador_form(_equipo: Option<&Equipo>, _equipo_id: i64, jugador: Option<&Juga
         .map_or(0, |jugador| jugador.posicion.as_i64())
         .to_string();
     let capitan = jugador.is_some_and(|jugador| jugador.es_capitan);
+    let nacimiento = jugador
+        .and_then(|jugador| dates::parse_date(&jugador.fecha_nacimiento))
+        .map(dates::display_date)
+        .unwrap_or_default();
 
     let posicion_options = Posicion::ALL
         .iter()
@@ -495,6 +503,7 @@ fn jugador_form(_equipo: Option<&Equipo>, _equipo_id: i64, jugador: Option<&Juga
             },
             Field::select("posicion", "Posición", posicion, posicion_options),
             Field::boolean("es_capitan", "¿Capitán?", capitan),
+            Field::date("fecha_nacimiento", "Fecha de nacimiento", nacimiento),
         ],
     )
 }

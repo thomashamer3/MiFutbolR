@@ -600,6 +600,8 @@ pub struct Jugador {
     pub posicion: Posicion,
     /// ¿Capitán?
     pub es_capitan: bool,
+    /// Fecha de nacimiento ISO `AAAA-MM-DD` (vacía si no se cargó).
+    pub fecha_nacimiento: String,
 }
 
 /// Equipo.
