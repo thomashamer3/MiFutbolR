@@ -11,11 +11,13 @@ use ratatui::widgets::{List, ListItem, Paragraph, Wrap};
 use tui_big_text::{BigText, PixelSize};
 
 use crate::app::App;
+use crate::i18n::t;
 use crate::ui::theme::palette;
 
 /// Dibuja el menú y la ficha del módulo seleccionado.
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let colors = palette(app.settings.theme);
+    let idioma = app.settings.language;
     let ancho = area.width >= 100;
     let alto_titulo = if area.height < 34 {
         5
@@ -69,13 +71,17 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     // "0 Salir" va al final como en MiFutbolC; la selección no llega a él.
     let items: Vec<ListItem> = modulos
         .iter()
-        .map(|module| fila(module.numero(), module.label()))
-        .chain(std::iter::once(fila(0, "Salir")))
+        .map(|module| fila(module.numero(), module.etiqueta(idioma)))
+        .chain(std::iter::once(fila(0, t(idioma, "menu_exit", "Salir"))))
         .collect();
 
     let titulo_lista = match &app.menu_numero {
         Some((numero, _)) => format!(" Menú · opción {numero}… "),
-        None => format!(" Menú · {} · escribí el número ", app.settings.mode.label()),
+        None => format!(
+            " {} · {} · escribí el número ",
+            t(idioma, "menu_title", "Menú"),
+            app.settings.mode.label()
+        ),
     };
     let list = List::new(items)
         .block(colors.panel(titulo_lista))
@@ -112,7 +118,10 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let selected = app.selected_module();
 
     let mut lineas = vec![
-        Line::from(Span::styled(selected.label(), colors.title_style())),
+        Line::from(Span::styled(
+            selected.etiqueta(idioma),
+            colors.title_style(),
+        )),
         Line::from(""),
         Line::from(Span::styled(
             selected.description(),

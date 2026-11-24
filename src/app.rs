@@ -214,6 +214,12 @@ impl Module {
         }
     }
 
+    /// Etiqueta en el idioma de Ajustes (clave `menu_<key>` de `langs/*.json` de C).
+    #[must_use]
+    pub fn etiqueta(self, idioma: crate::domain::models::Language) -> &'static str {
+        crate::i18n::t(idioma, &format!("menu_{}", self.key()), self.label())
+    }
+
     /// Etiqueta corta para la barra de módulos.
     #[must_use]
     pub const fn short_label(self) -> &'static str {
@@ -424,6 +430,8 @@ pub enum Screen {
     BackupsList,
     /// Exportar / importar (Ajustes → Ctrl+D).
     ExportarImportar,
+    /// Editor de menús personalizados (Ajustes → Ctrl+N; `menu_custom_menus` de C).
+    MenusPersonalizados,
     /// Visor de imagen a pantalla completa.
     ImagenViewer,
     /// Formulario de importación legacy.
@@ -595,6 +603,10 @@ pub enum ConfirmAction {
     DeletePlan(i64),
     /// Eliminar la cuenta indicada.
     DeleteUsuario(i64),
+    /// Abrir Carrera → Modo retro (aviso de inicio de C).
+    AbrirModoRetro,
+    /// Restablecer los ajustes a sus valores por defecto.
+    RestablecerAjustes,
     /// Salir de la aplicación.
     Quit,
 }
@@ -1609,6 +1621,18 @@ pub struct App {
     pub sync_mensaje: String,
     /// Ya se hizo la sincronización de inicio (móvil + auto-sync).
     pub sincronizacion_inicio_hecha: bool,
+    /// Tareas de arranque de C (backup de inicio, aviso de Modo Retro y de
+    /// actualización). Solo el binario las activa: los tests no escriben
+    /// backups ni consultan la red salvo que lo pidan.
+    pub tareas_inicio: bool,
+    /// Las tareas de arranque ya corrieron sobre esta base.
+    pub tareas_inicio_hechas: bool,
+    /// URL de la última release; `None` = no consultar nunca (tests).
+    pub url_actualizaciones: Option<String>,
+    /// Comprobación de actualizaciones en segundo plano.
+    pub actualizacion: crate::services::actualizacion_service::ActualizacionWorker,
+    /// Editor de menús personalizados.
+    pub menus_hub: ListState,
 }
 
 impl App {
@@ -1825,6 +1849,11 @@ impl App {
             sync_estado: crate::services::sync_service::Estado::default(),
             sync_mensaje: String::new(),
             sincronizacion_inicio_hecha: false,
+            tareas_inicio: false,
+            tareas_inicio_hechas: false,
+            url_actualizaciones: None,
+            actualizacion: Default::default(),
+            menus_hub: ListState::default().with_selected(Some(0)),
         };
         let _ = app.refresh_usuarios();
         Ok(app)
@@ -1882,6 +1911,7 @@ impl App {
             Screen::AjustesForm => "Ajustes".to_string(),
             Screen::BackupsList => "Ajustes · backups".to_string(),
             Screen::ExportarImportar => "Ajustes · exportar / importar".to_string(),
+            Screen::MenusPersonalizados => "Ajustes · menús personalizados".to_string(),
             Screen::ImagenViewer => "Imagen".to_string(),
             Screen::LegacyImportForm => "Ajustes · importar legacy".to_string(),
             Screen::Calendario => format!(
@@ -2032,7 +2062,7 @@ impl App {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+D: exportar / importar  Esc: volver"
+                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+D: exportar / importar  Ctrl+N: menús  Ctrl+U: actualizaciones  Ctrl+F: ver configuración  Ctrl+Q: restablecer  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -2041,6 +2071,9 @@ impl App {
                 "Enter: restaurar  d: borrar  b: crear backup  r: refrescar  Esc: volver"
             }
             Screen::ExportarImportar => "↑↓: opción  Enter o número: ejecutar  Esc: volver",
+            Screen::MenusPersonalizados => {
+                "↑↓: menú  Enter/Espacio: mostrar u ocultar  Esc: volver"
+            }
             Screen::Calendario => {
                 "h/l: día  j/k: semana  n/p: mes  t: hoy  Enter: abrir  Esc: volver"
             }
@@ -2341,6 +2374,26 @@ impl App {
                     self.alternar_mobile_auto_ajustes();
                     return Ok(());
                 }
+                KeyCode::Char('n') => {
+                    self.push_screen(Screen::MenusPersonalizados);
+                    return Ok(());
+                }
+                KeyCode::Char('u') => {
+                    self.buscar_actualizaciones(true);
+                    return Ok(());
+                }
+                KeyCode::Char('f') => {
+                    self.modal = Some(Modal::Info(self.configuracion_actual()));
+                    return Ok(());
+                }
+                KeyCode::Char('q') => {
+                    self.modal = Some(Modal::confirm(
+                        "Restablecer ajustes",
+                        "¿Restablecer toda la configuración a los valores por defecto? (S = sí, N = no)",
+                        ConfirmAction::RestablecerAjustes,
+                    ));
+                    return Ok(());
+                }
                 _ => {}
             }
         }
@@ -2380,6 +2433,7 @@ impl App {
             }
             Screen::BackupsList => self.handle_backups_key(key)?,
             Screen::ExportarImportar => self.handle_exportar_importar_key(key)?,
+            Screen::MenusPersonalizados => self.handle_menus_personalizados_key(key)?,
             Screen::CanchasList => self.handle_canchas_list_key(key)?,
             Screen::CanchaDetail(_) => self.handle_cancha_detail_key(key)?,
             Screen::BotinesList => self.handle_botines_list_key(key)?,
@@ -2965,6 +3019,14 @@ impl App {
                     Ok(())
                 });
             }
+            ConfirmAction::AbrirModoRetro => {
+                if let Err(error) = self.open_module(Module::Carrera) {
+                    self.modal = Some(Modal::Error(error.to_string()));
+                } else {
+                    self.push_screen(Screen::CarreraRetro);
+                }
+            }
+            ConfirmAction::RestablecerAjustes => self.restablecer_ajustes(),
             ConfirmAction::Quit => self.should_quit = true,
             ConfirmAction::DiscardForm => self.discard_form(),
         }
@@ -3565,6 +3627,7 @@ pub fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     loop {
         redibujar |= app.tick_clima();
         redibujar |= app.tick_sync();
+        redibujar |= app.tick_actualizacion();
         redibujar |= app.vencer_numero_menu(std::time::Instant::now());
         if redibujar || app.animations.running() {
             terminal.draw(|frame| crate::ui::draw(frame, app))?;

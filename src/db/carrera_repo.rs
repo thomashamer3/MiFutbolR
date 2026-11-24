@@ -445,13 +445,14 @@ pub fn perfil(conn: &Connection) -> Result<CarreraPerfil, DbError> {
     })
 }
 
-/// Partidos de la misma fecha (día-mes) en años anteriores.
+/// Partidos de la misma fecha (día-mes) en años anteriores, en hora local
+/// como C (con `date('now')` en UTC fallaba de noche).
 pub fn retro(conn: &Connection) -> Result<Vec<HallPartido>, DbError> {
     let mut stmt = conn.prepare(
         "SELECT id, fecha_hora, rival_nombre, goles, asistencias, rendimiento_general
            FROM partido
-          WHERE substr(fecha_hora, 6, 5) = substr(date('now'), 6, 5)
-            AND substr(fecha_hora, 1, 4) < substr(date('now'), 1, 4)
+          WHERE substr(fecha_hora, 6, 5) = substr(date('now', 'localtime'), 6, 5)
+            AND substr(fecha_hora, 1, 4) < substr(date('now', 'localtime'), 1, 4)
           ORDER BY fecha_hora DESC",
     )?;
     let rows = stmt

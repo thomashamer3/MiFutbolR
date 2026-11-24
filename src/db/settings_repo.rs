@@ -9,7 +9,8 @@ use crate::domain::models::{AppSettings, Language, Mode, TextSize, Theme};
 pub fn load(conn: &Connection) -> Result<AppSettings, DbError> {
     let row = conn
         .query_row(
-            "SELECT theme, language, mode, text_size, image_viewer, botin_predeterminado
+            "SELECT theme, language, mode, text_size, image_viewer, botin_predeterminado,
+                    buscar_actualizaciones
              FROM settings WHERE id = 1",
             [],
             |row| {
@@ -20,12 +21,13 @@ pub fn load(conn: &Connection) -> Result<AppSettings, DbError> {
                     row.get::<_, i64>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
                 ))
             },
         )
         .optional()?;
 
-    let Some((theme, language, mode, text_size, image_viewer, botin)) = row else {
+    let Some((theme, language, mode, text_size, image_viewer, botin, actualizaciones)) = row else {
         return Ok(AppSettings::default());
     };
 
@@ -36,6 +38,7 @@ pub fn load(conn: &Connection) -> Result<AppSettings, DbError> {
         text_size: TextSize::try_from(text_size).unwrap_or(TextSize::Medium),
         image_viewer,
         botin_predeterminado: botin,
+        buscar_actualizaciones: actualizaciones != 0,
     })
 }
 
@@ -67,6 +70,7 @@ pub fn save(conn: &Connection, settings: &AppSettings) -> Result<(), DbError> {
         "UPDATE settings
             SET theme = ?1, language = ?2, mode = ?3, text_size = ?4,
                 image_viewer = ?5, botin_predeterminado = ?6,
+                buscar_actualizaciones = ?7,
                 updated_at = datetime('now','localtime')
           WHERE id = 1",
         params![
@@ -76,13 +80,15 @@ pub fn save(conn: &Connection, settings: &AppSettings) -> Result<(), DbError> {
             settings.text_size.as_i64(),
             settings.image_viewer,
             settings.botin_predeterminado,
+            i64::from(settings.buscar_actualizaciones),
         ],
     )?;
     if updated == 0 {
         conn.execute(
             "INSERT INTO settings
-                (id, theme, language, mode, text_size, image_viewer, botin_predeterminado, updated_at)
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, datetime('now','localtime'))",
+                (id, theme, language, mode, text_size, image_viewer, botin_predeterminado,
+                 buscar_actualizaciones, updated_at)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now','localtime'))",
             params![
                 settings.theme.as_i64(),
                 settings.language.as_i64(),
@@ -90,14 +96,24 @@ pub fn save(conn: &Connection, settings: &AppSettings) -> Result<(), DbError> {
                 settings.text_size.as_i64(),
                 settings.image_viewer,
                 settings.botin_predeterminado,
+                i64::from(settings.buscar_actualizaciones),
             ],
         )?;
     }
     Ok(())
 }
 
+/// Muestra u oculta un menú en el modo Personalizado (`set_custom_menu_enabled` de C).
+pub fn set_menu_visible(conn: &Connection, clave: &str, visible: bool) -> Result<(), DbError> {
+    conn.execute(
+        "INSERT OR REPLACE INTO custom_menus (menu_name, enabled) VALUES (?1, ?2)",
+        params![clave, i64::from(visible)],
+    )?;
+    Ok(())
+}
+
 /// Claves de `custom_menus` desactivadas. Una clave sin fila cuenta como
-/// activa: MiFutbolR no tiene editor de menús y sus seeds no traen todas.
+/// activa (C la ocultaría): los seeds no traen todas las claves.
 #[must_use]
 pub fn menus_ocultos(conn: &Connection) -> Vec<String> {
     conn.prepare("SELECT menu_name FROM custom_menus WHERE enabled = 0")

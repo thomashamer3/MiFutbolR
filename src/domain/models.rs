@@ -836,6 +836,8 @@ pub struct AppSettings {
     pub image_viewer: String,
     /// Botín predeterminado.
     pub botin_predeterminado: i64,
+    /// Comprobar actualizaciones al iniciar (una vez por día).
+    pub buscar_actualizaciones: bool,
 }
 
 impl Default for AppSettings {
@@ -847,6 +849,7 @@ impl Default for AppSettings {
             text_size: TextSize::Medium,
             image_viewer: String::new(),
             botin_predeterminado: 0,
+            buscar_actualizaciones: true,
         }
     }
 }

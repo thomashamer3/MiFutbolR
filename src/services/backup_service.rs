@@ -65,6 +65,48 @@ pub fn listar(dir: &Path) -> Vec<BackupInfo> {
     backups
 }
 
+/// Días distintos que conserva el backup de inicio (`BACKUP_HISTORIAL_MAX` de `db.c`).
+pub const DIAS_BACKUP_INICIO: usize = 7;
+
+/// Backup al iniciar (`backup_al_iniciar` de `db.c`): si la base tiene datos,
+/// la copia a `dir/backup_<AAAAMMDD_HHMMSS>_<etiqueta>.db`. Como C, la copia de
+/// hoy reemplaza a la anterior del mismo día y quedan los últimos 7 días en que
+/// se abrió la app. Base sin datos: no hace nada, así no pisa un backup bueno.
+pub fn backup_inicio(
+    db: &crate::db::Database,
+    dir: &Path,
+    etiqueta: &str,
+    ahora: chrono::NaiveDateTime,
+) -> Result<Option<PathBuf>, String> {
+    if !crate::db::tiene_datos_usuario(db.conn()) {
+        return Ok(None);
+    }
+    std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    let sufijo = format!("_{etiqueta}.db");
+    let destino = dir.join(format!("backup_{}{sufijo}", ahora.format("%Y%m%d_%H%M%S")));
+    if !destino.exists() {
+        db.backup(&destino).map_err(|error| error.to_string())?;
+    }
+    // Se borra recién después de copiar: si la copia falla, quedan las anteriores.
+    let mut nombres: Vec<String> = std::fs::read_dir(dir)
+        .map_err(|error| error.to_string())?
+        .filter_map(std::result::Result::ok)
+        .map(|entrada| entrada.file_name().to_string_lossy().into_owned())
+        .filter(|nombre| nombre.starts_with("backup_") && nombre.ends_with(&sufijo))
+        .collect();
+    nombres.sort_by(|a, b| b.cmp(a));
+    let mut dias: Vec<&str> = Vec::new();
+    for nombre in &nombres {
+        let dia = nombre.get(7..15).unwrap_or("");
+        if dias.contains(&dia) || dias.len() >= DIAS_BACKUP_INICIO {
+            let _ = std::fs::remove_file(dir.join(nombre));
+        } else {
+            dias.push(dia);
+        }
+    }
+    Ok(Some(destino))
+}
+
 /// Borra un backup; rechaza rutas que no sean `backup_*.db`.
 pub fn eliminar(ruta: &Path) -> std::io::Result<()> {
     if !es_backup(ruta) {
@@ -121,5 +163,48 @@ mod tests {
         assert_eq!(listar(dir.path()).len(), 1);
         assert_eq!(tamano(2048), "2 KB");
         assert_eq!(tamano(3 * 1024 * 1024), "3.0 MB");
+    }
+
+    fn fecha(dia: u32, hora: u32) -> chrono::NaiveDateTime {
+        chrono::NaiveDate::from_ymd_opt(2026, 3, dia)
+            .unwrap()
+            .and_hms_opt(hora, 0, 0)
+            .unwrap()
+    }
+
+    #[test]
+    fn backup_inicio_omite_base_vacia_y_conserva_siete_dias() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open_in_memory().unwrap();
+        assert_eq!(
+            backup_inicio(&db, dir.path(), "inicio", fecha(1, 10)).unwrap(),
+            None
+        );
+        db.conn()
+            .execute("INSERT INTO cancha (nombre) VALUES ('C')", [])
+            .unwrap();
+        // Otro perfil y un backup manual no se tocan.
+        std::fs::write(dir.path().join("backup_20260101_000000_inicio_u2.db"), b"x").unwrap();
+        std::fs::write(dir.path().join("backup_20260101_000000.db"), b"x").unwrap();
+        for dia in 1..=9 {
+            backup_inicio(&db, dir.path(), "inicio", fecha(dia, 10)).unwrap();
+        }
+        // Segundo arranque del día 9: reemplaza al de las 10.
+        let ultimo = backup_inicio(&db, dir.path(), "inicio", fecha(9, 18))
+            .unwrap()
+            .unwrap();
+        let nombres: Vec<String> = listar(dir.path()).into_iter().map(|b| b.nombre).collect();
+        let propios: Vec<&String> = nombres
+            .iter()
+            .filter(|n| n.ends_with("_inicio.db"))
+            .collect();
+        assert_eq!(propios.len(), DIAS_BACKUP_INICIO, "{nombres:?}");
+        assert_eq!(propios[0], "backup_20260309_180000_inicio.db");
+        assert_eq!(propios[6], "backup_20260303_100000_inicio.db");
+        assert!(ultimo.exists());
+        assert!(nombres.contains(&"backup_20260101_000000_inicio_u2.db".to_string()));
+        assert!(nombres.contains(&"backup_20260101_000000.db".to_string()));
+        // El restaurar al inicio (B2) toma el más reciente: el de inicio de hoy.
+        assert_eq!(nombres[0], "backup_20260309_180000_inicio.db");
     }
 }

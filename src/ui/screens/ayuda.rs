@@ -78,6 +78,18 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Importar partidos.json del móvil al iniciar (activar / desactivar)",
     ),
     (
+        "Ctrl+N (Ajustes)",
+        "Menús personalizados: Enter/Espacio muestra u oculta cada opción (modo Personalizado)",
+    ),
+    (
+        "Ctrl+U (Ajustes)",
+        "Buscar actualizaciones (solo avisa y muestra el enlace)",
+    ),
+    (
+        "Ctrl+F / Ctrl+Q (Ajustes)",
+        "Ver configuración actual / restablecer valores por defecto",
+    ),
+    (
         "f / x / i / I (Recordatorios)",
         "Filtrar por temática / exportar / importar uniendo / importar reemplazando",
     ),

@@ -4,6 +4,7 @@
 //! Las implementaciones se agregan módulo por módulo; por ahora el árbol se
 //! reserva para mantener estable la estructura del proyecto.
 
+pub mod actualizacion_service;
 pub mod amigos_service;
 pub mod analisis_service;
 pub mod backup_service;

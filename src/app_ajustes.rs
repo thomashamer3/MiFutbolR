@@ -5,9 +5,13 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::{APP_NAME, App, ConfirmAction, Field, Form, Modal, Screen};
+use crate::app::{
+    APP_NAME, App, ConfirmAction, Field, Form, Modal, Module, Screen, mover_seleccion,
+};
 use crate::domain::models::{AppSettings, Language, Mode, TextSize, Theme};
 use crate::domain::validation::DomainError;
+use crate::i18n::t;
+use crate::services::actualizacion_service;
 use crate::services::backup_service;
 use crate::services::botin_service;
 use crate::services::legacy_import_service;
@@ -36,13 +40,14 @@ impl App {
         let mut opciones_botin = vec![("0".to_string(), "Ninguno".to_string())];
         opciones_botin.extend(botines);
         let botin_actual = self.settings.botin_predeterminado.to_string();
+        let idioma = self.settings.language;
 
         Form::new(
             "Ajustes",
             vec![
                 Field::select(
                     "theme",
-                    "Tema",
+                    t(idioma, "settings_theme", "Tema"),
                     self.settings.theme.as_i64().to_string(),
                     Theme::ALL
                         .iter()
@@ -51,7 +56,7 @@ impl App {
                 ),
                 Field::select(
                     "language",
-                    "Idioma",
+                    t(idioma, "settings_language", "Idioma"),
                     self.settings.language.as_i64().to_string(),
                     Language::ALL
                         .iter()
@@ -62,7 +67,7 @@ impl App {
                 ),
                 Field::select(
                     "mode",
-                    "Modo de menú",
+                    t(idioma, "settings_mode", "Modo de menú"),
                     self.settings.mode.as_i64().to_string(),
                     Mode::ALL
                         .iter()
@@ -71,7 +76,7 @@ impl App {
                 ),
                 Field::select(
                     "text_size",
-                    "Tamaño de texto",
+                    t(idioma, "settings_text_size", "Tamaño de texto"),
                     self.settings.text_size.as_i64().to_string(),
                     TextSize::ALL
                         .iter()
@@ -89,6 +94,11 @@ impl App {
                     "Botín predeterminado",
                     botin_actual,
                     opciones_botin,
+                ),
+                Field::boolean(
+                    "actualizaciones",
+                    "Buscar actualizaciones al iniciar",
+                    self.settings.buscar_actualizaciones,
                 ),
             ],
         )
@@ -145,6 +155,7 @@ impl App {
             text_size: TextSize::try_from(codigo("text_size")?)?,
             image_viewer: get("image_viewer"),
             botin_predeterminado: botin,
+            buscar_actualizaciones: get("actualizaciones") == "Sí",
         })
     }
 
@@ -477,6 +488,242 @@ impl App {
     /// Texto "Acerca de".
     #[must_use]
     pub fn acerca_de(&self) -> String {
-        format!("{APP_NAME} 0.1.0 · Rust + ratatui + rusqlite")
+        format!(
+            "{APP_NAME} {} · Rust + ratatui + rusqlite",
+            actualizacion_service::VERSION_ACTUAL
+        )
+    }
+
+    /// Lo que `main.c` hace al arrancar, una vez por base al entrar al menú:
+    /// backup de inicio, comprobar actualizaciones (una vez por día) y el aviso
+    /// de Modo Retro. Solo si el binario lo activó (`tareas_inicio`).
+    pub fn tareas_de_inicio(&mut self) {
+        if !self.tareas_inicio || self.tareas_inicio_hechas {
+            return;
+        }
+        self.tareas_inicio_hechas = true;
+        self.backup_de_inicio();
+        if self.settings.buscar_actualizaciones {
+            let marca = self
+                .paths
+                .data_dir
+                .join(actualizacion_service::ARCHIVO_MARCA);
+            if actualizacion_service::corresponde_verificar(
+                &marca,
+                chrono::Local::now().timestamp(),
+            ) {
+                self.buscar_actualizaciones(false);
+            }
+        }
+        self.avisar_modo_retro();
+    }
+
+    /// `backup_al_iniciar` de C: una copia por día (los últimos 7) por perfil.
+    fn backup_de_inicio(&mut self) {
+        if self.db.path().is_none() {
+            return;
+        }
+        let etiqueta = self
+            .usuario_actual
+            .as_ref()
+            .map_or_else(|| "inicio".to_string(), |u| format!("inicio_u{}", u.id));
+        if let Err(error) = backup_service::backup_inicio(
+            &self.db,
+            &self.paths.export_dir,
+            &etiqueta,
+            chrono::Local::now().naive_local(),
+        ) {
+            self.status = format!("No se pudo hacer el backup de inicio: {error}");
+        }
+    }
+
+    /// `carrera_notificar_modo_retro_inicio` de C: si hoy hay recuerdos, ofrece
+    /// abrir el Modo Retro (modal, nunca bloquea).
+    fn avisar_modo_retro(&mut self) {
+        if self.modal.is_some() {
+            return;
+        }
+        let cantidad =
+            crate::services::carrera_service::retro(self.db.conn()).map_or(0, |r| r.len());
+        if cantidad > 0 {
+            self.modal = Some(Modal::confirm(
+                "Modo Retro",
+                format!(
+                    "Hoy en tu historia hay {cantidad} recuerdo(s).\n¿Querés abrir Modo Retro ahora? (S = sí, N = no)"
+                ),
+                ConfirmAction::AbrirModoRetro,
+            ));
+        }
+    }
+
+    /// Lanza la comprobación en segundo plano (`manual` = Ajustes → Ctrl+U).
+    pub(crate) fn buscar_actualizaciones(&mut self, manual: bool) {
+        let Some(url) = self.url_actualizaciones.clone() else {
+            if manual {
+                self.status = "Comprobar actualizaciones no está disponible".to_string();
+            }
+            return;
+        };
+        if self.actualizacion.lanzar(url, manual) {
+            if manual {
+                self.status = "Buscando actualizaciones…".to_string();
+            }
+        } else if manual {
+            self.status = "Ya se están buscando actualizaciones".to_string();
+        }
+    }
+
+    /// Recoge el resultado (bucle de eventos). Devuelve si cambió algo.
+    pub fn tick_actualizacion(&mut self) -> bool {
+        let Some((manual, resultado)) = self.actualizacion.recibir() else {
+            return false;
+        };
+        self.aplicar_actualizacion(manual, resultado);
+        true
+    }
+
+    /// Espera la comprobación (solo tests).
+    pub fn esperar_actualizacion(&mut self, limite: std::time::Duration) -> bool {
+        let Some((manual, resultado)) = self.actualizacion.esperar(limite) else {
+            return false;
+        };
+        self.aplicar_actualizacion(manual, resultado);
+        true
+    }
+
+    /// Como C: la automática solo avisa si hay versión nueva; la manual siempre.
+    fn aplicar_actualizacion(
+        &mut self,
+        manual: bool,
+        resultado: Result<actualizacion_service::Release, String>,
+    ) {
+        match resultado {
+            Ok(release) => {
+                let (nueva, texto) =
+                    actualizacion_service::mensaje(actualizacion_service::VERSION_ACTUAL, &release);
+                if nueva {
+                    self.status = format!("Nueva versión disponible: {}", release.version);
+                }
+                if (nueva || manual) && self.modal.is_none() {
+                    self.modal = Some(Modal::Info(texto));
+                } else if manual {
+                    self.status = texto;
+                }
+            }
+            Err(error) if manual => self.modal = Some(Modal::Error(error)),
+            Err(_) => {}
+        }
+    }
+
+    /// "Ver configuración actual" (`show_current_settings` de C). Nunca muestra
+    /// contraseñas ni el token de sincronización.
+    pub(crate) fn configuracion_actual(&self) -> String {
+        let s = &self.settings;
+        let botin = if s.botin_predeterminado == 0 {
+            "Ninguno".to_string()
+        } else {
+            botin_service::listar(self.db.conn(), &Default::default())
+                .unwrap_or_default()
+                .into_iter()
+                .find(|b| b.id == s.botin_predeterminado)
+                .map_or_else(|| s.botin_predeterminado.to_string(), |b| b.nombre)
+        };
+        let ocultos = if self.menu_ocultos.is_empty() {
+            "ninguno".to_string()
+        } else {
+            self.menu_ocultos.join(", ")
+        };
+        let visor = if s.image_viewer.is_empty() {
+            "predeterminado del sistema"
+        } else {
+            s.image_viewer.as_str()
+        };
+        format!(
+            "Tema: {}\nIdioma: {}\nModo de menú: {}\nTamaño de texto: {}\nVisor de imágenes: {visor}\nBotín predeterminado: {botin}\nBuscar actualizaciones al iniciar: {}\nMenús ocultos (Personalizado): {ocultos}\nUsuario: {}\nBase de datos: {}\nVersión: {}",
+            s.theme.label(),
+            s.language.label(),
+            s.mode.label(),
+            s.text_size.label(),
+            if s.buscar_actualizaciones {
+                "Sí"
+            } else {
+                "No"
+            },
+            self.usuario_actual
+                .as_ref()
+                .map_or("Invitado", |u| u.nombre.as_str()),
+            self.db
+                .path()
+                .map_or_else(|| "en memoria".to_string(), |p| p.display().to_string()),
+            actualizacion_service::VERSION_ACTUAL,
+        )
+    }
+
+    /// `reset_settings_to_defaults` de C: vuelve los ajustes a sus valores por
+    /// defecto (los menús personalizados se conservan, como en C).
+    pub(crate) fn restablecer_ajustes(&mut self) {
+        let settings = AppSettings::default();
+        match self.db.save_settings(&settings) {
+            Ok(()) => {
+                self.settings = settings;
+                if self.current_screen() == Screen::AjustesForm {
+                    self.form = Some(self.ajustes_form());
+                }
+                self.status = "Configuración restablecida a valores por defecto".to_string();
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+    }
+
+    /// Opciones del editor de menús: todas menos Ajustes, que siempre se ve.
+    #[must_use]
+    pub fn menus_editables() -> Vec<Module> {
+        Module::ALL
+            .into_iter()
+            .filter(|module| *module != Module::Ajustes)
+            .collect()
+    }
+
+    /// Teclas del editor de menús personalizados (`menu_custom_menus` de C).
+    pub(crate) fn handle_menus_personalizados_key(&mut self, key: KeyEvent) -> Result<bool> {
+        let menus = Self::menus_editables();
+        let actual = self.menus_hub.selected();
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.menus_hub
+                    .select(mover_seleccion(actual, menus.len(), 1));
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.menus_hub
+                    .select(mover_seleccion(actual, menus.len(), -1));
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                let Some(module) = actual.and_then(|i| menus.get(i).copied()) else {
+                    return Ok(true);
+                };
+                let visible = self.menu_ocultos.iter().any(|clave| clave == module.key());
+                match crate::db::settings_repo::set_menu_visible(
+                    self.db.conn(),
+                    module.key(),
+                    visible,
+                ) {
+                    Ok(()) => {
+                        self.menu_ocultos = crate::db::settings_repo::menus_ocultos(self.db.conn());
+                        self.status = format!(
+                            "Menú {} {}",
+                            module.label(),
+                            if visible {
+                                "habilitado"
+                            } else {
+                                "deshabilitado"
+                            }
+                        );
+                    }
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                }
+            }
+            _ => return Ok(false),
+        }
+        Ok(true)
     }
 }

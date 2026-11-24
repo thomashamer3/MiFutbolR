@@ -116,7 +116,7 @@ impl App {
             .and_then(|db| App::new(db, self.paths.clone()));
         match nueva {
             Ok(app) => {
-                *self = app;
+                self.reemplazar_app(app);
                 self.bienvenida_vista = true;
                 self.status = format!(
                     "Sesión iniciada como {} · BD: {}",
@@ -130,6 +130,7 @@ impl App {
                 // App::new ya calculó el resumen de Inicio de esta base.
                 self.stack = vec![Screen::MainMenu];
                 self.ofrecer_restaurar_backup_inicio();
+                self.tareas_de_inicio();
                 self.sincronizar_al_iniciar();
             }
             Err(error) => {
@@ -139,6 +140,13 @@ impl App {
                 )));
             }
         }
+    }
+
+    /// Cambia de base conservando lo que decidió el binario (tareas de arranque).
+    fn reemplazar_app(&mut self, mut app: App) {
+        app.tareas_inicio = self.tareas_inicio;
+        app.url_actualizaciones = self.url_actualizaciones.take();
+        *self = app;
     }
 
     /// Cierra la sesión y vuelve a la portada sobre la base de invitado.
@@ -152,7 +160,7 @@ impl App {
             .and_then(|db| App::new(db, self.paths.clone()));
         match nueva {
             Ok(app) => {
-                *self = app;
+                self.reemplazar_app(app);
                 self.mostrar_inicio_sesion();
                 self.status = "Sesión cerrada".to_string();
             }
@@ -175,6 +183,7 @@ impl App {
         self.active_module = None;
         let _ = self.refrescar_inicio();
         self.ofrecer_restaurar_backup_inicio();
+        self.tareas_de_inicio();
         self.sincronizar_al_iniciar();
         Ok(())
     }

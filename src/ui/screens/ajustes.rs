@@ -160,3 +160,49 @@ pub fn draw_exportar(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("▶ ");
     frame.render_stateful_widget(lista, area, &mut app.export_hub);
 }
+
+/// Editor de menús personalizados: `[X]` visible, `[ ]` oculto en Personalizado.
+pub fn draw_menus(frame: &mut Frame, area: Rect, app: &mut App) {
+    use ratatui::widgets::{List, ListItem};
+
+    let colors = palette(app.settings.theme);
+    let items: Vec<ListItem> = App::menus_editables()
+        .into_iter()
+        .map(|module| {
+            let visible = !app.menu_ocultos.iter().any(|clave| clave == module.key());
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    if visible { "[X] " } else { "[ ] " },
+                    Style::default()
+                        .fg(if visible {
+                            colors.success
+                        } else {
+                            colors.muted
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!(
+                        "{:>2} {}",
+                        module.numero(),
+                        module.etiqueta(app.settings.language)
+                    ),
+                    Style::default().fg(colors.fg),
+                ),
+            ]))
+        })
+        .collect();
+    let lista = List::new(items)
+        .block(colors.panel(format!(
+            " Menús personalizados · se aplican en modo Personalizado (ahora: {}) · Ajustes siempre visible ",
+            app.settings.mode.label()
+        )))
+        .highlight_style(
+            Style::default()
+                .bg(colors.highlight_bg)
+                .fg(colors.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+    frame.render_stateful_widget(lista, area, &mut app.menus_hub);
+}

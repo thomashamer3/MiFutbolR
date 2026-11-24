@@ -96,6 +96,10 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("No se pudo abrir {}", paths.db_file.display()))?;
 
     let mut app = App::new(db, paths)?;
+    // Backup de inicio, aviso de actualización y de Modo Retro (como `main.c`).
+    app.tareas_inicio = true;
+    app.url_actualizaciones =
+        Some(mifutbol_rs::services::actualizacion_service::URL_ULTIMA_RELEASE.to_string());
     // El binario siempre arranca en la portada de inicio de sesión.
     app.mostrar_inicio_sesion();
 

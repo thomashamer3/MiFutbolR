@@ -67,6 +67,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/014_bienestar_completo.sql"),
     include_str!("../../migrations/015_fk_indexes.sql"),
     include_str!("../../migrations/016_sync.sql"),
+    include_str!("../../migrations/017_ajustes.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.
@@ -184,7 +185,9 @@ impl Database {
             Connection::open_with_flags(source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let backup = rusqlite::backup::Backup::new(&origen, &mut self.conn)?;
         backup.run_to_completion(100, Duration::from_millis(0), None)?;
-        Ok(())
+        drop(backup);
+        // Un backup de una versión anterior trae un esquema viejo: migrarlo.
+        migrate(&self.conn)
     }
 
     /// Mantenimiento (`menu_integridad_bd` de C): VACUUM, ANALYZE, checkpoint del

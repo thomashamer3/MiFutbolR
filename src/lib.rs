@@ -35,6 +35,7 @@ mod app_usuario;
 pub mod config;
 pub mod db;
 pub mod domain;
+pub mod i18n;
 pub mod services;
 pub mod ui;
 pub mod util;

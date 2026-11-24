@@ -43,12 +43,23 @@ Las capturas se generan desde la TUI real con
     Camisetas, Canchas, Botines, Partidos, Lesiones, Tutorial, Ajustes,
     Sincronización y Usuario;
     *Avanzado* muestra todo; *Personalizado* oculta los menús con `enabled = 0` en
-    `custom_menus` (claves de MiFutbolC). Los números no cambian al filtrar.
+    `custom_menus` (claves de MiFutbolC), que se editan en Ajustes → `Ctrl+N`
+    (Enter/Espacio alterna `[X]`/`[ ]`; Ajustes siempre se ve). Los números no
+    cambian al filtrar.
   - Los atajos de letra (`c` calendario, `l`/`L` logros, `R` récords, `t` tutorial,
     `C` comparador, `T`, `U`, `E`, `D`, `A`, `M`, `Y`, `P`, `n`) solo valen en el
     menú; `g`, `!`, `?`, Ctrl+F y Ctrl+K siguen siendo globales.
   - Al entrar con la base vacía, si hay un backup con datos en `Exportaciones/`,
     se ofrece restaurarlo (S/N), una vez por sesión.
+  - Al arrancar, como `main.c`, una vez por base al entrar al menú:
+    *backup de inicio* si la base tiene datos
+    (`Exportaciones/backup_<AAAAMMDD_HHMMSS>_inicio.db`, `_inicio_u<id>` por
+    cuenta; el del mismo día se reemplaza y quedan los últimos 7 días, como el
+    historial de C), *comprobar actualizaciones* una vez por día (marca
+    `update_check.stamp`; consulta `releases/latest` de GitHub en segundo plano y
+    solo avisa si hay una versión más nueva que `CARGO_PKG_VERSION`, con el
+    enlace: no descarga ni instala nada) y el aviso de *Modo Retro* si hoy hay
+    partidos de la misma fecha en años anteriores (S abre Carrera → Modo retro).
 - **Análisis** (port de `analisis.c`): *Básico* compara los últimos 5 partidos con
   el promedio (goles, asistencias, rendimiento, cansancio, ánimo), rachas y mensaje
   motivacional; *Evolución temporal* muestra promedios por mes con gráfico de barras
@@ -113,8 +124,13 @@ Las capturas se generan desde la TUI real con
 - **Carrera**: identidad, hitos, rachas, badges, timeline, Hall of Fame,
   perfil dinámico, modo retro y logros.
 - **Resumen Compartible**: Markdown/HTML/texto con vista previa y exportación.
-- **Ajustes**: tema, idioma, modo, tamaño, visor, botín predeterminado, backup,
-  exportación, integridad y restauración en vivo. `Ctrl+G` administra los backups
+- **Ajustes**: tema, idioma, modo, tamaño, visor, botín predeterminado, buscar
+  actualizaciones al iniciar, backup, exportación, integridad y restauración en
+  vivo. *Idioma* English traduce el menú principal, "Salir" y las etiquetas de
+  Ajustes con las claves de `langs/en.json` de C (el español es el defecto).
+  `Ctrl+U` busca actualizaciones, `Ctrl+F` muestra la configuración actual (sin
+  contraseñas ni token) y `Ctrl+Q` la restablece a los valores por defecto
+  (confirmación; los menús personalizados se conservan). `Ctrl+G` administra los backups
   (`backup_*.db` con fecha, tamaño y partidos; Enter restaura el elegido, `d` lo
   elimina, `b` crea otro; ambas con confirmación). `Ctrl+T` hace el mantenimiento
   de la base (backup previo, VACUUM, ANALYZE, `integrity_check` y
