@@ -55,7 +55,7 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
 - [x] B4 Funciones de C. Ruta: delegated (writer trigger: servicios + pantallas nuevas).
 - [x] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
 - [x] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger). Commit `e9cd489`.
-- [ ] B7 Exportar/Importar. Ruta: delegated (writer trigger).
+- [x] B7 Exportar/Importar. Ruta: delegated (writer trigger). Commits `1242ee7`, `ed27f87`, `6b6c979`, `711d2c3`.
 - [ ] B8 Ajustes y arranque. Ruta: delegated (writer trigger).
 - [ ] B9 Módulos faltantes. Ruta: delegated (writer trigger).
 - [ ] B10 Bienestar restante. Ruta: delegated (writer trigger).
@@ -261,3 +261,31 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
     partidos desde una ruta elegida (solo `Importaciones/partidos.json`); el inicio de sesión
     corre en el hilo de la UI (acción explícita, máx. 5 s de conexión por servidor, como C);
     timeout de lectura no probado (tardaría 25 s), sí el puerto cerrado.
+- B7 (RDD unmanaged; `cargo test --all-targets`, clippy `-D warnings` y `fmt --check` OK en
+  cada commit):
+  - 7a `1242ee7` XLSX real (paquete OOXML mínimo con `zip_stored`, `src/util/xlsx.rs`;
+    hojas Partidos, Equipos, Canchas, Camisetas, Lesiones, Torneos) y pantalla
+    `Screen::ExportarImportar` (Ajustes → Ctrl+D) con las 13 opciones; las teclas Ctrl viejas
+    siguen. 326 OK. Validado además con Python `zipfile` + `ElementTree` (openpyxl no instalado).
+  - 7b `ed27f87` `importacion_service`: camisetas, partidos y lesiones desde
+    `Importaciones/<entidad>.{json,txt,csv,html}` en una transacción con el deshacer
+    suspendido; backup previo `backup_*_pre_import.db`; filas mal formadas informadas
+    ("línea N"/"fila N"/"elemento N"). 332 OK (+5 servicio, +1 UI).
+  - 7c `6b6c979` Recordatorios: `f` recorre temáticas, `x` exporta, `i` une, `I` reemplaza
+    (confirmación + backup previo) con `recordatorios.json` de C. 334 OK.
+  - 7d `711d2c3` Colecciones: `x`/`i` backup JSON `colecciones_inventario_backup` v1, une sin
+    duplicar. 336 OK.
+  - Errores de C corregidos: XLSX era SpreadsheetML 2003 dentro de un ZIP (inválido) y sus
+    consultas usaban columnas/tablas inexistentes (hojas vacías); las lesiones importadas
+    nunca entraban (faltaba `camiseta_id` NOT NULL); JSON/TXT/CSV/HTML exportados por C no se
+    releían bien (resultado/clima en texto → 0, "Atajaste" pegado al comentario, franja
+    Dia/Tarde/Noche=1/2/3 contra Madrugada…Noche=1..6, `<span>` del resultado → 0, entidades
+    HTML sin decodificar); camisetas HTML emparejaba celdas ignorando filas; camisetas TXT/CSV
+    no leían su propio export y truncaban nombres; el partido creaba la cancha aunque faltara
+    la camiseta; "Reemplazar" recordatorios también fusionaba (duplicados); el restore de
+    colecciones enlazaba relaciones a filas ajenas con el id viejo.
+  - No hecho / diferencias: estadísticas no se importan (C las importaba a una tabla que no
+    lee nadie); `atajaste` no se importa (C tampoco); el submenú por entidad de C quedó en una
+    opción por formato (importa todos los archivos presentes); el XLSX de C por tabla quedó en
+    un libro con varias hojas; `fecha_fin` de recordatorios no se guarda; Historial de
+    Equipamiento queda para B9 (en C es un módulo propio, `equipamiento_historial.c`).
