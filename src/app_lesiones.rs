@@ -32,6 +32,21 @@ impl App {
                 }
             }
             KeyCode::Char('d') => self.confirm_delete_lesion(),
+            KeyCode::Char('D') => match lesion_service::diferencias(self.db.conn()) {
+                Ok(reporte) => self.abrir_reporte(reporte),
+                Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+            },
+            KeyCode::Char('u') => {
+                if let Some(id) = self.selected_lesion_id() {
+                    match lesion_service::actualizar_estado(self.db.conn(), id) {
+                        Ok(estado) => {
+                            self.refresh_lesiones()?;
+                            self.status = format!("Lesión #{id}: estado {estado}");
+                        }
+                        Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                    }
+                }
+            }
             KeyCode::Char('f') => {
                 self.lesion_filter.estado = match self.lesion_filter.estado {
                     None => Some(EstadoLesion::Activa),

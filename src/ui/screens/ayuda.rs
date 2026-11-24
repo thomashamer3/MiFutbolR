@@ -98,6 +98,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Simular con equipos guardados: elegir local y visitante (no se guarda)",
     ),
     (
+        "u / D (Lesiones)",
+        "Avanzar el estado (activa, tratamiento, mejorando, recuperado) / días entre lesiones",
+    ),
+    (
         "x (cualquier reporte)",
         "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
     ),

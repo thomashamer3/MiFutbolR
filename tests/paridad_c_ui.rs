@@ -50,3 +50,34 @@ fn simular_con_equipos_guardados_muestra_el_resultado_sin_guardar() {
     press(&mut app, KeyCode::Esc);
     assert_eq!(app.current_screen(), Screen::PartidosList);
 }
+
+#[test]
+fn lesiones_diferencias_y_actualizar_estado() {
+    let (mut app, _dir) = test_app();
+    app.db
+        .conn()
+        .execute_batch(
+            "INSERT INTO camiseta (nombre) VALUES ('Titular');
+             INSERT INTO lesion (jugador, tipo, descripcion, fecha, camiseta_id, estado) VALUES
+                ('Yo', 'Esguince', 'Tobillo', '2026-03-01 10:00:00', 1, 'ACTIVA'),
+                ('Yo', 'Desgarro', 'Isquio', '2026-03-11 10:00:00', 1, 'ACTIVA');",
+        )
+        .unwrap();
+    abrir_opcion(&mut app, Module::Lesiones);
+    assert_eq!(app.current_screen(), Screen::LesionesList);
+    let id = app.selected_lesion_id().unwrap();
+    press(&mut app, KeyCode::Char('u'));
+    let estado: String = app
+        .db
+        .conn()
+        .query_row("SELECT estado FROM lesion WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(estado, "EN TRATAMIENTO");
+
+    press(&mut app, KeyCode::Char('D'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    let texto = render_con(&mut app, 120, 30);
+    assert!(texto.contains("10 días después"), "{texto}");
+}

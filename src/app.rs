@@ -2056,7 +2056,7 @@ impl App {
                 "Tab: campo  Enter/PgDn: siguiente paso  PgUp: anterior  Ctrl+S: guardar  Esc: cancelar"
             }
             Screen::LesionesList => {
-                "n: nueva  e: editar  d: borrar  Enter: detalle  f: estado  o: orden  /: buscar  x: exportar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  Enter: detalle  u: avanzar estado  D: diferencias  f: estado  o: orden  /: buscar  x: exportar  r: refrescar"
             }
             Screen::LesionDetail(_) => "e: editar  d: borrar  Esc: volver",
             Screen::EstadisticasHub => "↑↓: categoría  Enter: abrir  r: recalcular  Esc: volver",

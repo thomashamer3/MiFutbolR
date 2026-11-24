@@ -5,7 +5,8 @@ use thiserror::Error;
 
 use crate::db::DbError;
 use crate::db::lesion_repo;
-use crate::domain::models::{Lesion, LesionFilter, LesionRow, LesionStats};
+use crate::domain::models::{EstadoLesion, Lesion, LesionFilter, LesionRow, LesionStats};
+use crate::domain::reporte::Reporte;
 use crate::domain::validation::{self, DomainError};
 
 /// Error de negocio.
@@ -82,11 +83,72 @@ pub fn estadisticas(conn: &Connection) -> Result<LesionStats, ServiceError> {
     Ok(lesion_repo::stats(conn)?)
 }
 
+/// Estado siguiente para "Actualizar estados" (`actualizar_estados_lesiones` de C):
+/// avanza Activa -> En tratamiento -> Mejorando -> Recuperado; una recuperada
+/// puede recaer y una recaída vuelve a tratamiento.
+#[must_use]
+pub const fn siguiente_estado(estado: EstadoLesion) -> EstadoLesion {
+    match estado {
+        EstadoLesion::Activa => EstadoLesion::EnTratamiento,
+        EstadoLesion::EnTratamiento => EstadoLesion::Mejorando,
+        EstadoLesion::Mejorando => EstadoLesion::Recuperado,
+        EstadoLesion::Recuperado => EstadoLesion::Recaida,
+        EstadoLesion::Recaida => EstadoLesion::EnTratamiento,
+    }
+}
+
+/// Avanza el estado de una lesión y devuelve el nuevo.
+pub fn actualizar_estado(conn: &Connection, id: i64) -> Result<EstadoLesion, ServiceError> {
+    let mut lesion = lesion_repo::get(conn, id)?;
+    lesion.estado = siguiente_estado(lesion.estado);
+    lesion_repo::update(conn, &lesion)?;
+    Ok(lesion.estado)
+}
+
+/// "Diferencias entre lesiones" (`mostrar_diferencias_lesiones` de C): días
+/// entre lesiones consecutivas por fecha. C ordenaba texto `DD/MM/YYYY` y
+/// aproximaba meses de 30 días; aquí se usan fechas reales.
+pub fn diferencias(conn: &Connection) -> Result<Reporte, ServiceError> {
+    let mut lesiones = lesion_repo::list(conn, &LesionFilter::default())?;
+    lesiones.sort_by_key(|l| (l.fecha, l.id));
+    let mut reporte = Reporte::new("Diferencias entre lesiones");
+    reporte.seccion("Días entre lesiones consecutivas");
+    if lesiones.is_empty() {
+        reporte.linea("No hay lesiones registradas.");
+        return Ok(reporte);
+    }
+    let mut dias_total = 0;
+    for (indice, lesion) in lesiones.iter().enumerate() {
+        let detalle = format!(
+            "#{} {} · {} ({})",
+            lesion.id,
+            lesion.fecha.format("%d/%m/%Y"),
+            lesion.tipo,
+            lesion.jugador
+        );
+        match indice.checked_sub(1).map(|previa| &lesiones[previa]) {
+            None => reporte.linea(format!("{detalle} — primera lesión")),
+            Some(previa) => {
+                let dias = (lesion.fecha.date() - previa.fecha.date()).num_days();
+                dias_total += dias;
+                reporte.linea(format!("{detalle} — {dias} días después"));
+            }
+        }
+    }
+    if lesiones.len() > 1 {
+        reporte.linea("");
+        reporte.linea(format!(
+            "Promedio entre lesiones: {:.1} días",
+            dias_total as f64 / (lesiones.len() - 1) as f64
+        ));
+    }
+    Ok(reporte)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::domain::models::EstadoLesion;
 
     fn base() -> Lesion {
         Lesion {
@@ -170,5 +232,53 @@ mod tests {
         assert_eq!(stats.por_tipo.len(), 2);
         assert_eq!(stats.por_mes.len(), 2);
         assert!(stats.promedio_dias.is_some());
+    }
+
+    #[test]
+    fn diferencias_y_actualizar_estado() {
+        let db = preparar();
+        assert!(
+            diferencias(db.conn())
+                .unwrap()
+                .lineas
+                .contains(&"No hay lesiones registradas.".to_string())
+        );
+        // Se cargan desordenadas: el reporte ordena por fecha real.
+        for (dia, mes) in [(20, 3), (1, 3), (5, 4)] {
+            let mut lesion = base();
+            lesion.fecha = chrono::NaiveDate::from_ymd_opt(2026, mes, dia)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap();
+            crear(db.conn(), &mut lesion).unwrap();
+        }
+        let lineas = diferencias(db.conn()).unwrap().lineas;
+        assert!(lineas[1].starts_with("#2 01/03/2026"), "{lineas:?}");
+        assert!(lineas[1].ends_with("primera lesión"), "{lineas:?}");
+        assert!(lineas[2].ends_with("19 días después"), "{lineas:?}");
+        assert!(lineas[3].ends_with("16 días después"), "{lineas:?}");
+        assert!(lineas.last().unwrap().contains("17.5 días"));
+
+        assert_eq!(
+            actualizar_estado(db.conn(), 1).unwrap(),
+            EstadoLesion::EnTratamiento
+        );
+        assert_eq!(
+            actualizar_estado(db.conn(), 1).unwrap(),
+            EstadoLesion::Mejorando
+        );
+        assert_eq!(
+            actualizar_estado(db.conn(), 1).unwrap(),
+            EstadoLesion::Recuperado
+        );
+        assert_eq!(
+            siguiente_estado(EstadoLesion::Recuperado),
+            EstadoLesion::Recaida
+        );
+        assert_eq!(
+            siguiente_estado(EstadoLesion::Recaida),
+            EstadoLesion::EnTratamiento
+        );
+        assert!(actualizar_estado(db.conn(), 99).is_err());
     }
 }
