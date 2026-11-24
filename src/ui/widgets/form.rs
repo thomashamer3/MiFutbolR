@@ -85,7 +85,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, form: &Form) {
         (None, None) => Line::from(""),
     };
     let pistas = Line::from(Span::styled(
-        "Tab: siguiente  Shift+Tab: anterior  Ctrl+S: guardar  Esc: cancelar",
+        "Tab/↓: siguiente  Shift+Tab/↑: anterior  Ctrl+S: guardar  Esc: cancelar",
         Style::default().fg(colors.muted),
     ));
     frame.render_widget(

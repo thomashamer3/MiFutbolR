@@ -163,7 +163,16 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         }
     }
 
-    let (tabla_area, preview_area) = match detail::split(table_area) {
+    let anchos = [
+        Constraint::Length(11),
+        Constraint::Length(9),
+        Constraint::Length(15),
+        Constraint::Min(20),
+        Constraint::Length(13),
+        Constraint::Min(10),
+    ];
+    let ancho_tabla = crate::ui::widgets::lista::ancho_minimo(&anchos);
+    let (tabla_area, preview_area) = match detail::split(table_area, ancho_tabla) {
         Some((tabla, panel)) => (tabla, Some(panel)),
         None => (table_area, None),
     };
@@ -214,28 +223,18 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .style(Style::default().fg(color))
     });
 
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(11),
-            Constraint::Length(9),
-            Constraint::Length(15),
-            Constraint::Min(20),
-            Constraint::Length(13),
-            Constraint::Min(10),
-        ],
-    )
-    .header(header)
-    .block(bloque_tabla)
-    .column_spacing(1)
-    .highlight_spacing(HighlightSpacing::Always)
-    .row_highlight_style(
-        Style::default()
-            .bg(colors.highlight_bg)
-            .fg(colors.highlight_fg)
-            .add_modifier(Modifier::BOLD),
-    )
-    .highlight_symbol("▶ ");
+    let table = Table::new(rows, anchos)
+        .header(header)
+        .block(bloque_tabla)
+        .column_spacing(1)
+        .highlight_spacing(HighlightSpacing::Always)
+        .row_highlight_style(
+            Style::default()
+                .bg(colors.highlight_bg)
+                .fg(colors.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(table, tabla_area, &mut app.transacciones_table);
     app.table_hits = crate::ui::widgets::hit::table_hits(

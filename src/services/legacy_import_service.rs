@@ -141,7 +141,7 @@ pub fn importar(conn: &mut Connection, ruta: &Path) -> Result<ImportResumen, Imp
     Ok(resumen)
 }
 
-/// Copia a `destino` (el `Imagenes/` de MiFutbolRS) los archivos de las carpetas
+/// Copia a `destino` (el `Imagenes/` de MiFutbolR) los archivos de las carpetas
 /// `Imagenes/` e `images/` de MiFutbolC, buscadas junto a la base legacy y en la
 /// carpeta de arriba. El origen solo se lee; un archivo que ya existe con el
 /// mismo nombre se saltea (las rutas guardadas son `Imagenes/<nombre>`).

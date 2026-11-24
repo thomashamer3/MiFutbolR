@@ -154,3 +154,16 @@ fn toggle_reactivates_jersey_from_list_and_detail() {
     assert_eq!(activa(&app), 1);
     assert!(app.camiseta_detail.as_ref().unwrap().activa);
 }
+
+#[test]
+fn flechas_mueven_entre_campos_del_formulario() {
+    let (mut app, _dir) = test_app();
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Camisetas);
+    press(&mut app, KeyCode::Char('n'));
+    let foco = |app: &App| app.form.as_ref().unwrap().focus;
+    assert_eq!(foco(&app), 0);
+    press(&mut app, KeyCode::Down);
+    assert_eq!(foco(&app), 1);
+    press(&mut app, KeyCode::Up);
+    assert_eq!(foco(&app), 0);
+}

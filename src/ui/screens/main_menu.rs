@@ -261,7 +261,7 @@ fn draw_titulo(frame: &mut Frame, area: Rect, colors: &crate::ui::theme::Palette
             Layout::horizontal([Constraint::Length(82), Constraint::Min(0)]).areas(area);
         let titulo = BigText::builder()
             .pixel_size(PixelSize::HalfHeight)
-            .lines(vec![Line::from("MiFutbolRS")])
+            .lines(vec![Line::from("MiFutbolR")])
             .style(colors.title_style())
             .build();
         frame.render_widget(titulo, marca);
@@ -277,7 +277,7 @@ fn draw_titulo(frame: &mut Frame, area: Rect, colors: &crate::ui::theme::Palette
         frame.render_widget(texto_lema, lema);
     } else {
         frame.render_widget(
-            Paragraph::new(Line::from(Span::styled("MiFutbolRS", colors.title_style()))),
+            Paragraph::new(Line::from(Span::styled("MiFutbolR", colors.title_style()))),
             area,
         );
     }

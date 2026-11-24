@@ -22,10 +22,24 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let [cuerpo, summary_area] =
         Layout::vertical([Constraint::Min(5), Constraint::Length(2)]).areas(area);
-    let (tabla_area, preview_area) = match detail::split(cuerpo) {
-        Some((tabla, panel)) => (tabla, Some(panel)),
-        None => (cuerpo, None),
-    };
+    let anchos = vec![
+        Constraint::Length(4),
+        Constraint::Length(16),
+        Constraint::Min(12),
+        Constraint::Min(12),
+        Constraint::Min(10),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(10),
+        Constraint::Length(11),
+        Constraint::Length(12),
+        Constraint::Length(2),
+    ];
+    let (tabla_area, preview_area) =
+        match detail::split(cuerpo, crate::ui::widgets::lista::ancho_minimo(&anchos)) {
+            Some((tabla, panel)) => (tabla, Some(panel)),
+            None => (cuerpo, None),
+        };
 
     if app.partidos.is_empty() {
         frame.render_widget(
@@ -82,19 +96,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             vec![
                 "ID", "Fecha", "Rival", "Cancha", "Camiseta", "G", "A", "Res.", "$", "Tipo", "★",
             ],
-            vec![
-                Constraint::Length(4),
-                Constraint::Length(16),
-                Constraint::Min(12),
-                Constraint::Min(12),
-                Constraint::Min(10),
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Length(10),
-                Constraint::Length(11),
-                Constraint::Length(12),
-                Constraint::Length(2),
-            ],
+            anchos,
             rows.collect::<Vec<_>>(),
             &mut app.partidos_table,
         );
@@ -584,7 +586,7 @@ pub fn draw_wizard(frame: &mut Frame, area: Rect, app: &App) {
         )),
         (None, Some(field)) => Line::from(vec![
             Span::styled(
-                "Tab: campo   Enter/PgDn: siguiente   PgUp: anterior   Esc: cancelar",
+                "Tab/↑↓: campo   Enter/PgDn: siguiente   PgUp: anterior   Esc: cancelar",
                 Style::default().fg(colors.muted),
             ),
             Span::styled(

@@ -28,12 +28,12 @@ fn main() -> anyhow::Result<()> {
 
     match args.first().map(String::as_str) {
         Some("--version") | Some("-V") => {
-            println!("MiFutbolRS {}", env!("CARGO_PKG_VERSION"));
+            println!("MiFutbolR {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
         Some("--help") | Some("-h") => {
             println!(
-                "MiFutbolRS {}\n\nUso:\n  mifutbol-rs                       Abre la TUI\n  mifutbol-rs --importar-legacy <ruta.db>  Importa una BD legacy\n  mifutbol-rs --importar-perfiles [dir]    Importa los perfiles de MiFutbolC (users.db)\n  mifutbol-rs --version             Muestra la versión\n  mifutbol-rs --help                Muestra esta ayuda\n\nBase de datos: {}\nVariable MIFUTBOL_DB para usar otra ruta.",
+                "MiFutbolR {}\n\nUso:\n  mifutbol-rs                       Abre la TUI\n  mifutbol-rs --importar-legacy <ruta.db>  Importa una BD legacy\n  mifutbol-rs --importar-perfiles [dir]    Importa los perfiles de MiFutbolC (users.db)\n  mifutbol-rs --version             Muestra la versión\n  mifutbol-rs --help                Muestra esta ayuda\n\nBase de datos: {}\nVariable MIFUTBOL_DB para usar otra ruta.",
                 env!("CARGO_PKG_VERSION"),
                 paths.db_file.display()
             );

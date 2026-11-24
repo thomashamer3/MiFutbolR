@@ -18,10 +18,19 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         app.botin_filter.estado.label(),
         app.botin_filter.orden.label()
     );
-    let (tabla_area, preview_area) = match detail::split(area) {
-        Some((tabla, panel)) => (tabla, Some(panel)),
-        None => (area, None),
-    };
+    let anchos = vec![
+        Constraint::Length(2),
+        Constraint::Length(5),
+        Constraint::Min(18),
+        Constraint::Length(3),
+        Constraint::Length(9),
+        Constraint::Length(9),
+    ];
+    let (tabla_area, preview_area) =
+        match detail::split(area, crate::ui::widgets::lista::ancho_minimo(&anchos)) {
+            Some((tabla, panel)) => (tabla, Some(panel)),
+            None => (area, None),
+        };
 
     if app.botines.is_empty() {
         frame.render_widget(
@@ -65,14 +74,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         &colors,
         title,
         vec!["★", "ID", "Nombre", "P", "Sorteada", "Estado"],
-        vec![
-            Constraint::Length(2),
-            Constraint::Length(5),
-            Constraint::Min(18),
-            Constraint::Length(3),
-            Constraint::Length(9),
-            Constraint::Length(9),
-        ],
+        anchos,
         rows.collect::<Vec<_>>(),
         &mut app.botines_table,
     );

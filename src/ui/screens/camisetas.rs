@@ -20,10 +20,22 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         app.camiseta_filter.orden.label()
     );
 
-    let (tabla_area, preview_area) = match detail::split(area) {
-        Some((tabla, panel)) => (tabla, Some(panel)),
-        None => (area, None),
-    };
+    let anchos = vec![
+        Constraint::Length(5),
+        Constraint::Min(18),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Length(9),
+    ];
+    let (tabla_area, preview_area) =
+        match detail::split(area, crate::ui::widgets::lista::ancho_minimo(&anchos)) {
+            Some((tabla, panel)) => (tabla, Some(panel)),
+            None => (area, None),
+        };
 
     if app.camisetas.is_empty() {
         frame.render_widget(
@@ -91,17 +103,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             "DERROTAS",
             "Estado",
         ],
-        vec![
-            Constraint::Length(5),
-            Constraint::Min(18),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(9),
-        ],
+        anchos,
         rows.collect::<Vec<_>>(),
         &mut app.camisetas_table,
     );

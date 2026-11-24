@@ -21,6 +21,7 @@ pub fn render_tabla(
     filas: Vec<Row>,
     state: &mut TableState,
 ) {
+    let anchos = ajustar_anchos(anchos, area.width);
     let header = Row::new(encabezados).style(
         Style::default()
             .fg(colors.accent)
@@ -45,6 +46,31 @@ pub fn render_tabla(
         )
         .highlight_symbol("▶ ");
     frame.render_stateful_widget(table, area, state);
+}
+
+/// Ancho total que necesita una tabla de [`render_tabla`] para mostrar cada columna entera:
+/// bordes, símbolo `▶ ` y separadores incluidos.
+#[must_use]
+pub fn ancho_minimo(anchos: &[Constraint]) -> u16 {
+    let columnas: u16 = anchos
+        .iter()
+        .map(|ancho| match ancho {
+            Constraint::Length(n) | Constraint::Min(n) => *n,
+            _ => 0,
+        })
+        .sum();
+    columnas + anchos.len().saturating_sub(1) as u16 + 4
+}
+
+/// Sin ancho para todas las columnas, oculta las de la derecha (ancho 0) en vez de que
+/// ratatui recorte el texto de todas (fechas y horas cortadas).
+fn ajustar_anchos(mut anchos: Vec<Constraint>, disponible: u16) -> Vec<Constraint> {
+    let mut ultima = anchos.len();
+    while ultima > 1 && ancho_minimo(&anchos) > disponible {
+        ultima -= 1;
+        anchos[ultima] = Constraint::Length(0);
+    }
+    anchos
 }
 
 /// Dibuja el estado vacío de un listado.
@@ -88,4 +114,29 @@ pub fn celda_activa(
             .fg(if activa { colors.success } else { colors.muted })
             .add_modifier(Modifier::BOLD),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ancho_minimo_suma_columnas_separadores_y_bordes() {
+        let anchos = [Constraint::Length(16), Constraint::Min(10)];
+        assert_eq!(ancho_minimo(&anchos), 16 + 10 + 1 + 4);
+    }
+
+    #[test]
+    fn ajustar_anchos_oculta_columnas_de_la_derecha() {
+        let anchos = vec![
+            Constraint::Length(16),
+            Constraint::Min(10),
+            Constraint::Length(8),
+        ];
+        assert_eq!(ajustar_anchos(anchos.clone(), 100), anchos);
+        let ajustados = ajustar_anchos(anchos, 31);
+        assert_eq!(ajustados[0], Constraint::Length(16));
+        assert_eq!(ajustados[1], Constraint::Length(0));
+        assert_eq!(ajustados[2], Constraint::Length(0));
+    }
 }

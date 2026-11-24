@@ -44,7 +44,7 @@ for nombre in ["menu", "lista_camisetas", "camiseta", "visor", "partidos", "esta
     d.rounded_rectangle([1, 1, ancho - 2, BARRA], radius=14, fill=(20, 27, 24), outline=None)
     for i, col in enumerate([(235, 95, 87), (245, 189, 79), (98, 197, 84)]):
         d.ellipse([12 + i * 20, 12, 24 + i * 20, 24], fill=col)
-    d.text((80, 8), "MiFutbolRS  ·  TUI  ·  v0.1", font=f_normal, fill=(150, 174, 160))
+    d.text((80, 8), "MiFutbolR  ·  TUI  ·  v0.1", font=f_normal, fill=(150, 174, 160))
 
     y0 = MARGEN + BARRA
     for y in range(alto_celdas):

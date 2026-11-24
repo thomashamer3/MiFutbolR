@@ -205,3 +205,13 @@ fn go_back_recomputes_home_only_after_writes() {
         "tras guardar, el Inicio se recalcula"
     );
 }
+
+#[test]
+fn fecha_y_hora_se_ven_enteras_con_ancho_medio() {
+    let (mut app, _dir) = test_app();
+    preparar_partidos(&app);
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Partidos);
+    // 120 columnas: antes el panel de vista previa dejaba la tabla en ~81 y cortaba la hora.
+    let text = render_con(&mut app, 120, 32);
+    assert!(text.contains("01/03/2026 20:00"), "hora cortada: {text}");
+}

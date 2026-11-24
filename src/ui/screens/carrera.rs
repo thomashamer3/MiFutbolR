@@ -33,7 +33,7 @@ pub fn draw_menu(frame: &mut Frame, area: Rect, app: &mut App) {
         })
         .collect();
 
-    let (lista_area, resumen_area) = match detail::split(area) {
+    let (lista_area, resumen_area) = match detail::split(area, 60) {
         Some((lista, panel)) => (lista, Some(panel)),
         None => (area, None),
     };

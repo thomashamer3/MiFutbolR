@@ -17,15 +17,23 @@ pub const ANCHO_MINIMO: u16 = 110;
 /// Teclas al pie de la vista previa; mismas palabras que la barra inferior.
 pub const AYUDA_VISTA_PREVIA: &str = "Enter: detalle   e: editar   d: borrar";
 
-/// Divide el área en tabla + panel de vista previa cuando hay ancho suficiente.
+/// Ancho del panel de vista previa.
+const ANCHO_PANEL: u16 = 38;
+
+/// Divide el área en tabla + panel de vista previa cuando, además del panel, la tabla
+/// tiene `ancho_tabla` columnas (ver `lista::ancho_minimo`) para no recortar textos.
 #[must_use]
-pub fn split(area: Rect) -> Option<(Rect, Rect)> {
-    if area.width < ANCHO_MINIMO {
+pub fn split(area: Rect, ancho_tabla: u16) -> Option<(Rect, Rect)> {
+    let ancho_tabla = ancho_tabla.max(60);
+    if area.width < ANCHO_MINIMO.max(ancho_tabla + ANCHO_PANEL + 1) {
         return None;
     }
-    let [tabla, panel] = Layout::horizontal([Constraint::Min(60), Constraint::Length(38)])
-        .spacing(1)
-        .areas(area);
+    let [tabla, panel] = Layout::horizontal([
+        Constraint::Min(ancho_tabla),
+        Constraint::Length(ANCHO_PANEL),
+    ])
+    .spacing(1)
+    .areas(area);
     Some((tabla, panel))
 }
 

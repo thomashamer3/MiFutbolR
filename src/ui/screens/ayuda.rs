@@ -15,7 +15,7 @@ const ATAJOS: &[(&str, &str)] = &[
     ("Enter", "Abrir / editar / confirmar"),
     ("Esc", "Volver / cancelar"),
     ("Ctrl+S", "Guardar formulario"),
-    ("Tab / Shift+Tab", "Campo siguiente / anterior"),
+    ("Tab / Shift+Tab / ↑↓", "Campo siguiente / anterior"),
     ("n / e / d", "Nuevo / editar / borrar"),
     ("/", "Buscar en el listado"),
     ("f / o", "Filtros / ordenar"),

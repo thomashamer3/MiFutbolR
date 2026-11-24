@@ -866,11 +866,11 @@ impl App {
                 self.focus_first_wizard_field();
                 return Ok(true);
             }
-            KeyCode::Tab => {
+            KeyCode::Tab | KeyCode::Down => {
                 self.wizard_move_focus(1);
                 return Ok(true);
             }
-            KeyCode::BackTab => {
+            KeyCode::BackTab | KeyCode::Up => {
                 self.wizard_move_focus(-1);
                 return Ok(true);
             }

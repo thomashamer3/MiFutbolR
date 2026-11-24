@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Analiza el proyecto MiFutbolRS con todo el toolchain de Cargo.
+    Analiza el proyecto MiFutbolR con todo el toolchain de Cargo.
 
 .DESCRIPTION
     Ejecuta fetch, update (dry-run por defecto), check, build debug/release,
@@ -97,7 +97,7 @@ function Invoke-Paso {
     Write-Host ("  -> {0} ({1:N1}s)" -f $estado, $reloj.Elapsed.TotalSeconds) -ForegroundColor $(if ($codigo -eq 0) { "Green" } elseif ($Opcional) { "Yellow" } else { "Red" })
 }
 
-Write-Host "MiFutbolRS - analisis completo" -ForegroundColor Magenta
+Write-Host "MiFutbolR - analisis completo" -ForegroundColor Magenta
 Write-Host ("Raiz: {0}" -f $raiz)
 Write-Host ("Salida de logs: {0}" -f (Join-Path $raiz $Salida))
 
@@ -196,7 +196,7 @@ $reporteMd = Join-Path $Salida "reporte.md"
 $reporteJson = Join-Path $Salida "reporte.json"
 
 $lineas = [System.Collections.Generic.List[string]]::new()
-$lineas.Add("# Reporte de analisis - MiFutbolRS")
+$lineas.Add("# Reporte de analisis - MiFutbolR")
 $lineas.Add("")
 $lineas.Add("- Fecha: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
 $lineas.Add("- Raiz: $raiz")

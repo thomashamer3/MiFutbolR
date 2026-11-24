@@ -2076,7 +2076,7 @@ impl App {
             | Screen::PlanForm(_)
             | Screen::UsuarioForm(_)
             | Screen::UsuarioEliminar
-            | Screen::Eleccion(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
+            | Screen::Eleccion(_) => "Tab/↑↓: campo  Ctrl+S: guardar  Esc: cancelar",
             Screen::CanchasList => {
                 "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
@@ -2098,7 +2098,7 @@ impl App {
             }
             Screen::PartidoDetail(_) => "e: editar  d: borrar  F: favorito  Esc: volver",
             Screen::PartidoWizard => {
-                "Tab: campo  Enter/PgDn: siguiente paso  PgUp: anterior  Ctrl+S: guardar  Esc: cancelar"
+                "Tab/↑↓: campo  Enter/PgDn: siguiente paso  PgUp: anterior  Ctrl+S: guardar  Esc: cancelar"
             }
             Screen::LesionesList => {
                 "n: nueva  e: editar  d: borrar  Enter: detalle  u: avanzar estado  D: diferencias  f: estado  o: orden  /: buscar  x: exportar  r: refrescar"
@@ -2110,7 +2110,7 @@ impl App {
                 "n: nueva  e: editar  d: borrar  p: presupuesto  f: tipo  c: categoría  /: buscar  x: exportar  r: refrescar"
             }
             Screen::TransaccionForm(_) | Screen::PresupuestoForm => {
-                "Tab: campo  Ctrl+S: guardar  Esc: cancelar"
+                "Tab/↑↓: campo  Ctrl+S: guardar  Esc: cancelar"
             }
             Screen::CarreraMenu => "↑↓: opción  Enter: abrir  Esc: volver",
             Screen::CarreraResumen
@@ -2120,14 +2120,14 @@ impl App {
             | Screen::CarreraRetro
             | Screen::CarreraLogros => "↑↓: desplazar  Esc: volver",
             Screen::CarreraIdentidadForm | Screen::CarreraHitoForm(_) => {
-                "Tab: campo  Ctrl+S: guardar  Esc: cancelar"
+                "Tab/↑↓: campo  Ctrl+S: guardar  Esc: cancelar"
             }
             Screen::CarreraHitos => "n: nuevo  e: editar  d: borrar  Esc: volver",
             Screen::ResumenPreview => {
                 "m: Markdown  h: HTML  t: texto  g: guardar  ↑↓: desplazar  r: regenerar  Esc: volver"
             }
             Screen::AjustesForm => {
-                "Tab: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+D: exportar / importar  Ctrl+N: menús  Ctrl+U: actualizaciones  Ctrl+F: ver configuración  Ctrl+Q: restablecer  Esc: volver"
+                "Tab/↑↓: campo  Ctrl+S: guardar  Ctrl+B: backup  Ctrl+I: integridad  Ctrl+R: restaurar  Ctrl+G: backups  Ctrl+T: mantenimiento  Ctrl+D: exportar / importar  Ctrl+N: menús  Ctrl+U: actualizaciones  Ctrl+F: ver configuración  Ctrl+Q: restablecer  Esc: volver"
             }
             Screen::LegacyImportForm => {
                 "Ruta del archivo .db legacy  ·  Ctrl+S: importar  Esc: cancelar"
@@ -2840,8 +2840,8 @@ impl App {
             return Ok(());
         };
         match key.code {
-            KeyCode::Tab => form.next_field(),
-            KeyCode::BackTab => form.previous_field(),
+            KeyCode::Tab | KeyCode::Down => form.next_field(),
+            KeyCode::BackTab | KeyCode::Up => form.previous_field(),
             KeyCode::Backspace => form.pop_char(),
             KeyCode::Enter => {
                 if form.current_is_toggle() {

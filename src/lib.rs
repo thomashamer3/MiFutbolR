@@ -1,4 +1,4 @@
-//! MiFutbolRS — gestión futbolística personal en TUI.
+//! MiFutbolR — gestión futbolística personal en TUI.
 //!
 //! Arquitectura en capas (ADR-06):
 //! `ui` → `app` → `services` → `db` → SQLite, con `domain` puro en el centro.

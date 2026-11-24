@@ -23,10 +23,20 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let [cuerpo, summary_area] =
         Layout::vertical([Constraint::Min(5), Constraint::Length(2)]).areas(area);
-    let (tabla_area, preview_area) = match detail::split(cuerpo) {
-        Some((tabla, panel)) => (tabla, Some(panel)),
-        None => (cuerpo, None),
-    };
+    let anchos = vec![
+        Constraint::Length(4),
+        Constraint::Length(16),
+        Constraint::Min(12),
+        Constraint::Min(14),
+        Constraint::Length(15),
+        Constraint::Min(10),
+        Constraint::Length(18),
+    ];
+    let (tabla_area, preview_area) =
+        match detail::split(cuerpo, crate::ui::widgets::lista::ancho_minimo(&anchos)) {
+            Some((tabla, panel)) => (tabla, Some(panel)),
+            None => (cuerpo, None),
+        };
 
     if app.lesiones.is_empty() {
         frame.render_widget(
@@ -80,15 +90,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
             vec![
                 "ID", "Fecha", "Jugador", "Tipo", "Estado", "Camiseta", "Partido",
             ],
-            vec![
-                Constraint::Length(4),
-                Constraint::Length(16),
-                Constraint::Min(12),
-                Constraint::Min(14),
-                Constraint::Length(15),
-                Constraint::Min(10),
-                Constraint::Length(18),
-            ],
+            anchos,
             rows.collect::<Vec<_>>(),
             &mut app.lesiones_table,
         );
