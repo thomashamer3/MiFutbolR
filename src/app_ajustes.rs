@@ -211,8 +211,9 @@ impl App {
     /// Crea un backup de la base en `Exportaciones/`.
     pub fn backup_ajustes(&mut self) -> Result<()> {
         let destino = self.exportaciones_dir().join(format!(
-            "backup_{}.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            "backup_{}{}.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S"),
+            self.sufijo_backup()
         ));
         match self.db.backup(&destino) {
             Ok(()) => {
@@ -269,8 +270,9 @@ impl App {
     /// (`backup_base_datos_automatico("antes de VACUUM")`).
     pub(crate) fn mantenimiento_ajustes(&mut self) {
         let previo = self.exportaciones_dir().join(format!(
-            "backup_{}_pre_vacuum.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            "backup_{}_pre_vacuum{}.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S"),
+            self.sufijo_backup()
         ));
         if let Err(error) = self.db.backup(&previo) {
             self.modal = Some(Modal::Error(format!(
@@ -383,8 +385,8 @@ impl App {
     }
 
     /// Relee los `backup_*.db` de Exportaciones/.
-    pub(crate) fn refresh_backups(&mut self) {
-        self.backups = backup_service::listar(&self.exportaciones_dir());
+    pub fn refresh_backups(&mut self) {
+        self.backups = backup_service::listar(&self.exportaciones_dir(), self.cuenta_id());
         let total = self.backups.len();
         let actual = self.backups_table.selected().unwrap_or(0);
         self.backups_table
@@ -475,10 +477,19 @@ impl App {
     }
 
     fn backup_mas_reciente(&self) -> Option<PathBuf> {
-        backup_service::listar(&self.exportaciones_dir())
+        backup_service::listar(&self.exportaciones_dir(), self.cuenta_id())
             .into_iter()
             .next()
             .map(|backup| backup.ruta)
+    }
+
+    fn cuenta_id(&self) -> Option<i64> {
+        self.usuario_actual.as_ref().map(|u| u.id)
+    }
+
+    /// `_u<id>` para que cada cuenta vea solo sus backups en la carpeta compartida.
+    pub(crate) fn sufijo_backup(&self) -> String {
+        backup_service::sufijo_cuenta(self.cuenta_id())
     }
 
     fn exportaciones_dir(&self) -> PathBuf {

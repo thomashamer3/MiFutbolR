@@ -167,3 +167,30 @@ fn portada_q_y_esc_piden_confirmar_e_i_entra_como_invitado() {
     press(&mut app, KeyCode::Char('i'));
     assert_eq!(app.current_screen(), Screen::MainMenu);
 }
+
+#[test]
+fn el_backup_de_una_cuenta_no_se_ofrece_a_otra() {
+    let (mut app, _dir) = test_app_con_bienvenida();
+    crear_cuenta(&mut app, "Ana", "");
+    app.db
+        .conn()
+        .execute("INSERT INTO cancha (nombre) VALUES ('Solo de Ana')", [])
+        .unwrap();
+    app.backup_ajustes().unwrap();
+    app.modal = None;
+    app.refresh_backups();
+    assert_eq!(app.backups.len(), 1);
+    assert!(
+        app.backups[0].nombre.ends_with("_u1.db"),
+        "{:?}",
+        app.backups
+    );
+
+    cerrar_sesion(&mut app);
+    // Beto entra con la base vacía: el backup de Ana no se ofrece ni se lista.
+    crear_cuenta(&mut app, "Beto", "");
+    assert_eq!(app.usuario_actual.as_ref().unwrap().nombre, "Beto");
+    assert!(app.modal.is_none(), "{:?}", app.modal);
+    app.refresh_backups();
+    assert!(app.backups.is_empty(), "{:?}", app.backups);
+}

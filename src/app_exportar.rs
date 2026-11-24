@@ -138,8 +138,9 @@ impl App {
     /// devuelve `None` para no importar nada.
     pub(crate) fn backup_pre_import(&mut self) -> Option<std::path::PathBuf> {
         let previo = self.paths.export_dir.join(format!(
-            "backup_{}_pre_import.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            "backup_{}_pre_import{}.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S"),
+            self.sufijo_backup()
         ));
         match self.db.backup(&previo) {
             Ok(()) => Some(previo),

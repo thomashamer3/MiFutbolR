@@ -26,9 +26,28 @@ fn es_backup(ruta: &Path) -> bool {
             .is_some_and(|name| name.to_string_lossy().starts_with("backup_"))
 }
 
-/// Backups `backup_*.db` de `dir`, el más reciente primero (el nombre lleva la fecha).
+/// Cuenta dueña de un backup por el sufijo `_u<id>.db` (`None` = invitado / sin cuenta).
 #[must_use]
-pub fn listar(dir: &Path) -> Vec<BackupInfo> {
+pub fn propietario(nombre: &str) -> Option<i64> {
+    let base = nombre.strip_suffix(".db")?;
+    let (_, id) = base.rsplit_once("_u")?;
+    (!id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| id.parse().ok())
+        .flatten()
+}
+
+/// Sufijo con el que una cuenta firma sus backups (`""` sin cuenta).
+#[must_use]
+pub fn sufijo_cuenta(usuario: Option<i64>) -> String {
+    usuario.map_or_else(String::new, |id| format!("_u{id}"))
+}
+
+/// Backups `backup_*.db` de `dir` que pertenecen a `usuario` (por el sufijo
+/// `_u<id>`; sin cuenta, solo los que no llevan sufijo), el más reciente primero.
+/// `Exportaciones/` es compartida entre perfiles: sin este filtro una cuenta
+/// vacía podía restaurar la base de otra.
+#[must_use]
+pub fn listar(dir: &Path, usuario: Option<i64>) -> Vec<BackupInfo> {
     let Ok(entradas) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -36,6 +55,10 @@ pub fn listar(dir: &Path) -> Vec<BackupInfo> {
         .filter_map(std::result::Result::ok)
         .map(|entrada| entrada.path())
         .filter(|ruta| es_backup(ruta))
+        .filter(|ruta| {
+            ruta.file_name()
+                .is_some_and(|n| propietario(&n.to_string_lossy()) == usuario)
+        })
         .map(|ruta| {
             let meta = std::fs::metadata(&ruta).ok();
             let fecha = meta
@@ -151,7 +174,7 @@ mod tests {
             .unwrap();
         std::fs::write(dir.path().join("otro.db"), b"x").unwrap();
 
-        let lista = listar(dir.path());
+        let lista = listar(dir.path(), None);
         assert_eq!(lista.len(), 2);
         assert_eq!(lista[0].nombre, "backup_20260201_100000.db");
         assert_eq!(lista[0].partidos, Some(1));
@@ -160,7 +183,7 @@ mod tests {
 
         assert!(eliminar(&dir.path().join("otro.db")).is_err());
         eliminar(&lista[1].ruta).unwrap();
-        assert_eq!(listar(dir.path()).len(), 1);
+        assert_eq!(listar(dir.path(), None).len(), 1);
         assert_eq!(tamano(2048), "2 KB");
         assert_eq!(tamano(3 * 1024 * 1024), "3.0 MB");
     }
@@ -193,7 +216,10 @@ mod tests {
         let ultimo = backup_inicio(&db, dir.path(), "inicio", fecha(9, 18))
             .unwrap()
             .unwrap();
-        let nombres: Vec<String> = listar(dir.path()).into_iter().map(|b| b.nombre).collect();
+        let nombres: Vec<String> = listar(dir.path(), None)
+            .into_iter()
+            .map(|b| b.nombre)
+            .collect();
         let propios: Vec<&String> = nombres
             .iter()
             .filter(|n| n.ends_with("_inicio.db"))
@@ -202,9 +228,39 @@ mod tests {
         assert_eq!(propios[0], "backup_20260309_180000_inicio.db");
         assert_eq!(propios[6], "backup_20260303_100000_inicio.db");
         assert!(ultimo.exists());
-        assert!(nombres.contains(&"backup_20260101_000000_inicio_u2.db".to_string()));
+        assert!(
+            dir.path()
+                .join("backup_20260101_000000_inicio_u2.db")
+                .exists()
+        );
         assert!(nombres.contains(&"backup_20260101_000000.db".to_string()));
         // El restaurar al inicio (B2) toma el más reciente: el de inicio de hoy.
         assert_eq!(nombres[0], "backup_20260309_180000_inicio.db");
+    }
+
+    #[test]
+    fn cada_cuenta_ve_solo_sus_backups() {
+        let dir = tempfile::tempdir().unwrap();
+        for nombre in [
+            "backup_20260101_000000.db",
+            "backup_20260102_000000_inicio_u1.db",
+            "backup_20260103_000000_u2.db",
+            "backup_20260104_000000_inicio_u12.db",
+        ] {
+            std::fs::write(dir.path().join(nombre), b"x").unwrap();
+        }
+        let nombres = |usuario| -> Vec<String> {
+            listar(dir.path(), usuario)
+                .into_iter()
+                .map(|b| b.nombre)
+                .collect()
+        };
+        assert_eq!(nombres(None), ["backup_20260101_000000.db"]);
+        assert_eq!(nombres(Some(1)), ["backup_20260102_000000_inicio_u1.db"]);
+        assert_eq!(nombres(Some(2)), ["backup_20260103_000000_u2.db"]);
+        assert_eq!(nombres(Some(12)), ["backup_20260104_000000_inicio_u12.db"]);
+        assert!(nombres(Some(3)).is_empty());
+        assert_eq!(propietario("backup_x_uX.db"), None);
+        assert_eq!(sufijo_cuenta(Some(7)), "_u7");
     }
 }
