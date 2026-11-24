@@ -78,6 +78,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Importar partidos.json del móvil al iniciar (activar / desactivar)",
     ),
     (
+        "f / x / i / I (Recordatorios)",
+        "Filtrar por temática / exportar / importar uniendo / importar reemplazando",
+    ),
+    (
         "1-8 (Sincronización)",
         "PocketBase: servidor, sesión, sincronizar, subir todo, estado, conflictos, auto-sync, salir",
     ),

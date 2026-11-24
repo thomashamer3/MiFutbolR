@@ -22,7 +22,11 @@ impl App {
     /// Recarga recordatorios.
     pub(crate) fn refresh_recordatorios(&mut self) -> Result<()> {
         match recordatorios_service::listar(self.db.conn()) {
-            Ok(lista) => {
+            Ok(mut lista) => {
+                if let Some(tema) = &self.recordatorios_tema {
+                    let tema = tema.to_lowercase();
+                    lista.retain(|item| item.tematica.trim().to_lowercase() == tema);
+                }
                 self.recordatorios = lista;
                 self.recordatorios_table
                     .select(if self.recordatorios.is_empty() {
@@ -106,6 +110,30 @@ impl App {
                 }
             }
             KeyCode::Char('a') => self.open_agenda()?,
+            KeyCode::Char('f') => self.siguiente_tema_recordatorios()?,
+            KeyCode::Char('x') => {
+                match recordatorios_service::exportar(self.db.conn(), &self.paths.export_dir) {
+                    Ok(ruta) => {
+                        self.modal = Some(Modal::Info(format!(
+                            "Recordatorios exportados a:
+{}",
+                            ruta.display()
+                        )));
+                    }
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                }
+            }
+            KeyCode::Char('i') => self.importar_recordatorios(false),
+            KeyCode::Char('I') => {
+                self.modal = Some(Modal::confirm(
+                    "Importar recordatorios",
+                    format!(
+                        "Se borrarán los recordatorios actuales y se cargarán los de Importaciones/{}. Se hace un backup antes. (S = sí, N = no)",
+                        recordatorios_service::ARCHIVO
+                    ),
+                    ConfirmAction::ImportarRecordatoriosReemplazo,
+                ));
+            }
             KeyCode::Char('r') => {
                 self.refresh_recordatorios()?;
                 self.status = "Recordatorios actualizados".to_string();
@@ -113,6 +141,82 @@ impl App {
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    /// `f`: todas → cada temática existente → todas (C pedía escribirla).
+    fn siguiente_tema_recordatorios(&mut self) -> Result<()> {
+        let todos = match crate::db::recordatorio_repo::list(self.db.conn()) {
+            Ok(todos) => todos,
+            Err(error) => {
+                self.modal = Some(Modal::Error(error.to_string()));
+                return Ok(());
+            }
+        };
+        let temas = recordatorios_service::tematicas(&todos);
+        let siguiente = match &self.recordatorios_tema {
+            None => 0,
+            Some(actual) => temas
+                .iter()
+                .position(|t| t.to_lowercase() == actual.to_lowercase())
+                .map_or(temas.len(), |i| i + 1),
+        };
+        self.recordatorios_tema = temas.get(siguiente).cloned();
+        self.refresh_recordatorios()?;
+        self.status = match &self.recordatorios_tema {
+            Some(tema) => format!(
+                "Temática: {tema} ({} recordatorios)",
+                self.recordatorios.len()
+            ),
+            None if temas.is_empty() => "No hay recordatorios con temática".to_string(),
+            None => "Todas las temáticas".to_string(),
+        };
+        Ok(())
+    }
+
+    /// Importa `Importaciones/recordatorios.json` (`i` une, `I` reemplaza con
+    /// backup previo).
+    pub(crate) fn importar_recordatorios(&mut self, reemplazar: bool) {
+        let ruta = self.paths.import_dir.join(recordatorios_service::ARCHIVO);
+        if !ruta.exists() {
+            self.modal = Some(Modal::Error(format!("No existe {}", ruta.display())));
+            return;
+        }
+        let previo = if reemplazar {
+            match self.backup_pre_import() {
+                Some(previo) => format!(
+                    "
+Backup previo: {}",
+                    previo.display()
+                ),
+                None => return,
+            }
+        } else {
+            String::new()
+        };
+        match recordatorios_service::importar(self.db.conn_mut(), &ruta, reemplazar) {
+            Ok((importados, errores)) => {
+                let _ = self.refresh_recordatorios();
+                let mut texto = format!(
+                    "{importados} recordatorios importados ({}).",
+                    if reemplazar { "reemplazados" } else { "unidos" }
+                );
+                for error in errores.iter().take(5) {
+                    texto.push_str(&format!(
+                        "
+  {error}"
+                    ));
+                }
+                if errores.len() > 5 {
+                    texto.push_str(&format!(
+                        "
+  … y {} más",
+                        errores.len() - 5
+                    ));
+                }
+                self.modal = Some(Modal::Info(format!("{texto}{previo}")));
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
     }
 
     /// Abre la agenda.

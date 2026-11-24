@@ -337,3 +337,44 @@ fn progresion_open_with_form() {
     assert_eq!(app.current_screen(), Screen::PlanesList);
     press(&mut app, KeyCode::Esc);
 }
+
+#[test]
+fn recordatorios_filtran_por_tema_e_importan_y_exportan() {
+    let (mut app, _dir) = test_app();
+    std::fs::create_dir_all(&app.paths.import_dir).unwrap();
+    std::fs::write(
+        app.paths.import_dir.join("recordatorios.json"),
+        r#"[{"id":1,"fecha":"2031-01-10 09:00","nota":"Cuota","tematica":"Pagos","periodicidad":0},
+            {"id":2,"fecha":"2031-01-11 10:00","nota":"Botines","tematica":"Equipo","periodicidad":0}]"#,
+    )
+    .unwrap();
+    abrir_opcion(&mut app, mifutbol_rs::app::Module::Recordatorios);
+    assert_eq!(app.current_screen(), Screen::RecordatoriosList);
+    press(&mut app, KeyCode::Char('i'));
+    assert!(matches!(app.modal, Some(mifutbol_rs::app::Modal::Info(_))));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.recordatorios.len(), 2);
+    // f: Equipo → Pagos → todas.
+    press(&mut app, KeyCode::Char('f'));
+    assert_eq!(app.recordatorios_tema.as_deref(), Some("Equipo"));
+    assert_eq!(app.recordatorios.len(), 1);
+    assert!(render_con(&mut app, 120, 30).contains("Recordatorios · Equipo · 1"));
+    press(&mut app, KeyCode::Char('f'));
+    assert_eq!(app.recordatorios[0].tematica, "Pagos");
+    press(&mut app, KeyCode::Char('f'));
+    assert_eq!(app.recordatorios_tema, None);
+    assert_eq!(app.recordatorios.len(), 2);
+    // I reemplaza tras confirmar: siguen siendo 2, no 4.
+    press(&mut app, KeyCode::Char('I'));
+    press(&mut app, KeyCode::Char('s'));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.recordatorios.len(), 2);
+    let backups = std::fs::read_dir(&app.paths.export_dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name().to_string_lossy().ends_with("_pre_import.db"))
+        .count();
+    assert_eq!(backups, 1, "reemplazar hace backup previo");
+    press(&mut app, KeyCode::Char('x'));
+    assert!(app.paths.export_dir.join("recordatorios.json").exists());
+}

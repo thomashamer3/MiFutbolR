@@ -14,15 +14,23 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let colors = palette(app.settings.theme);
     if app.recordatorios.is_empty() {
         frame.render_widget(
-            Paragraph::new("No hay recordatorios. Presioná n para crear uno; a abre la agenda.")
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .title(" Recordatorios ")
-                        .border_style(Style::default().fg(colors.border)),
-                )
-                .style(Style::default().fg(colors.muted))
-                .wrap(Wrap { trim: true }),
+            Paragraph::new(match &app.recordatorios_tema {
+                Some(tema) => {
+                    format!("No hay recordatorios con temática {tema}. f cambia el filtro.")
+                }
+                None => {
+                    "No hay recordatorios. Presioná n para crear uno; a abre la agenda; i importa."
+                        .to_string()
+                }
+            })
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title(" Recordatorios ")
+                    .border_style(Style::default().fg(colors.border)),
+            )
+            .style(Style::default().fg(colors.muted))
+            .wrap(Wrap { trim: true }),
             area,
         );
         return;
@@ -79,7 +87,10 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(
         Block::bordered()
             .border_type(BorderType::Rounded)
-            .title(format!(" Recordatorios · {} ", app.recordatorios.len()))
+            .title(match &app.recordatorios_tema {
+                Some(tema) => format!(" Recordatorios · {tema} · {} ", app.recordatorios.len()),
+                None => format!(" Recordatorios · {} ", app.recordatorios.len()),
+            })
             .border_style(Style::default().fg(colors.border)),
     )
     .row_highlight_style(

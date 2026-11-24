@@ -134,6 +134,24 @@ impl App {
         }
     }
 
+    /// `backup_<sello>_pre_import.db` antes de importar; si falla, avisa y
+    /// devuelve `None` para no importar nada.
+    pub(crate) fn backup_pre_import(&mut self) -> Option<std::path::PathBuf> {
+        let previo = self.paths.export_dir.join(format!(
+            "backup_{}_pre_import.db",
+            chrono::Local::now().format("%Y%m%d_%H%M%S")
+        ));
+        match self.db.backup(&previo) {
+            Ok(()) => Some(previo),
+            Err(error) => {
+                self.modal = Some(Modal::Error(format!(
+                    "No se pudo crear el backup previo; no se importó nada: {error}"
+                )));
+                None
+            }
+        }
+    }
+
     /// Importa los archivos del formato desde `Importaciones/`, con un backup
     /// previo como `backup_base_datos_automatico("import_*")` de C.
     pub(crate) fn importar_formato_ajustes(&mut self, formato: Formato) {
@@ -146,16 +164,9 @@ impl App {
             )));
             return;
         }
-        let previo = self.paths.export_dir.join(format!(
-            "backup_{}_pre_import.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
-        ));
-        if let Err(error) = self.db.backup(&previo) {
-            self.modal = Some(Modal::Error(format!(
-                "No se pudo crear el backup previo; no se importó nada: {error}"
-            )));
+        let Some(previo) = self.backup_pre_import() else {
             return;
-        }
+        };
         match importacion_service::importar(self.db.conn_mut(), &dir, formato) {
             Ok(resumenes) => {
                 self.inicio_sucio = true;

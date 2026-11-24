@@ -137,6 +137,10 @@ Las capturas se generan desde la TUI real con
 - **Meta-análisis**: consistencia, outliers, contexto, impacto del cansancio/ánimo y eficiencia.
 - **Progresión**: planes de entrenamiento y evolución semanal por jugador.
 - **Recordatorios**: recurrencia diaria/semanal/mensual, agenda con partidos y calendario.
+  `f` filtra por temática (recorre las existentes), `x` exporta
+  `Exportaciones/recordatorios.json` e `i`/`I` importa
+  `Importaciones/recordatorios.json` uniendo o reemplazando (con backup previo),
+  en el formato de `recordatorios.c` (`fecha_fin` no se guarda).
 - **Multimedia**: video, foto, artículo y audio asociados a partidos, con filtro por tipo.
 - **Tiendas y amigos**: catálogo de tiendas y ranking de amigos con el usuario local.
 - **Temporadas**: fases, torneos asociados, resumen del rango, fatiga y comparación.

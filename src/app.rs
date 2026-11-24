@@ -561,6 +561,8 @@ pub enum ConfirmAction {
     DeleteBackupSel(usize),
     /// VACUUM + ANALYZE + integridad, con backup previo.
     Mantenimiento,
+    /// Importar `recordatorios.json` reemplazando los existentes.
+    ImportarRecordatoriosReemplazo,
     /// Reiniciar el sorteo de botines.
     ResetSorteoBotines,
     /// Deshacer la última operación.
@@ -1541,6 +1543,8 @@ pub struct App {
     pub recordatorios: Vec<Recordatorio>,
     /// Selección de recordatorios.
     pub recordatorios_table: TableState,
+    /// Filtro por temática de Recordatorios (`f`), como `filtrar_por_tematica` de C.
+    pub recordatorios_tema: Option<String>,
     /// Recordatorio en edición.
     pub recordatorio_edit_id: Option<i64>,
     /// Agenda fusionada.
@@ -1788,6 +1792,7 @@ impl App {
             media_filter: None,
             recordatorios: Vec::new(),
             recordatorios_table: TableState::default(),
+            recordatorios_tema: None,
             recordatorio_edit_id: None,
             agenda: Vec::new(),
             agenda_table: TableState::default(),
@@ -2084,7 +2089,7 @@ impl App {
                 "n: nueva  e: editar  d: borrar  f: tipo  r: refrescar  Esc: volver"
             }
             Screen::RecordatoriosList => {
-                "n: nuevo  e: editar  d: borrar  c: completar  a: agenda  r: refrescar"
+                "n: nuevo  e: editar  d: borrar  c: completar  a: agenda  f: temática  x: exportar  i/I: importar (unir/reemplazar)  r: refrescar"
             }
             Screen::Agenda => "j/k: mover  Esc: volver",
             Screen::ProgresionList => "n: nueva  e: editar  d: borrar  p: planes  r: refrescar",
@@ -2935,6 +2940,7 @@ impl App {
                 }
             }
             ConfirmAction::Mantenimiento => self.mantenimiento_ajustes(),
+            ConfirmAction::ImportarRecordatoriosReemplazo => self.importar_recordatorios(true),
             ConfirmAction::DeleteBackupSel(indice) => {
                 if let Some(ruta) = self.backups.get(indice).map(|b| b.ruta.clone()) {
                     let resultado = crate::services::backup_service::eliminar(&ruta);
