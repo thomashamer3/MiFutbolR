@@ -61,7 +61,10 @@ Las capturas se generan desde la TUI real con
 - **Camisetas**: borrar una camiseta con partidos o lesiones la desactiva (como C);
   `a` en el listado o la ficha la reactiva o desactiva, y `f` filtra activas/inactivas.
 - **Colecciones**: inventario de camisetas, botines y accesorios agrupado en
-  colecciones; `s` sincroniza las camisetas cargadas.
+  colecciones; `s` sincroniza las camisetas cargadas. `x` exporta el backup JSON
+  de C (`Exportaciones/colecciones_inventario.json`) e `i` lo importa desde
+  `Importaciones/`, uniendo con lo existente sin duplicar (colección por nombre,
+  camiseta por id, ítem genérico equivalente).
 - **Entrenador IA**: consejos por reglas a partir de los últimos 10 partidos,
   predicción del próximo resultado, formación sugerida, descanso y puntos débiles.
 - **Clima automático**: si la cancha tiene latitud/longitud, el clima histórico

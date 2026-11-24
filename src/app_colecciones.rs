@@ -87,11 +87,51 @@ impl App {
             self.status = "Colecciones actualizadas".to_string();
             return Ok(true);
         }
+        if key.code == KeyCode::Char('x') {
+            match colecciones_service::exportar_backup(self.db.conn(), &self.paths.export_dir) {
+                Ok(ruta) => {
+                    self.modal = Some(Modal::Info(format!(
+                        "Backup de colecciones exportado en:
+{}",
+                        ruta.display()
+                    )));
+                }
+                Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+            }
+            return Ok(true);
+        }
+        if key.code == KeyCode::Char('i') {
+            self.importar_backup_colecciones()?;
+            return Ok(true);
+        }
         if self.colecciones_ver_colecciones {
             self.handle_colecciones_tab_key(key)
         } else {
             self.handle_inventario_key(key)
         }
+    }
+
+    /// Une `Importaciones/colecciones_inventario.json` con lo existente.
+    fn importar_backup_colecciones(&mut self) -> Result<()> {
+        let ruta = self
+            .paths
+            .import_dir
+            .join(colecciones_service::ARCHIVO_BACKUP);
+        if !ruta.exists() {
+            self.modal = Some(Modal::Error(format!("No existe {}", ruta.display())));
+            return Ok(());
+        }
+        match colecciones_service::importar_backup(self.db.conn_mut(), &ruta) {
+            Ok(resumen) => {
+                self.refresh_colecciones()?;
+                self.modal = Some(Modal::Info(format!(
+                    "Importación completada. Colecciones procesadas: {} | Ítems procesados: {} | Relaciones nuevas: {}",
+                    resumen.colecciones, resumen.items, resumen.relaciones
+                )));
+            }
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+        Ok(())
     }
 
     fn handle_inventario_key(&mut self, key: KeyEvent) -> Result<bool> {

@@ -82,6 +82,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Filtrar por temática / exportar / importar uniendo / importar reemplazando",
     ),
     (
+        "x / i (Colecciones)",
+        "Backup JSON: exportar / importar colecciones_inventario.json (une, no duplica)",
+    ),
+    (
         "1-8 (Sincronización)",
         "PocketBase: servidor, sesión, sincronizar, subir todo, estado, conflictos, auto-sync, salir",
     ),

@@ -250,3 +250,32 @@ fn coach_warns_before_loading_a_risky_match() {
     assert!(app.modal.is_none());
     assert_eq!(app.current_screen(), Screen::PartidoWizard);
 }
+
+#[test]
+fn colecciones_backup_json_exporta_e_importa() {
+    let (mut app, _dir) = test_app();
+    preparar_partidos(&app);
+    abrir_por_paleta(&mut app, "colecciones");
+    press(&mut app, KeyCode::Char('s'));
+    press(&mut app, KeyCode::Char('x'));
+    assert!(matches!(app.modal, Some(Modal::Info(_))));
+    press(&mut app, KeyCode::Enter);
+    let exportado = app.paths.export_dir.join("colecciones_inventario.json");
+    assert!(exportado.exists());
+    // Sin archivo en Importaciones/: error claro.
+    press(&mut app, KeyCode::Char('i'));
+    assert!(matches!(app.modal, Some(Modal::Error(_))));
+    press(&mut app, KeyCode::Enter);
+    std::fs::create_dir_all(&app.paths.import_dir).unwrap();
+    std::fs::copy(
+        &exportado,
+        app.paths.import_dir.join("colecciones_inventario.json"),
+    )
+    .unwrap();
+    press(&mut app, KeyCode::Char('i'));
+    match &app.modal {
+        Some(Modal::Info(texto)) => assert!(texto.contains("Relaciones nuevas: 0"), "{texto}"),
+        otro => panic!("modal inesperado: {otro:?}"),
+    }
+    assert_eq!(app.inventario.len(), 1, "no duplica la camiseta");
+}

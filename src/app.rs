@@ -2078,7 +2078,7 @@ impl App {
             }
             Screen::BienestarAsistente => "s: guardar recomendación  r: recalcular  Esc: volver",
             Screen::ColeccionesList => {
-                "Tab: pestaña  n: nuevo  e: editar  d: borrar  s: sincronizar camisetas  a: agregar a colección  Enter: abrir"
+                "Tab: pestaña  n: nuevo  e: editar  d: borrar  s: sincronizar camisetas  a: agregar a colección  Enter: abrir  x/i: backup JSON exportar/importar"
             }
             Screen::ColeccionDetail(_) => "u: quitar de la colección  Esc: volver",
             Screen::EntrenadorIa => {
