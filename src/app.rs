@@ -534,6 +534,17 @@ pub enum Screen {
     UsuarioEliminar,
     /// Ayuda contextual.
     Ayuda,
+    /// Reporte de texto de solo lectura (`app.reporte`).
+    Reporte,
+    /// Formulario corto que elige qué calcular o crear.
+    Eleccion(Eleccion),
+}
+
+/// Qué hace el formulario de `Screen::Eleccion` al guardar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Eleccion {
+    /// Partidos → simular con dos equipos guardados.
+    SimularEquipos,
 }
 
 /// Acción confirmable en un modal.
@@ -1535,6 +1546,10 @@ pub struct App {
     pub analisis_metrica: crate::domain::analisis::Metrica,
     /// Desplazamiento de los reportes de análisis.
     pub analisis_scroll: u16,
+    /// Reporte que muestra `Screen::Reporte`.
+    pub reporte: crate::domain::reporte::Reporte,
+    /// Desplazamiento del reporte.
+    pub reporte_scroll: u16,
     /// Duplas de química cargadas a mano.
     pub quimica_duplas: Vec<crate::domain::quimica::Dupla>,
     /// Mejor combinación según equipos de partidos.
@@ -1806,6 +1821,8 @@ impl App {
             analisis_evolucion: None,
             analisis_metrica: crate::domain::analisis::Metrica::default(),
             analisis_scroll: 0,
+            reporte: crate::domain::reporte::Reporte::default(),
+            reporte_scroll: 0,
             quimica_duplas: Vec::new(),
             quimica_mejor: None,
             quimica_table: TableState::default(),
@@ -1934,6 +1951,8 @@ impl App {
             Screen::SyncConflicto => "Sincronización · conflictos".to_string(),
             Screen::Comparador => "Comparador A/B".to_string(),
             Screen::AnalisisBasico => "Análisis básico".to_string(),
+            Screen::Reporte => self.reporte.titulo.clone(),
+            Screen::Eleccion(eleccion) => eleccion.titulo().to_string(),
             Screen::AnalisisEvolucion => "Evolución temporal".to_string(),
             Screen::Quimica => "Química entre jugadores".to_string(),
             Screen::QuimicaForm(_) => "Química · formulario".to_string(),
@@ -2011,7 +2030,8 @@ impl App {
             | Screen::ProgresionForm(_)
             | Screen::PlanForm(_)
             | Screen::UsuarioForm(_)
-            | Screen::UsuarioEliminar => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
+            | Screen::UsuarioEliminar
+            | Screen::Eleccion(_) => "Tab: campo  Ctrl+S: guardar  Esc: cancelar",
             Screen::CanchasList => {
                 "n: nueva  e: editar  d: borrar  a: activar/desactivar  Enter: detalle  o: orden  /: buscar  x: exportar  r: refrescar"
             }
@@ -2029,7 +2049,7 @@ impl App {
                 "a: agregar jugador  e: editar jugador  d: borrar jugador  Esc: volver"
             }
             Screen::PartidosList => {
-                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar  c: clima  x: exportar"
+                "n: nuevo  e: editar  d: borrar  Enter: detalle  F: favorito  f: tipo  v: resultado  o: orden  PgUp/PgDn: página  /: buscar  c: clima  s: simular  x: exportar"
             }
             Screen::PartidoDetail(_) => "e: editar  d: borrar  F: favorito  Esc: volver",
             Screen::PartidoWizard => {
@@ -2098,6 +2118,7 @@ impl App {
             Screen::Sincronizacion => "↑↓: opción  Enter o 1-8: ejecutar  Esc: volver",
             Screen::SyncConflicto => "1: conservar local  2: conservar servidor  Esc: volver",
             Screen::AnalisisBasico => "↑↓: desplazar  Esc: volver",
+            Screen::Reporte => "↑↓/PgUp/PgDn: desplazar  x: exportar TXT  Esc: volver",
             Screen::AnalisisEvolucion => {
                 "m: métrica (goles/asistencias/rendimiento)  ↑↓: desplazar  Esc: volver"
             }
@@ -2502,6 +2523,11 @@ impl App {
                 self.handle_analisis_reporte_key(key)?
             }
             Screen::Quimica => self.handle_quimica_key(key)?,
+            Screen::Reporte => self.handle_reporte_key(key),
+            Screen::Eleccion(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
             Screen::TiendaForm(_)
             | Screen::AmigoForm(_)
             | Screen::SyncConfigForm
@@ -3388,6 +3414,7 @@ impl App {
             Screen::SyncConfigForm => self.save_sync_config_form(),
             Screen::SyncLoginForm => self.save_sync_login_form(),
             Screen::QuimicaForm(mode) => self.save_quimica_form(mode),
+            Screen::Eleccion(eleccion) => self.save_eleccion(eleccion),
             Screen::MediaForm(mode) => self.save_media_form(mode),
             Screen::RecordatorioForm(mode) => self.save_recordatorio_form(mode),
             Screen::ProgresionForm(mode) => self.save_progresion_form(mode),

@@ -119,6 +119,10 @@ Las capturas se generan desde la TUI real con
   índices y seeds.
 - **Partidos**: filtros, paginación, favoritos, derivados y transacción
   financiera automática.
+  `s` simula un partido con dos equipos guardados (`simular_partido_guardados`
+  de C: 60 minutos, goles y asistencias al azar entre los jugadores, relato y
+  estadísticas; no se guarda). En cualquier reporte de texto `x` lo exporta a
+  `Exportaciones/reporte_<fecha>.txt`.
 - **Estadísticas**: generales, series, 20 métricas de rendimiento, canchas,
   goles/asistencias, sparkline y `LineGauge`/`BarChart`.
 - **Carrera**: identidad, hitos, rachas, badges, timeline, Hall of Fame,

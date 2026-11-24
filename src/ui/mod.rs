@@ -188,6 +188,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Screen::AnalisisEvolucion => screens::analisis::draw_evolucion(frame, body, app),
         Screen::Quimica => screens::analisis::draw_quimica(frame, body, app),
         Screen::QuimicaForm(_) => screens::analisis::draw_form(frame, body, app),
+        Screen::Reporte => screens::reporte::draw(frame, body, app),
+        Screen::Eleccion(_) => screens::reporte::draw_form(frame, body, app),
         Screen::TemporadasList => screens::temporadas::draw_list(frame, body, app),
         Screen::TemporadaDetail(_) => screens::temporadas::draw_detail(frame, body, app),
         Screen::TemporadaForm(_) => screens::temporadas::draw_form(frame, body, app),

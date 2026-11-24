@@ -38,6 +38,7 @@ pub mod quimica_service;
 pub mod recordatorios_service;
 pub mod records_service;
 pub mod resumen_service;
+pub mod simulacion_service;
 pub mod sync_service;
 pub mod temporadas_service;
 pub mod tiendas_service;

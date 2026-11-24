@@ -94,6 +94,14 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Filtrar por temática / exportar / importar uniendo / importar reemplazando",
     ),
     (
+        "s (Partidos)",
+        "Simular con equipos guardados: elegir local y visitante (no se guarda)",
+    ),
+    (
+        "x (cualquier reporte)",
+        "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
+    ),
+    (
         "x / i (Colecciones)",
         "Backup JSON: exportar / importar colecciones_inventario.json (une, no duplica)",
     ),

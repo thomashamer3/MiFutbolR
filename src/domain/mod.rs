@@ -23,6 +23,7 @@ pub mod progresion;
 pub mod quimica;
 pub mod recordatorios;
 pub mod records;
+pub mod reporte;
 pub mod resumen;
 pub mod stats;
 pub mod temporadas;
