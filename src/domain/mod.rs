@@ -13,6 +13,7 @@ pub mod colecciones;
 pub mod comparador;
 pub mod dates;
 pub mod entrenador;
+pub mod equipamiento;
 pub mod inicio;
 pub mod logros;
 pub mod media;

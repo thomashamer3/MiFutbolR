@@ -68,17 +68,30 @@ Las capturas se generan desde la TUI real con
   asignados a partidos y lista/edita duplas cargadas a mano (`n`/`e`/`d`).
 - **Bienestar**: hábitos, entrenamientos, comidas, sesiones mentales y perfil de
   salud; el asistente (`a`) calcula preparación y riesgo de lesión y sugiere una
-  rutina semanal (fórmulas de MiFutbolC).
+  rutina semanal (fórmulas de MiFutbolC). `A` abre los análisis de `bienestar.c`
+  (entrenamiento vs rendimiento, estadísticas de alimentación, alimentación vs
+  rendimiento y partidos con mala alimentación ese día) y `p` genera el
+  *Informe Personal Mensual* en PDF (`Exportaciones/Informe Personal MM-AAAA.pdf`:
+  partidos, entrenamiento, alimentación y mentalidad del mes). `v` muestra las
+  imágenes adjuntas en la terminal y abre los documentos con la app del sistema
+  (solo archivos dentro de `Imagenes/`). Al adjuntar, las imágenes PNG/JPEG con
+  el lado mayor por encima de 1600 px se reducen y se re-codifican.
 - **Lesiones**: `u` avanza el estado de la lesión elegida (Activa → En tratamiento →
   Mejorando → Recuperado; una recuperada pasa a Recaída) y `D` muestra los días
   entre lesiones consecutivas con el promedio (`lesion.c`).
 - **Camisetas**: borrar una camiseta con partidos o lesiones la desactiva (como C);
   `a` en el listado o la ficha la reactiva o desactiva, y `f` filtra activas/inactivas.
+  `u` muestra el *Gráfico de Uso* de `camiseta.c` (partidos por camiseta, las 12
+  más usadas, con sus goles).
 - **Colecciones**: inventario de camisetas, botines y accesorios agrupado en
   colecciones; `s` sincroniza las camisetas cargadas. `x` exporta el backup JSON
   de C (`Exportaciones/colecciones_inventario.json`) e `i` lo importa desde
   `Importaciones/`, uniendo con lo existente sin duplicar (colección por nombre,
   camiseta por id, ítem genérico equivalente).
+- **Historial de equipamiento** (Colecciones → `H`, `equipamiento_historial.c`):
+  botines, camisetas, shorts, canilleras, guantes y otros ya comprados con marca,
+  modelo, fecha y precio de compra, partidos usados, estado físico, rating y
+  notas; `s` muestra totales, gasto, rating promedio y un gráfico por tipo.
 - **Entrenador IA**: consejos por reglas a partir de los últimos 10 partidos,
   predicción del próximo resultado, formación sugerida, descanso y puntos débiles.
 - **Clima automático**: si la cancha tiene latitud/longitud, el clima histórico
@@ -167,7 +180,13 @@ Las capturas se generan desde la TUI real con
   iniciar se importa ese archivo y se renombra a `partidos_importados_<fecha>.json`.
 - **Migración legacy**: importa una base de MiFutbolC convirtiendo fechas,
   importes y códigos de cancha; ignora tablas vacías/no usadas como `amigo`.
-- **Torneos**: alta, equipos automáticos, fixture ida/vuelta, resultados y tabla de posiciones.
+  También copia a `Imagenes/` los archivos de las carpetas `Imagenes/` e
+  `images/` de MiFutbolC (junto a la base o una carpeta arriba), sin tocar el
+  origen y salteando los que ya existen con el mismo nombre.
+- **Torneos**: alta, equipos automáticos, fixture ida/vuelta, resultados y tabla de
+  posiciones. En el detalle, `f` finaliza el torneo (guarda la tabla final en el
+  historial de cada equipo y la fase pasa a *Finalizado*) y `x` abre el reporte
+  del torneo (tabla, resultados e historial de los equipos; `x` lo exporta a TXT).
 - **Meta-análisis**: consistencia, outliers, contexto, impacto del cansancio/ánimo y eficiencia.
 - **Progresión**: planes de entrenamiento y evolución semanal por jugador.
 - **Recordatorios**: recurrencia diaria/semanal/mensual, agenda con partidos y calendario.
@@ -180,6 +199,8 @@ Las capturas se generan desde la TUI real con
   `c` compara al amigo elegido conmigo (goles, asistencias, partidos, mejor
   rendimiento, goles por partido y diferencias).
 - **Temporadas**: fases, torneos asociados, resumen del rango, fatiga y comparación.
+  En el detalle, `t` asocia los torneos creados después y `x` abre el resumen de
+  temporada (exportable a TXT).
 - **Comparador A/B**: camisetas y canchas lado a lado con 9 métricas y ganador por métrica.
 - **Estadísticas de canchas**: 10 reportes (más/menos usadas, rendimiento, goles/asistencias, tipo, superficie, techada, localidad y franja).
 - **Notificaciones** (`notificaciones.c`): además de lesiones, partido próximo,

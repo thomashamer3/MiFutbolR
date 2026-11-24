@@ -114,6 +114,23 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Crear una notificación a mano (tipo, título y mensaje)",
     ),
     (
+        "A / p / v (Bienestar)",
+        "Análisis (entrenamiento y alimentación vs rendimiento) / informe mensual PDF / ver o abrir adjunto",
+    ),
+    ("u (Camisetas)", "Gráfico de uso: partidos por camiseta"),
+    (
+        "f / x (Torneo)",
+        "Finalizar (historial de equipos) / reporte del torneo",
+    ),
+    (
+        "t / x (Temporada)",
+        "Asociar torneos nuevos / resumen de temporada",
+    ),
+    (
+        "H (Colecciones)",
+        "Historial de equipamiento: n/e/d y s estadísticas (gasto, rating, por tipo)",
+    ),
+    (
         "x (cualquier reporte)",
         "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
     ),

@@ -887,7 +887,7 @@ migración (si aplica), repositorio, servicio, pantalla, teclas, pruebas y docum
 **Reglas de oro**
 
 - La UI no ejecuta SQL: todo pasa por App → service → repo.
-- Dinero en centavos (i64), fechas ISO (chrono), enums con CHECK, FK activas.
+- Dinero en centavos (i64), fechas ISO (jiff; antes chrono), enums con CHECK, FK activas.
 - Migraciones idempotentes y con backup previo (ya lo hace Database::open).
 - Ningún panic por entrada inválida: validar en dominio y mostrar Modal::Error.
 - Pruebas con base en memoria para repos y servicios; pruebas de teclado para pantallas.
@@ -1896,7 +1896,7 @@ demás features se usen.
 | Tema | Convención |
 |---|---|
 | Dinero | INTEGER en centavos (i64); helper domain::money |
-| Fechas | TEXT ISO 8601 (chrono); fechas solas YYYY-MM-DD; datetime YYYY-MM-DD HH:MM:SS |
+| Fechas | TEXT ISO 8601 (jiff; antes chrono); fechas solas YYYY-MM-DD; datetime YYYY-MM-DD HH:MM:SS |
 | Booleanos | INTEGER 0/1 con CHECK |
 | Enums | TEXT o INTEGER con CHECK; conversión en domain |
 | Textos | NOT NULL DEFAULT ''; sin NULL para campos de formulario |

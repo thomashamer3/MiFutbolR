@@ -6,7 +6,7 @@ use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
 use super::error::DbError;
 use crate::domain::bienestar::{
-    EntradasAsistente, Recomendacion, Referencia, Registro, Seccion, TipoDato,
+    AnalisisBienestar, EntradasAsistente, Recomendacion, Referencia, Registro, Seccion, TipoDato,
 };
 use crate::domain::dates;
 
@@ -313,4 +313,52 @@ pub fn recomendaciones(conn: &Connection, limite: i64) -> Result<Vec<Recomendaci
         })
     })?;
     Ok(filas.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// Datos de los análisis (`comparar_entrenamiento_vs_rendimiento`,
+/// `estadisticas_alimentacion`, `comparacion_alimentacion_vs_rendimiento` y
+/// `flags_alimentacion` de `bienestar.c`). Allá se comparaba `partido.fecha`, que
+/// no existe (es `fecha_hora`); acá se cruza por `date(fecha_hora)`.
+pub fn analisis(conn: &Connection) -> Result<AnalisisBienestar, DbError> {
+    const ENTRENO: &str = "SELECT fecha FROM bienestar_entrenamiento WHERE omitido = 0";
+    let promedio = |condicion: String| -> Result<Option<f64>, DbError> {
+        Ok(conn.query_row(
+            &format!("SELECT AVG(rendimiento_general) FROM partido WHERE {condicion}"),
+            [],
+            |row| row.get(0),
+        )?)
+    };
+    let comida = |calidad: &str| {
+        format!(
+            "date(fecha_hora) IN (SELECT fecha FROM bienestar_comida WHERE calidad = '{calidad}')"
+        )
+    };
+    let (dias_entrenamiento, partidos, dias_comida, dias_comida_buena) = conn.query_row(
+        "SELECT (SELECT COUNT(DISTINCT fecha) FROM bienestar_entrenamiento WHERE omitido = 0),
+                (SELECT COUNT(*) FROM partido),
+                (SELECT COUNT(DISTINCT fecha) FROM bienestar_comida),
+                (SELECT COUNT(DISTINCT CASE WHEN calidad = 'Buena' THEN fecha END)
+                   FROM bienestar_comida)",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    )?;
+    let mut stmt = conn.prepare(
+        "SELECT fecha_hora, rendimiento_general FROM partido
+          WHERE date(fecha_hora) IN (SELECT fecha FROM bienestar_comida WHERE calidad = 'Mala')
+          ORDER BY fecha_hora DESC LIMIT 10",
+    )?;
+    let partidos_comida_mala = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(AnalisisBienestar {
+        dias_entrenamiento,
+        partidos,
+        rend_con_entrenamiento: promedio(format!("date(fecha_hora) IN ({ENTRENO})"))?,
+        rend_sin_entrenamiento: promedio(format!("date(fecha_hora) NOT IN ({ENTRENO})"))?,
+        dias_comida,
+        dias_comida_buena,
+        rend_comida_buena: promedio(comida("Buena"))?,
+        rend_comida_mala: promedio(comida("Mala"))?,
+        partidos_comida_mala,
+    })
 }

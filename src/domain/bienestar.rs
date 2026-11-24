@@ -503,3 +503,40 @@ pub struct Recomendacion {
     /// Resumen.
     pub resumen: String,
 }
+
+/// Datos de los análisis de `bienestar.c`: entrenamiento vs rendimiento y
+/// estadísticas de alimentación. Los promedios son `None` sin partidos que cumplan.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AnalisisBienestar {
+    /// Días distintos con entrenamiento no omitido.
+    pub dias_entrenamiento: i64,
+    /// Partidos registrados.
+    pub partidos: i64,
+    /// Rendimiento promedio de los partidos jugados un día con entrenamiento.
+    pub rend_con_entrenamiento: Option<f64>,
+    /// Rendimiento promedio de los partidos jugados un día sin entrenamiento.
+    pub rend_sin_entrenamiento: Option<f64>,
+    /// Días distintos con comidas registradas.
+    pub dias_comida: i64,
+    /// Días con al menos una comida "Buena".
+    pub dias_comida_buena: i64,
+    /// Rendimiento promedio los días con comida "Buena".
+    pub rend_comida_buena: Option<f64>,
+    /// Rendimiento promedio los días con comida "Mala".
+    pub rend_comida_mala: Option<f64>,
+    /// Últimos 10 partidos (`fecha_hora`, rendimiento) con comida "Mala" ese día.
+    pub partidos_comida_mala: Vec<(String, i64)>,
+}
+
+impl AnalisisBienestar {
+    /// Porcentaje de días con buena alimentación (0 sin días).
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn pct_comida_buena(&self) -> f64 {
+        if self.dias_comida > 0 {
+            self.dias_comida_buena as f64 / self.dias_comida as f64 * 100.0
+        } else {
+            0.0
+        }
+    }
+}

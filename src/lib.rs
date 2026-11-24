@@ -16,6 +16,7 @@ mod app_clima;
 mod app_colecciones;
 mod app_comparador;
 mod app_entrenador;
+mod app_equipamiento;
 mod app_equipos;
 mod app_estadisticas;
 pub mod app_exportar;

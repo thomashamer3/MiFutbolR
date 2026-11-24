@@ -259,8 +259,11 @@ pub fn contexto(conn: &Connection) -> Result<Reporte, DbError> {
 pub fn filtrar(conn: &Connection, filtro: &FiltroPartidos) -> Result<Reporte, DbError> {
     let filas = reportes_repo::filtrar(conn, filtro)?;
     let mut r = Reporte::new("Filtros avanzados");
-    let fecha = |d: Option<chrono::NaiveDate>| {
-        d.map_or_else(|| "(no)".to_string(), |d| d.format("%d/%m/%Y").to_string())
+    let fecha = |d: Option<jiff::civil::Date>| {
+        d.map_or_else(
+            || "(no)".to_string(),
+            |d| d.strftime("%d/%m/%Y").to_string(),
+        )
     };
     r.linea(format!(
         "Desde {} · hasta {} · resultado {}",
@@ -329,7 +332,7 @@ pub fn reporte_general(conn: &Connection) -> Result<Reporte, DbError> {
     let mut r = Reporte::new("Reporte general MiFutbolR");
     r.linea(format!(
         "Generado: {}",
-        chrono::Local::now().format("%d/%m/%Y %H:%M")
+        crate::domain::dates::ahora_fmt("%d/%m/%Y %H:%M")
     ));
     r.seccion("Partidos");
     r.linea(format!(
@@ -370,7 +373,7 @@ pub fn reporte_general(conn: &Connection) -> Result<Reporte, DbError> {
 /// Contenido del reporte de rendimiento (`generar_reporte_rendimiento_txt`).
 pub fn reporte_rendimiento(conn: &Connection) -> Result<Reporte, DbError> {
     let mut r = Reporte::new("Reporte de rendimiento");
-    r.linea(chrono::Local::now().format("%d/%m/%Y %H:%M").to_string());
+    r.linea(crate::domain::dates::ahora_fmt("%d/%m/%Y %H:%M"));
     r.seccion("Rendimiento por mes (últimos 12)");
     r.linea("Mes          PJ    V    E    D");
     let meses = reportes_repo::agrupado(conn, "substr(fecha_hora, 1, 7)", "1")?;
@@ -398,7 +401,7 @@ pub fn reporte_rendimiento(conn: &Connection) -> Result<Reporte, DbError> {
 
 /// Escribe el reporte en `dir` y lo registra en `reporte_generado`.
 pub fn generar(conn: &Connection, dir: &Path, tipo: TipoReporte) -> Result<PathBuf, String> {
-    let sello = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let sello = crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S");
     let (archivo, contenido) = match tipo {
         TipoReporte::GeneralHtml => (
             format!("reporte_general_{sello}.html"),
@@ -487,9 +490,9 @@ mod tests {
     #[test]
     fn filtros_incluyen_el_dia_hasta_y_resumen() {
         let db = preparar();
-        let hasta = chrono::NaiveDate::from_ymd_opt(2026, 1, 31);
+        let hasta = crate::domain::dates::fecha(2026, 1, 31);
         let filtro = FiltroPartidos {
-            desde: chrono::NaiveDate::from_ymd_opt(2026, 1, 1),
+            desde: crate::domain::dates::fecha(2026, 1, 1),
             hasta,
             ..FiltroPartidos::default()
         };

@@ -10,7 +10,7 @@ use crate::services::financiamiento_service;
 
 /// Arma el resumen del panel con los datos actuales.
 pub fn resumen(conn: &Connection) -> Result<InicioResumen, DbError> {
-    let mes = chrono::Local::now().format("%Y-%m").to_string();
+    let mes = crate::domain::dates::ahora_fmt("%Y-%m");
     let mut resumen = InicioResumen {
         proximo: inicio_repo::proximo_partido(conn)?,
         ultimo: inicio_repo::ultimo_partido(conn)?,

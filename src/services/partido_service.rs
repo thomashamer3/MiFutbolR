@@ -114,7 +114,7 @@ pub fn validar(partido: &Partido) -> Result<(), DomainError> {
     if let Some(temperatura) = partido.temperatura_c {
         validation::range_f64(temperatura, -50.0, 60.0, "temperatura")?;
     }
-    let year = chrono::Datelike::year(&partido.fecha_hora);
+    let year = i32::from(partido.fecha_hora.year());
     validation::range_i64(i64::from(year), 1900, 2100, "fecha")?;
     if partido.tipo_partido != TipoPartido::Entrenamiento
         && partido.resultado == Resultado::NoAplica
@@ -202,10 +202,9 @@ mod tests {
             cancha_id: 1,
             camiseta_id: 1,
             botin_id: None,
-            fecha_hora: chrono::NaiveDate::from_ymd_opt(2026, 5, 10)
+            fecha_hora: crate::domain::dates::fecha(2026, 5, 10)
                 .unwrap()
-                .and_hms_opt(21, 30, 0)
-                .unwrap(),
+                .at(21, 30, 0, 0),
             mes_anio: String::new(),
             goles: 2,
             asistencias: 1,
@@ -375,10 +374,9 @@ mod tests {
             partido.resultado = resultado;
             partido.goles_equipo = goles_equipo;
             partido.goles_rival = goles_rival;
-            partido.fecha_hora = chrono::NaiveDate::from_ymd_opt(2026, 5, 10 + indice as u32)
+            partido.fecha_hora = crate::domain::dates::fecha(2026, 5, 10 + indice as u32)
                 .unwrap()
-                .and_hms_opt(20, 0, 0)
-                .unwrap();
+                .at(20, 0, 0, 0);
             crear(db.conn_mut(), &mut partido).unwrap();
         }
         let filter = PartidoFilter::default();

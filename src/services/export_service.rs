@@ -1,9 +1,9 @@
 //! Exportación de listados a CSV, JSON, HTML y Markdown (IMP-08).
 
+use crate::domain::dates;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::Local;
 use serde_json::{Value, json};
 
 /// Error de exportación.
@@ -106,7 +106,7 @@ fn escribir_html(
     texto.push_str(&format!(
         "<h1>MiFutbolR · {}</h1><p>Generado {}</p><table><thead><tr>",
         escapar_html(entidad),
-        Local::now().format("%d/%m/%Y %H:%M")
+        dates::ahora_fmt("%d/%m/%Y %H:%M")
     ));
     for cabecera in cabeceras {
         texto.push_str(&format!("<th>{}</th>", escapar_html(cabecera)));
@@ -155,7 +155,7 @@ pub fn exportar(
     filas: &[Vec<String>],
 ) -> Result<Vec<PathBuf>, ExportError> {
     fs::create_dir_all(dir)?;
-    let marca = Local::now().format("%Y%m%d-%H%M%S");
+    let marca = dates::ahora_fmt("%Y%m%d-%H%M%S");
     let base = format!("{entidad}_{marca}");
     let rutas = [
         dir.join(format!("{base}.csv")),

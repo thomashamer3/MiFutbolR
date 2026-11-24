@@ -33,7 +33,7 @@ pub fn validar(transaccion: &TransaccionFinanciera) -> Result<(), DomainError> {
     validation::max_len(&transaccion.descripcion, "descripción", 200)?;
     validation::max_len(&transaccion.item_especifico, "ítem específico", 120)?;
     validation::non_negative(transaccion.monto.0, "monto")?;
-    let year = chrono::Datelike::year(&transaccion.fecha);
+    let year = i32::from(transaccion.fecha.year());
     validation::range_i64(i64::from(year), 1900, 2100, "fecha")?;
     Ok(())
 }
@@ -173,7 +173,7 @@ mod tests {
     fn base(monto: i64) -> TransaccionFinanciera {
         TransaccionFinanciera {
             id: 0,
-            fecha: chrono::NaiveDate::from_ymd_opt(2026, 5, 10).unwrap(),
+            fecha: crate::domain::dates::fecha(2026, 5, 10).unwrap(),
             tipo: TipoTransaccion::Gasto,
             categoria: CategoriaFinanciera::Canchas,
             descripcion: "Alquiler".into(),
@@ -226,7 +226,7 @@ mod tests {
     fn budget_alerts() {
         let db = Database::open_in_memory().unwrap();
         let mut gasto = base(30_000);
-        gasto.fecha = chrono::NaiveDate::from_ymd_opt(2026, 5, 10).unwrap();
+        gasto.fecha = crate::domain::dates::fecha(2026, 5, 10).unwrap();
         crear(db.conn(), &mut gasto).unwrap();
 
         let config = PresupuestoMensual {
@@ -235,8 +235,8 @@ mod tests {
             presupuesto_total: Cents(100_000),
             limite_gasto: Cents(50_000),
             alertas_habilitadas: true,
-            fecha_creacion: chrono::NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
-            fecha_modificacion: chrono::NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+            fecha_creacion: crate::domain::dates::fecha(2026, 5, 1).unwrap(),
+            fecha_modificacion: crate::domain::dates::fecha(2026, 5, 1).unwrap(),
         };
         guardar_presupuesto(db.conn(), &config).unwrap();
         let vista = presupuesto(db.conn(), "2026-05").unwrap().unwrap();

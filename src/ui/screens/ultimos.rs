@@ -46,7 +46,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
                         ),
                         format!(
                             "{} · {} G · {} A",
-                            partido.fecha_hora.format("%d/%m/%Y"),
+                            partido.fecha_hora.strftime("%d/%m/%Y"),
                             partido.goles,
                             partido.asistencias
                         ),

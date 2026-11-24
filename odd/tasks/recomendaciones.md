@@ -86,7 +86,7 @@ MiFutbolC local (`D:\ANIME\Libros\Lenguaje C\Proyectos\MiFutbolC`).
   en consola real: 0 ms de CPU en 8 s de reposo, proceso vivo, 4 hilos.
 
 ## Pendiente (fuera de alcance)
-- Migrar chrono → jiff/time (RUSTSEC-2026-0543 ignorado con motivo).
+- ~~Migrar chrono → jiff/time~~ HECHO en `mejoras-paridad-c` B11 (jiff; ignore de RUSTSEC-2026-0543 quitado).
 - actionlint no ejecutado (descarga denegada); sustituido por la validación offline descrita arriba.
 - Pantallas de análisis de Bienestar de C (entrenamiento vs rendimiento, estadísticas de alimentación),
   abrir documentos con la app del sistema y optimizar imágenes al copiarlas.

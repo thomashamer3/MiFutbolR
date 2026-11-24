@@ -4,7 +4,7 @@
 //! replican los códigos legacy y exponen `as_i64`, `label`, `ALL` y
 //! `TryFrom<i64>`; los enums guardados como texto exponen `as_str`/`from_str`.
 
-use chrono::{NaiveDate, NaiveDateTime};
+use jiff::civil::{Date, DateTime};
 
 use super::money::Cents;
 use super::validation::DomainError;
@@ -485,7 +485,7 @@ pub struct Camiseta {
     /// Estado físico.
     pub estado_fisico: EstadoFisico,
     /// Fecha de compra.
-    pub fecha_compra: Option<NaiveDate>,
+    pub fecha_compra: Option<Date>,
     /// Costo.
     pub costo: Cents,
     /// Observaciones.
@@ -639,7 +639,7 @@ pub struct Partido {
     /// Botín.
     pub botin_id: Option<i64>,
     /// Fecha y hora.
-    pub fecha_hora: NaiveDateTime,
+    pub fecha_hora: DateTime,
     /// Clave `YYYY-MM` (cacheada).
     pub mes_anio: String,
     /// Goles.
@@ -734,7 +734,7 @@ pub struct Lesion {
     /// Descripción.
     pub descripcion: String,
     /// Fecha y hora.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Camiseta que se usaba.
     pub camiseta_id: i64,
     /// Estado.
@@ -749,7 +749,7 @@ pub struct TransaccionFinanciera {
     /// Identificador.
     pub id: i64,
     /// Fecha.
-    pub fecha: NaiveDate,
+    pub fecha: Date,
     /// Ingreso o gasto.
     pub tipo: TipoTransaccion,
     /// Categoría.
@@ -778,9 +778,9 @@ pub struct PresupuestoMensual {
     /// ¿Alertas activas?
     pub alertas_habilitadas: bool,
     /// Fecha de creación.
-    pub fecha_creacion: NaiveDate,
+    pub fecha_creacion: Date,
     /// Fecha de modificación.
-    pub fecha_modificacion: NaiveDate,
+    pub fecha_modificacion: Date,
 }
 
 /// Identidad de la carrera futbolística.
@@ -820,7 +820,7 @@ pub struct HitoCarrera {
     /// Nota.
     pub nota: String,
     /// Fecha de creación.
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime,
 }
 
 /// Preferencias de la aplicación.
@@ -1372,7 +1372,7 @@ pub struct PartidoRow {
     /// Identificador.
     pub id: i64,
     /// Fecha y hora.
-    pub fecha_hora: NaiveDateTime,
+    pub fecha_hora: DateTime,
     /// Cancha.
     pub cancha: String,
     /// Camiseta.
@@ -1407,9 +1407,9 @@ pub struct PartidoFilter {
     /// Tipo de partido.
     pub tipo_partido: Option<TipoPartido>,
     /// Desde (fecha inclusive).
-    pub desde: Option<NaiveDate>,
+    pub desde: Option<Date>,
     /// Hasta (fecha inclusive).
-    pub hasta: Option<NaiveDate>,
+    pub hasta: Option<Date>,
     /// Solo favoritos.
     pub favorito: bool,
     /// Orden.
@@ -1485,7 +1485,7 @@ pub struct LesionRow {
     /// Tipo.
     pub tipo: String,
     /// Fecha.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Estado.
     pub estado: EstadoLesion,
     /// Camiseta usada.
@@ -1826,9 +1826,9 @@ pub struct FinanciamientoFilter {
     /// Categoría.
     pub categoria: Option<CategoriaFinanciera>,
     /// Desde (inclusive).
-    pub desde: Option<NaiveDate>,
+    pub desde: Option<Date>,
     /// Hasta (inclusive).
-    pub hasta: Option<NaiveDate>,
+    pub hasta: Option<Date>,
     /// Texto en descripción o ítem.
     pub texto: String,
 }
@@ -1940,7 +1940,7 @@ pub struct HitoRow {
     /// Partido.
     pub partido_id: i64,
     /// Fecha del partido.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Rival.
     pub rival: String,
     /// Tipo de hito.
@@ -1953,7 +1953,7 @@ pub struct HitoRow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimelineEvento {
     /// Fecha.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Categoría (Partido, Hito, Lesión…).
     pub categoria: String,
     /// Descripción.
@@ -1966,7 +1966,7 @@ pub struct HallPartido {
     /// Identificador.
     pub id: i64,
     /// Fecha.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Rival.
     pub rival: String,
     /// Goles.

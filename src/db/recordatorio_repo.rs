@@ -1,6 +1,6 @@
 //! Persistencia de recordatorios (IMP-18).
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::error::DbError;
@@ -68,7 +68,7 @@ pub fn insert(conn: &Connection, item: &Recordatorio) -> Result<i64, DbError> {
         params![
             item.titulo,
             item.nota,
-            item.fecha.format("%Y-%m-%d").to_string(),
+            item.fecha.strftime("%Y-%m-%d").to_string(),
             item.hora,
             item.periodicidad.as_i64(),
             item.tematica,
@@ -87,7 +87,7 @@ pub fn update(conn: &Connection, item: &Recordatorio) -> Result<(), DbError> {
         params![
             item.titulo,
             item.nota,
-            item.fecha.format("%Y-%m-%d").to_string(),
+            item.fecha.strftime("%Y-%m-%d").to_string(),
             item.hora,
             item.periodicidad.as_i64(),
             item.tematica,
@@ -105,17 +105,12 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), DbError> {
 }
 
 /// Avanza la fecha de una ocurrencia recurrente.
-pub fn avanzar_fecha(
-    conn: &Connection,
-    id: i64,
-    fecha: NaiveDate,
-    hoy: NaiveDate,
-) -> Result<(), DbError> {
+pub fn avanzar_fecha(conn: &Connection, id: i64, fecha: Date, hoy: Date) -> Result<(), DbError> {
     conn.execute(
         "UPDATE recordatorio SET fecha = ?1, ultima_gen = ?2 WHERE id = ?3",
         params![
-            fecha.format("%Y-%m-%d").to_string(),
-            hoy.format("%Y-%m-%d").to_string(),
+            fecha.strftime("%Y-%m-%d").to_string(),
+            hoy.strftime("%Y-%m-%d").to_string(),
             id
         ],
     )?;

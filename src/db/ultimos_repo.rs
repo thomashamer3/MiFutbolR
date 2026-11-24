@@ -1,6 +1,6 @@
 //! Consultas del submenú "Último" (IMP-16).
 
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 use rusqlite::{Connection, OptionalExtension};
 
 use super::error::DbError;
@@ -9,7 +9,7 @@ use crate::domain::inicio::PartidoBreve;
 use crate::domain::models::{RachaTipo, Resultado};
 use crate::domain::ultimos::UltimoItem;
 
-fn parse_fecha(texto: &str) -> Result<NaiveDateTime, DbError> {
+fn parse_fecha(texto: &str) -> Result<DateTime, DbError> {
     dates::parse_datetime(texto)
         .ok_or_else(|| DbError::InvalidData(format!("fecha inválida: {texto}")))
 }
@@ -49,7 +49,7 @@ fn ultimo(conn: &Connection, condicion: &str) -> Result<Option<PartidoBreve>, Db
 
 /// Calcula los cinco "últimos".
 pub fn listar(conn: &Connection) -> Result<Vec<UltimoItem>, DbError> {
-    let ahora = chrono::Local::now().naive_local();
+    let ahora = crate::domain::dates::now_local();
     let casos: [(&'static str, &'static str); 5] = [
         ("Última victoria", "resultado = 1"),
         ("Última derrota", "resultado = 3"),

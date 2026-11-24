@@ -109,6 +109,11 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
                 ficha.equipos.len().to_string(),
                 Style::default().fg(colors.fg),
             ),
+            Span::styled("   Fase: ", Style::default().fg(colors.muted)),
+            Span::styled(
+                ficha.torneo.fase_actual.clone(),
+                Style::default().fg(colors.fg),
+            ),
             Span::styled("   Jugados: ", Style::default().fg(colors.muted)),
             Span::styled(
                 format!("{}/{}", ficha.jugados(), ficha.partidos.len()),

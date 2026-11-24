@@ -9,7 +9,7 @@ use crate::domain::records::RecordItem;
 fn fecha_corta(texto: &str) -> String {
     dates::parse_datetime(texto).map_or_else(
         || texto.to_string(),
-        |fecha| fecha.format("%d/%m/%Y").to_string(),
+        |fecha| fecha.strftime("%d/%m/%Y").to_string(),
     )
 }
 

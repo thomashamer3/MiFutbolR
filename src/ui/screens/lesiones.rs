@@ -197,7 +197,7 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App, id: i64) {
     if let Some(partido_id) = lesion.partido_id {
         push("Partido ID", &partido_id.to_string());
     }
-    if lesion.fecha > chrono::Local::now().naive_local() {
+    if lesion.fecha > crate::domain::dates::now_local() {
         lines.push(Line::from(Span::styled(
             "[!] La fecha es futura",
             Style::default().fg(colors.warning),

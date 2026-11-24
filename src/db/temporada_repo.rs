@@ -1,6 +1,6 @@
 //! Persistencia de temporadas (IMP-12).
 
-use chrono::{Datelike, NaiveDate};
+use jiff::civil::Date;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::error::DbError;
@@ -74,8 +74,8 @@ pub fn insert(
     conn: &Connection,
     nombre: &str,
     anio: i64,
-    inicio: NaiveDate,
-    fin: NaiveDate,
+    inicio: Date,
+    fin: Date,
     descripcion: &str,
 ) -> Result<i64, DbError> {
     conn.execute(
@@ -84,8 +84,8 @@ pub fn insert(
         params![
             nombre,
             anio,
-            inicio.format("%Y-%m-%d").to_string(),
-            fin.format("%Y-%m-%d").to_string(),
+            inicio.strftime("%Y-%m-%d").to_string(),
+            fin.strftime("%Y-%m-%d").to_string(),
             descripcion
         ],
     )?;
@@ -98,8 +98,8 @@ pub fn update(
     id: i64,
     nombre: &str,
     anio: i64,
-    inicio: NaiveDate,
-    fin: NaiveDate,
+    inicio: Date,
+    fin: Date,
     descripcion: &str,
 ) -> Result<(), DbError> {
     conn.execute(
@@ -109,8 +109,8 @@ pub fn update(
         params![
             nombre,
             anio,
-            inicio.format("%Y-%m-%d").to_string(),
-            fin.format("%Y-%m-%d").to_string(),
+            inicio.strftime("%Y-%m-%d").to_string(),
+            fin.strftime("%Y-%m-%d").to_string(),
             descripcion,
             id
         ],
@@ -146,8 +146,8 @@ pub fn fases(conn: &Connection, temporada_id: i64) -> Result<Vec<TemporadaFase>,
 pub fn insertar_fases_default(
     conn: &Connection,
     temporada_id: i64,
-    inicio: NaiveDate,
-    fin: NaiveDate,
+    inicio: Date,
+    fin: Date,
 ) -> Result<(), DbError> {
     for (nombre, tipo, desde, hasta) in [
         ("Pretemporada", "pretemporada", inicio, inicio),
@@ -161,8 +161,8 @@ pub fn insertar_fases_default(
                 temporada_id,
                 nombre,
                 tipo,
-                desde.format("%Y-%m-%d").to_string(),
-                hasta.format("%Y-%m-%d").to_string()
+                desde.strftime("%Y-%m-%d").to_string(),
+                hasta.strftime("%Y-%m-%d").to_string()
             ],
         )?;
     }
@@ -190,11 +190,7 @@ pub fn torneos(conn: &Connection, temporada_id: i64) -> Result<Vec<String>, DbEr
 }
 
 /// Resumen de partidos y lesiones en el rango.
-pub fn resumen(
-    conn: &Connection,
-    inicio: NaiveDate,
-    fin: NaiveDate,
-) -> Result<TemporadaResumen, DbError> {
+pub fn resumen(conn: &Connection, inicio: Date, fin: Date) -> Result<TemporadaResumen, DbError> {
     let (partidos, goles, asistencias, victorias, empates, derrotas, rendimiento) = conn
         .query_row(
             "SELECT COUNT(*), COALESCE(SUM(goles), 0), COALESCE(SUM(asistencias), 0),
@@ -206,8 +202,8 @@ pub fn resumen(
           WHERE fecha_hora >= ?1 || ' 00:00:00'
             AND fecha_hora <= ?2 || ' 23:59:59'",
             params![
-                inicio.format("%Y-%m-%d").to_string(),
-                fin.format("%Y-%m-%d").to_string()
+                inicio.strftime("%Y-%m-%d").to_string(),
+                fin.strftime("%Y-%m-%d").to_string()
             ],
             |row| {
                 Ok((
@@ -224,8 +220,8 @@ pub fn resumen(
     let lesiones: i64 = conn.query_row(
         "SELECT COUNT(*) FROM lesion WHERE fecha >= ?1 AND fecha <= ?2",
         params![
-            inicio.format("%Y-%m-%d").to_string(),
-            fin.format("%Y-%m-%d").to_string()
+            inicio.strftime("%Y-%m-%d").to_string(),
+            fin.strftime("%Y-%m-%d").to_string()
         ],
         |row| row.get(0),
     )?;
@@ -248,17 +244,17 @@ pub fn resumen(
 }
 
 /// Fatiga: partidos en los últimos 14 días del cierre (o de hoy si sigue abierta).
-pub fn fatiga(conn: &Connection, fin: NaiveDate) -> Result<f64, DbError> {
+pub fn fatiga(conn: &Connection, fin: Date) -> Result<f64, DbError> {
     let hoy = dates::today();
     let referencia = if fin <= hoy { fin } else { hoy };
-    let desde = referencia - chrono::Duration::days(14);
+    let desde = referencia - jiff::Span::new().days(14);
     let partidos: i64 = conn.query_row(
         "SELECT COUNT(*) FROM partido
           WHERE fecha_hora >= ?1 || ' 00:00:00'
             AND fecha_hora <= ?2 || ' 23:59:59'",
         params![
-            desde.format("%Y-%m-%d").to_string(),
-            referencia.format("%Y-%m-%d").to_string()
+            desde.strftime("%Y-%m-%d").to_string(),
+            referencia.strftime("%Y-%m-%d").to_string()
         ],
         |row| row.get(0),
     )?;
@@ -267,6 +263,6 @@ pub fn fatiga(conn: &Connection, fin: NaiveDate) -> Result<f64, DbError> {
 
 /// Año de una fecha.
 #[must_use]
-pub fn anio(fecha: NaiveDate) -> i64 {
+pub fn anio(fecha: Date) -> i64 {
     i64::from(fecha.year())
 }

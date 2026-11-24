@@ -1,13 +1,13 @@
 //! Eventos del calendario (IMP-02).
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use rusqlite::{Connection, params};
 
 use super::error::DbError;
 use crate::domain::calendario::{EventoCalendario, EventoTipo};
 use crate::domain::{Cents, dates};
 
-fn fecha_de(texto: &str) -> Option<NaiveDate> {
+fn fecha_de(texto: &str) -> Option<Date> {
     // `get` no entra en pánico si el byte 10 cae dentro de un carácter multibyte.
     dates::parse_date(texto.get(..10).unwrap_or(texto))
 }
@@ -137,7 +137,7 @@ mod tests {
         assert_eq!(fecha_de("2026-03-0ñ"), None);
         assert_eq!(
             fecha_de("2026-03-05 20:00:00"),
-            NaiveDate::from_ymd_opt(2026, 3, 5)
+            crate::domain::dates::fecha(2026, 3, 5)
         );
     }
 
@@ -191,7 +191,7 @@ mod tests {
         for (anio, mes, dia) in [(2025, 12, 31), (2026, 1, 1)] {
             let eventos = eventos_mes(conn, anio, mes).unwrap();
             assert_eq!(eventos.len(), 3, "{anio}-{mes}");
-            let esperado = NaiveDate::from_ymd_opt(anio, mes, dia).unwrap();
+            let esperado = crate::domain::dates::fecha(anio, mes, dia).unwrap();
             assert!(eventos.iter().all(|evento| evento.fecha == esperado));
         }
         assert!(eventos_mes(conn, 2026, 2).unwrap().is_empty());

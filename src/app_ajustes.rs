@@ -193,9 +193,16 @@ impl App {
                     .map(|(tabla, filas)| format!("{tabla}: {filas}"))
                     .collect::<Vec<_>>()
                     .join("\n");
+                let imagenes = match legacy_import_service::copiar_imagenes(
+                    std::path::Path::new(&ruta),
+                    &self.paths.images_dir,
+                ) {
+                    Ok(copiadas) => format!("Imágenes copiadas: {copiadas}"),
+                    Err(error) => format!("No se pudieron copiar las imágenes: {error}"),
+                };
                 self.status = format!("Importadas {} filas", resumen.total());
                 self.modal = Some(Modal::Info(format!(
-                    "Importación completada: {} filas.\n\n{}",
+                    "Importación completada: {} filas.\n{imagenes}\n\n{}",
                     resumen.total(),
                     detalle
                 )));
@@ -212,7 +219,7 @@ impl App {
     pub fn backup_ajustes(&mut self) -> Result<()> {
         let destino = self.exportaciones_dir().join(format!(
             "backup_{}{}.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S"),
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S"),
             self.sufijo_backup()
         ));
         match self.db.backup(&destino) {
@@ -230,7 +237,7 @@ impl App {
     pub fn exportar_db_ajustes(&mut self) -> Result<()> {
         let destino = self.exportaciones_dir().join(format!(
             "mifutbol_export_{}.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S")
         ));
         match self.db.backup(&destino) {
             Ok(()) => {
@@ -271,7 +278,7 @@ impl App {
     pub(crate) fn mantenimiento_ajustes(&mut self) {
         let previo = self.exportaciones_dir().join(format!(
             "backup_{}_pre_vacuum{}.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S"),
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S"),
             self.sufijo_backup()
         ));
         if let Err(error) = self.db.backup(&previo) {
@@ -353,7 +360,7 @@ impl App {
         // Backup de seguridad antes de restaurar.
         let seguridad = self.exportaciones_dir().join(format!(
             "pre_restore_{}.db",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S")
         ));
         let sin_copia = self
             .db
@@ -521,7 +528,7 @@ impl App {
                 .join(actualizacion_service::ARCHIVO_MARCA);
             if actualizacion_service::corresponde_verificar(
                 &marca,
-                chrono::Local::now().timestamp(),
+                jiff::Timestamp::now().as_second(),
             ) {
                 self.buscar_actualizaciones(false);
             }
@@ -542,7 +549,7 @@ impl App {
             &self.db,
             &self.paths.export_dir,
             &etiqueta,
-            chrono::Local::now().naive_local(),
+            crate::domain::dates::now_local(),
         ) {
             self.status = format!("No se pudo hacer el backup de inicio: {error}");
         }

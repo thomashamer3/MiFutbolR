@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use rusqlite::Connection;
 use rusqlite::types::Value;
 use thiserror::Error;
@@ -11,9 +11,10 @@ use thiserror::Error;
 use crate::db::DbError;
 use crate::db::bienestar_repo;
 use crate::domain::bienestar::{
-    Asistente, EntradasAsistente, Recomendacion, Registro, Seccion, TipoDato,
+    AnalisisBienestar, Asistente, EntradasAsistente, Recomendacion, Registro, Seccion, TipoDato,
 };
 use crate::domain::dates;
+use crate::domain::reporte::Reporte;
 
 /// Error del servicio.
 #[derive(Debug, Error)]
@@ -38,7 +39,7 @@ pub fn guardar(
     seccion: Seccion,
     id: Option<i64>,
     textos: &[String],
-    hoy: NaiveDate,
+    hoy: Date,
 ) -> Result<i64, ServiceError> {
     let columnas = seccion.columnas();
     if textos.len() != columnas.len() {
@@ -61,7 +62,7 @@ pub fn guardar(
 fn convertir(
     tipo: TipoDato,
     texto: &str,
-    hoy: NaiveDate,
+    hoy: Date,
     etiqueta: &str,
 ) -> Result<Value, ServiceError> {
     let texto = texto.trim();
@@ -182,10 +183,10 @@ pub fn adjuntar(
         let destino = format!(
             "{prefijo}_{}_{}.{ext}",
             posicion(seccion, clave).map_or("", |i| textos[i].trim()),
-            chrono::Local::now().format("%Y%m%d_%H%M%S_%3f")
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S_%3f")
         );
         std::fs::create_dir_all(imagenes)
-            .and_then(|()| std::fs::copy(origen, imagenes.join(&destino)))
+            .and_then(|()| copiar_optimizado(origen, &imagenes.join(&destino)))
             .map_err(|error| ServiceError::Message(format!("No se pudo copiar: {error}")))?;
         if let Some(i) =
             posicion(seccion, "nombre_original").filter(|i| textos[*i].trim().is_empty())
@@ -208,6 +209,97 @@ pub fn adjuntar(
     Ok(())
 }
 
+/// Lado mayor máximo de las imágenes adjuntas. MiFutbolC llama a
+/// `app_optimize_image_file`, que en realidad solo copia (y renombra a `.jpg`).
+const LADO_MAXIMO: u32 = 1600;
+/// Calidad JPEG al re-codificar una imagen reducida.
+const CALIDAD_JPEG: u8 = 85;
+
+/// Copia `origen` a `destino`; una imagen PNG/JPEG con el lado mayor por encima
+/// de [`LADO_MAXIMO`] se reduce y se re-codifica en su mismo formato. Lo que no
+/// se puede decodificar (otros formatos, archivos dañados) se copia tal cual.
+fn copiar_optimizado(origen: &Path, destino: &Path) -> std::io::Result<()> {
+    if es_imagen(&origen.to_string_lossy())
+        && let Ok(imagen) = image::open(origen)
+        && imagen.width().max(imagen.height()) > LADO_MAXIMO
+    {
+        let reducida = imagen.resize(
+            LADO_MAXIMO,
+            LADO_MAXIMO,
+            image::imageops::FilterType::Triangle,
+        );
+        let jpeg = matches!(
+            extension(&destino.to_string_lossy()).as_deref(),
+            Some("jpg" | "jpeg")
+        );
+        let escrito = if jpeg {
+            std::fs::File::create(destino)
+                .map_err(image::ImageError::IoError)
+                .and_then(|archivo| {
+                    reducida.write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(
+                        std::io::BufWriter::new(archivo),
+                        CALIDAD_JPEG,
+                    ))
+                })
+        } else {
+            reducida.save(destino)
+        };
+        if escrito.is_ok() {
+            return Ok(());
+        }
+    }
+    std::fs::copy(origen, destino).map(|_| ())
+}
+
+/// Comando que abre un adjunto (`Imagenes/...`, relativo a `data_dir`) con la
+/// app del sistema. Frontera de confianza: la ruta sale de la base (que puede
+/// venir importada), así que solo se aceptan archivos existentes dentro de
+/// `Imagenes/`, sin `..` ni rutas absolutas, y la ruta va como un único argumento.
+pub fn comando_abrir(
+    data_dir: &Path,
+    relativa: &str,
+) -> Result<std::process::Command, ServiceError> {
+    use std::path::Component;
+    let relativa = Path::new(relativa.trim());
+    let mut partes = relativa.components();
+    let en_imagenes =
+        matches!(partes.next(), Some(Component::Normal(c)) if c.eq_ignore_ascii_case("Imagenes"));
+    let normales =
+        partes.clone().next().is_some() && partes.all(|c| matches!(c, Component::Normal(_)));
+    let ruta = data_dir.join(relativa);
+    if !en_imagenes || !normales || !ruta.is_file() {
+        return Err(ServiceError::Message(format!(
+            "Archivo no disponible: {}",
+            relativa.display()
+        )));
+    }
+    // `cmd` interpreta estos caracteres aunque el argumento vaya entre comillas.
+    if cfg!(windows)
+        && ruta
+            .to_string_lossy()
+            .contains(['&', '|', '<', '>', '^', '%', '"', '!'])
+    {
+        return Err(ServiceError::Message(
+            "La ruta tiene caracteres no permitidos para abrirla".to_string(),
+        ));
+    }
+    let (programa, previos): (&str, &[&str]) = if cfg!(windows) {
+        ("cmd", &["/C", "start", ""])
+    } else if cfg!(target_os = "macos") {
+        ("open", &[])
+    } else {
+        ("xdg-open", &[])
+    };
+    let mut comando = std::process::Command::new(programa);
+    comando
+        .args(previos)
+        .arg(&ruta)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    Ok(comando)
+}
+
 /// Elimina un registro (el perfil de salud no se elimina).
 pub fn eliminar(conn: &Connection, seccion: Seccion, id: i64) -> Result<(), ServiceError> {
     if seccion == Seccion::Salud {
@@ -226,7 +318,7 @@ pub fn alternar_omitido(conn: &Connection, id: i64) -> Result<(), ServiceError> 
 }
 
 /// Calcula el asistente con los datos actuales.
-pub fn asistente(conn: &Connection, hoy: NaiveDate) -> Result<Asistente, ServiceError> {
+pub fn asistente(conn: &Connection, hoy: Date) -> Result<Asistente, ServiceError> {
     let entradas = bienestar_repo::entradas_asistente(conn, &dates::to_iso_date(hoy))?;
     let mut asistente = calcular(&entradas);
     let objetivo = bienestar_repo::objetivo_activo(conn)?
@@ -243,7 +335,7 @@ pub fn asistente(conn: &Connection, hoy: NaiveDate) -> Result<Asistente, Service
 /// Guarda el resultado del asistente en el historial.
 pub fn guardar_recomendacion(
     conn: &Connection,
-    hoy: NaiveDate,
+    hoy: Date,
     asistente: &Asistente,
 ) -> Result<(), ServiceError> {
     bienestar_repo::insert_recomendacion(
@@ -260,6 +352,67 @@ pub fn guardar_recomendacion(
 /// Últimas recomendaciones guardadas.
 pub fn recomendaciones(conn: &Connection) -> Result<Vec<Recomendacion>, ServiceError> {
     Ok(bienestar_repo::recomendaciones(conn, 5)?)
+}
+
+/// Análisis de Bienestar (`bienestar.c`): entrenamiento vs rendimiento y
+/// estadísticas de alimentación (con alimentación vs rendimiento y los partidos
+/// con mala alimentación ese día).
+pub fn analisis(conn: &Connection) -> Result<Reporte, ServiceError> {
+    Ok(reporte_analisis(&bienestar_repo::analisis(conn)?))
+}
+
+/// Arma el reporte de [`analisis`] (puro).
+#[must_use]
+pub fn reporte_analisis(a: &AnalisisBienestar) -> Reporte {
+    let promedio =
+        |valor: Option<f64>| valor.map_or_else(|| "sin datos".to_string(), |v| format!("{v:.2}"));
+    let mut r = Reporte::new("Bienestar · análisis");
+    r.seccion("Entrenamiento vs rendimiento");
+    r.linea(format!(
+        "Días con entrenamiento registrado: {}",
+        a.dias_entrenamiento
+    ));
+    r.linea(format!("Partidos registrados: {}", a.partidos));
+    r.linea(format!(
+        "Rendimiento promedio (días con entrenamiento): {}",
+        promedio(a.rend_con_entrenamiento)
+    ));
+    r.linea(format!(
+        "Rendimiento promedio (días sin entrenamiento): {}",
+        promedio(a.rend_sin_entrenamiento)
+    ));
+    r.seccion("Estadísticas de alimentación");
+    r.linea(format!(
+        "Días con alimentación registrada: {}",
+        a.dias_comida
+    ));
+    r.linea(format!(
+        "Días con alimentación buena: {}",
+        a.dias_comida_buena
+    ));
+    r.linea(format!(
+        "Porcentaje de días con buena alimentación: {:.1}%",
+        a.pct_comida_buena()
+    ));
+    r.seccion("Alimentación vs rendimiento");
+    r.linea(format!(
+        "Rendimiento promedio en días con alimentación buena: {}",
+        promedio(a.rend_comida_buena)
+    ));
+    r.linea(format!(
+        "Rendimiento promedio en días con alimentación mala: {}",
+        promedio(a.rend_comida_mala)
+    ));
+    r.seccion("Partidos con alimentación mala el mismo día");
+    if a.partidos_comida_mala.is_empty() {
+        r.linea("No hay partidos marcados con mala alimentación.");
+    }
+    for (fecha, rendimiento) in &a.partidos_comida_mala {
+        let fecha =
+            dates::parse_datetime(fecha).map_or_else(|| fecha.clone(), dates::display_datetime);
+        r.linea(format!("{fecha} | {rendimiento}"));
+    }
+    r
 }
 
 fn clamp(valor: f64) -> f64 {
@@ -398,8 +551,8 @@ mod tests {
     use super::*;
     use crate::db::Database;
 
-    fn hoy() -> NaiveDate {
-        NaiveDate::from_ymd_opt(2026, 11, 17).unwrap()
+    fn hoy() -> Date {
+        crate::domain::dates::fecha(2026, 11, 17).unwrap()
     }
 
     #[test]
@@ -712,5 +865,112 @@ mod tests {
         assert!(adjuntar(Seccion::Imagenes, &mut pdf_menu, &imagenes).is_err());
         eliminar(c, Seccion::Imagenes, menus[0].id).unwrap();
         assert!(listar(c, Seccion::Imagenes).unwrap().is_empty());
+    }
+
+    #[test]
+    fn analysis_crosses_training_and_meals_with_match_dates() {
+        let db = Database::open_in_memory().unwrap();
+        db.conn()
+            .execute_batch(
+                "INSERT INTO cancha (id, nombre) VALUES (1, 'C');
+                 INSERT INTO camiseta (id, nombre) VALUES (1, 'K');
+                 INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, rendimiento_general) VALUES
+                    (1, 1, '2026-03-01 20:00:00', 8), (1, 1, '2026-03-02 20:00:00', 6),
+                    (1, 1, '2026-03-03 20:00:00', 4);
+                 INSERT INTO bienestar_entrenamiento (fecha, tipo, duracion_min, intensidad, omitido) VALUES
+                    ('2026-03-01', 'Fuerza', 60, 7, 0), ('2026-03-01', 'Tecnica', 30, 5, 0),
+                    ('2026-03-02', 'Fuerza', 60, 7, 1);
+                 INSERT INTO bienestar_comida (fecha, tipo, calidad) VALUES
+                    ('2026-03-01', 'Cena', 'Buena'), ('2026-03-01', 'Almuerzo', 'Mala'),
+                    ('2026-03-03', 'Cena', 'Mala'), ('2026-03-04', 'Cena', 'Regular');",
+            )
+            .unwrap();
+        let a = bienestar_repo::analisis(db.conn()).unwrap();
+        // El 02/03 se omitió: solo el 01/03 cuenta como día con entrenamiento.
+        assert_eq!(a.dias_entrenamiento, 1);
+        assert_eq!(a.partidos, 3);
+        assert_eq!(a.rend_con_entrenamiento, Some(8.0));
+        assert_eq!(a.rend_sin_entrenamiento, Some(5.0));
+        assert_eq!((a.dias_comida, a.dias_comida_buena), (3, 1));
+        assert!((a.pct_comida_buena() - 100.0 / 3.0).abs() < 1e-9);
+        assert_eq!(a.rend_comida_buena, Some(8.0));
+        assert_eq!(a.rend_comida_mala, Some(6.0));
+        // Dos comidas el mismo día no duplican el partido.
+        assert_eq!(
+            a.partidos_comida_mala,
+            vec![
+                ("2026-03-03 20:00:00".to_string(), 4),
+                ("2026-03-01 20:00:00".to_string(), 8)
+            ]
+        );
+        let texto = reporte_analisis(&a).texto();
+        assert!(texto.contains("Porcentaje de días con buena alimentación: 33.3%"));
+        assert!(texto.contains("03/03/2026 20:00 | 4"));
+        let vacio = reporte_analisis(&AnalisisBienestar::default()).texto();
+        assert!(vacio.contains("(días con entrenamiento): sin datos"));
+        assert!(vacio.contains("No hay partidos marcados con mala alimentación."));
+    }
+
+    #[test]
+    fn large_images_are_downscaled_when_attached() {
+        let dir = tempfile::tempdir().unwrap();
+        let imagenes = dir.path().join("Imagenes");
+        let grande = dir.path().join("grande.png");
+        image::RgbImage::from_pixel(2000, 1000, image::Rgb([200, 30, 30]))
+            .save(&grande)
+            .unwrap();
+        let mut textos = t(&["salud", grande.to_str().unwrap()]);
+        adjuntar(Seccion::Imagenes, &mut textos, &imagenes).unwrap();
+        let copia = image::open(dir.path().join(&textos[1])).unwrap();
+        assert_eq!((copia.width(), copia.height()), (1600, 800));
+
+        let foto = dir.path().join("foto.jpg");
+        image::RgbImage::from_pixel(1000, 3200, image::Rgb([10, 90, 200]))
+            .save(&foto)
+            .unwrap();
+        let mut textos = t(&["entrenamiento", foto.to_str().unwrap()]);
+        adjuntar(Seccion::Imagenes, &mut textos, &imagenes).unwrap();
+        assert!(textos[1].ends_with(".jpg"));
+        let copia = image::open(dir.path().join(&textos[1])).unwrap();
+        assert_eq!((copia.width(), copia.height()), (500, 1600));
+
+        // Una imagen chica se copia byte a byte.
+        let chica = dir.path().join("chica.png");
+        image::RgbImage::new(10, 10).save(&chica).unwrap();
+        let mut textos = t(&["salud", chica.to_str().unwrap()]);
+        adjuntar(Seccion::Imagenes, &mut textos, &imagenes).unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join(&textos[1])).unwrap(),
+            std::fs::read(&chica).unwrap()
+        );
+    }
+
+    #[test]
+    fn system_opener_only_accepts_files_inside_imagenes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("Imagenes")).unwrap();
+        std::fs::write(dir.path().join("Imagenes").join("estudio_1.pdf"), b"%PDF").unwrap();
+        std::fs::write(dir.path().join("mifutbol.db"), b"").unwrap();
+
+        let comando = comando_abrir(dir.path(), "Imagenes/estudio_1.pdf").unwrap();
+        let args: Vec<_> = comando.get_args().collect();
+        assert_eq!(
+            args.last().copied(),
+            Some(dir.path().join("Imagenes/estudio_1.pdf").as_os_str())
+        );
+        if cfg!(windows) {
+            assert_eq!(comando.get_program(), "cmd");
+            assert_eq!(args[..3], ["/C", "start", ""]);
+        }
+        for mala in [
+            "Imagenes/../mifutbol.db",
+            "../mifutbol.db",
+            "mifutbol.db",
+            "Imagenes",
+            "Imagenes/no_existe.pdf",
+            dir.path().join("Imagenes/estudio_1.pdf").to_str().unwrap(),
+        ] {
+            assert!(comando_abrir(dir.path(), mala).is_err(), "{mala}");
+        }
     }
 }

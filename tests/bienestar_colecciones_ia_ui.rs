@@ -279,3 +279,48 @@ fn colecciones_backup_json_exporta_e_importa() {
     }
     assert_eq!(app.inventario.len(), 1, "no duplica la camiseta");
 }
+
+#[test]
+fn bienestar_analisis_e_informe_mensual_pdf() {
+    let (mut app, _dir) = test_app();
+    app.db
+        .conn()
+        .execute_batch(
+            "INSERT INTO bienestar_comida (fecha, tipo, calidad) VALUES ('2026-03-01', 'Cena', 'Buena');",
+        )
+        .unwrap();
+    abrir_por_paleta(&mut app, "bienestar");
+    press(&mut app, KeyCode::Char('A'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    let texto = render_con(&mut app, 110, 40);
+    assert!(texto.contains("Entrenamiento vs rendimiento"), "{texto}");
+    assert!(texto.contains("Estadísticas de alimentación"), "{texto}");
+    assert!(
+        app.reporte
+            .texto()
+            .contains("Porcentaje de días con buena alimentación: 100.0%")
+    );
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.current_screen(), Screen::BienestarList);
+
+    press(&mut app, KeyCode::Char('p'));
+    render_con(&mut app, 110, 30);
+    press_ctrl(&mut app, 's');
+    assert_eq!(
+        app.current_screen(),
+        Screen::BienestarList,
+        "{:?}",
+        app.modal
+    );
+    assert!(app.status.contains("Informe Personal"), "{}", app.status);
+    let pdf = std::fs::read_dir(&app.paths.export_dir)
+        .unwrap()
+        .flatten()
+        .find(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("Informe Personal")
+        })
+        .expect("PDF generado");
+    assert_eq!(&std::fs::read(pdf.path()).unwrap()[..4], b"%PDF");
+}

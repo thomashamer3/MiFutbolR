@@ -174,6 +174,17 @@ impl App {
                     Err(error) => self.modal = Some(Modal::Error(error.to_string())),
                 }
             }
+            KeyCode::Char('f') => {
+                self.modal = Some(Modal::confirm(
+                    "Finalizar torneo",
+                    "Se guardará la tabla final en el historial de cada equipo. ¿Continuar?",
+                    ConfirmAction::FinalizarTorneo(ficha.torneo.id),
+                ));
+            }
+            KeyCode::Char('x') => match torneos_service::reporte(self.db.conn(), ficha.torneo.id) {
+                Ok(reporte) => self.abrir_reporte(reporte),
+                Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+            },
             KeyCode::Char('e') => self.open_torneo_form_edit(&ficha.torneo)?,
             KeyCode::Char('d') => {
                 self.modal = Some(Modal::confirm(

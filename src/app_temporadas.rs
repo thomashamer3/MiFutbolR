@@ -1,7 +1,6 @@
 //! Navegación y formularios de temporadas (IMP-12).
 
 use anyhow::Result;
-use chrono::Datelike;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{App, ConfirmAction, Field, FieldKind, Form, Modal, Screen};
@@ -133,6 +132,22 @@ impl App {
             KeyCode::PageUp => {
                 self.temporada_scroll = self.temporada_scroll.saturating_sub(10);
             }
+            KeyCode::Char('t') => {
+                match temporadas_service::asociar_torneos(self.db.conn(), ficha.temporada.id) {
+                    Ok(0) => self.status = "No hay torneos nuevos para asociar".to_string(),
+                    Ok(nuevos) => {
+                        self.status = format!("{nuevos} torneo(s) asociado(s)");
+                        self.refresh_temporada_detail()?;
+                    }
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                }
+            }
+            KeyCode::Char('x') => {
+                match temporadas_service::reporte(self.db.conn(), ficha.temporada.id) {
+                    Ok(reporte) => self.abrir_reporte(reporte),
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                }
+            }
             KeyCode::Char('e') => self.open_temporada_form_edit(&ficha.temporada)?,
             KeyCode::Char('d') => {
                 self.modal = Some(Modal::confirm(
@@ -252,7 +267,7 @@ fn temporada_form(temporada: Option<&Temporada>) -> Form {
     let (nombre, anio, inicio, fin, descripcion) = temporada.map_or_else(
         || {
             let hoy = dates::today();
-            let fin = chrono::NaiveDate::from_ymd_opt(hoy.year(), 12, 31).unwrap_or(hoy);
+            let fin = jiff::civil::Date::new(hoy.year(), 12, 31).unwrap_or(hoy);
             (
                 String::new(),
                 i64::from(hoy.year()),

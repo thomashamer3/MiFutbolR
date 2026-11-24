@@ -3,7 +3,9 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::error::DbError;
-use crate::domain::torneos::{PartidoTorneoRow, TipoTorneo, Torneo, TorneoEquipo};
+use crate::domain::torneos::{
+    HistorialEquipo, PartidoTorneoRow, StandingRow, TipoTorneo, Torneo, TorneoEquipo,
+};
 
 /// Lista los torneos.
 pub fn list(conn: &Connection) -> Result<Vec<Torneo>, DbError> {
@@ -193,4 +195,72 @@ pub fn get_partido(conn: &Connection, id: i64) -> Result<(String, String, i64, i
         entidad: "partido_torneo",
         id,
     })
+}
+
+/// Guarda la tabla final (en orden) en `equipo_historial` y cambia la fase, en
+/// una transacción: reemplaza el historial previo del mismo torneo.
+pub fn finalizar(
+    conn: &Connection,
+    torneo_id: i64,
+    tabla: &[StandingRow],
+    fase: &str,
+) -> Result<(), DbError> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "DELETE FROM equipo_historial WHERE torneo_id = ?1",
+        params![torneo_id],
+    )?;
+    for (pos, f) in (1_i64..).zip(tabla) {
+        tx.execute(
+            "INSERT INTO equipo_historial (equipo_id, torneo_id, posicion_final, partidos_jugados,
+                    partidos_ganados, partidos_empatados, partidos_perdidos, goles_favor,
+                    goles_contra, fecha_fin)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, date('now', 'localtime'))",
+            params![
+                f.equipo_id,
+                torneo_id,
+                pos,
+                f.pj,
+                f.pg,
+                f.pe,
+                f.pp,
+                f.gf,
+                f.gc
+            ],
+        )?;
+    }
+    tx.execute(
+        "UPDATE torneo SET fase_actual = ?2 WHERE id = ?1",
+        params![torneo_id, fase],
+    )?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Historial (todos los torneos finalizados) de los equipos asociados al torneo.
+pub fn historial(conn: &Connection, torneo_id: i64) -> Result<Vec<HistorialEquipo>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT e.nombre, t.nombre, COALESCE(eh.posicion_final, 0), eh.partidos_jugados,
+                eh.partidos_ganados, eh.partidos_empatados, eh.partidos_perdidos,
+                eh.goles_favor, eh.goles_contra
+           FROM equipo_historial eh
+           JOIN equipo e ON e.id = eh.equipo_id
+           JOIN torneo t ON t.id = eh.torneo_id
+          WHERE eh.equipo_id IN (SELECT equipo_id FROM equipo_torneo WHERE torneo_id = ?1)
+          ORDER BY e.nombre, eh.id DESC",
+    )?;
+    let filas = stmt.query_map(params![torneo_id], |row| {
+        Ok(HistorialEquipo {
+            equipo: row.get(0)?,
+            torneo: row.get(1)?,
+            posicion: row.get(2)?,
+            pj: row.get(3)?,
+            pg: row.get(4)?,
+            pe: row.get(5)?,
+            pp: row.get(6)?,
+            gf: row.get(7)?,
+            gc: row.get(8)?,
+        })
+    })?;
+    Ok(filas.collect::<Result<Vec<_>, _>>()?)
 }

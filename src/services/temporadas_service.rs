@@ -5,6 +5,7 @@ use thiserror::Error;
 
 use crate::db::DbError;
 use crate::db::temporada_repo;
+use crate::domain::reporte::Reporte;
 use crate::domain::temporadas::{
     ComparacionTemporadas, Temporada, TemporadaFicha, TemporadaResumen,
 };
@@ -78,6 +79,66 @@ pub fn ficha(conn: &Connection, id: i64) -> Result<TemporadaFicha, ServiceError>
         resumen,
         fatiga,
     })
+}
+
+/// "Asociar Torneo a Temporada" de `temporada.c` (allá se llamaba con id 0 y no
+/// asociaba nada): suma los torneos creados después de la temporada.
+pub fn asociar_torneos(conn: &Connection, id: i64) -> Result<usize, ServiceError> {
+    Ok(temporada_repo::asociar_todos_torneos(conn, id)?)
+}
+
+/// "Generar/Exportar Resumen de Temporada" de `temporada.c` (x en el reporte lo
+/// guarda como TXT).
+#[allow(clippy::cast_precision_loss)]
+pub fn reporte(conn: &Connection, id: i64) -> Result<Reporte, ServiceError> {
+    let f = ficha(conn, id)?;
+    let t = &f.temporada;
+    let s = &f.resumen;
+    let mut r = Reporte::new(format!("Resumen de temporada: {}", t.nombre));
+    r.linea(format!(
+        "{} · {} al {} · {}",
+        t.anio,
+        crate::domain::dates::display_date(t.fecha_inicio),
+        crate::domain::dates::display_date(t.fecha_fin),
+        t.estado
+    ));
+    if !t.descripcion.is_empty() {
+        r.linea(t.descripcion.clone());
+    }
+    r.seccion("Estadísticas generales");
+    let promedio = if s.partidos > 0 {
+        s.goles as f64 / s.partidos as f64
+    } else {
+        0.0
+    };
+    r.linea(format!("Partidos jugados: {}", s.partidos));
+    r.linea(format!(
+        "Goles totales: {} | asistencias: {}",
+        s.goles, s.asistencias
+    ));
+    r.linea(format!("Promedio de goles por partido: {promedio:.2}"));
+    r.linea(format!(
+        "Victorias: {} | empates: {} | derrotas: {} | winrate: {:.1}%",
+        s.victorias, s.empates, s.derrotas, s.winrate
+    ));
+    r.linea(format!("Rendimiento promedio: {:.2}", s.rendimiento));
+    r.linea(format!("Lesiones registradas: {}", s.lesiones));
+    r.linea(format!("Fatiga: {:.0}", f.fatiga));
+    r.seccion("Fases");
+    for fase in &f.fases {
+        r.linea(format!(
+            "{} ({}): {} a {}",
+            fase.nombre, fase.tipo, fase.fecha_inicio, fase.fecha_fin
+        ));
+    }
+    r.seccion("Torneos asociados");
+    if f.torneos.is_empty() {
+        r.linea("Sin torneos asociados (t en el detalle de la temporada).");
+    }
+    for torneo in &f.torneos {
+        r.linea(torneo.clone());
+    }
+    Ok(r)
 }
 
 /// Compara dos temporadas.
@@ -181,8 +242,8 @@ mod tests {
             id,
             nombre: nombre.to_string(),
             anio,
-            fecha_inicio: chrono::NaiveDate::from_ymd_opt(anio as i32, 1, 1).unwrap(),
-            fecha_fin: chrono::NaiveDate::from_ymd_opt(anio as i32, 12, 31).unwrap(),
+            fecha_inicio: crate::domain::dates::fecha(anio as i32, 1, 1).unwrap(),
+            fecha_fin: crate::domain::dates::fecha(anio as i32, 12, 31).unwrap(),
             estado: "Activa".to_string(),
             descripcion: String::new(),
         }
@@ -211,6 +272,17 @@ mod tests {
         assert_eq!(ficha.resumen.goles, 2);
         assert_eq!(ficha.resumen.victorias, 1);
         assert_eq!(ficha.fases.len(), 3);
+
+        let texto = reporte(db.conn(), id).unwrap().texto();
+        assert!(texto.contains("Partidos jugados: 1"), "{texto}");
+        assert!(texto.contains("Promedio de goles por partido: 2.00"));
+        assert!(texto.contains("Sin torneos asociados"));
+        db.conn()
+            .execute("INSERT INTO torneo (nombre) VALUES ('Copa')", [])
+            .unwrap();
+        assert_eq!(asociar_torneos(db.conn(), id).unwrap(), 1);
+        assert_eq!(asociar_torneos(db.conn(), id).unwrap(), 0, "sin duplicar");
+        assert!(reporte(db.conn(), id).unwrap().texto().contains("Copa"));
 
         let otra = crear(db.conn(), &temporada(0, "2025", 2025)).unwrap();
         let comparacion = comparar(db.conn(), id, otra).unwrap();

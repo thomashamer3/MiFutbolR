@@ -32,7 +32,7 @@ pub fn validar(lesion: &Lesion) -> Result<(), DomainError> {
     validation::required(&lesion.descripcion, "descripción")?;
     validation::max_len(&lesion.descripcion, "descripción", 200)?;
     validation::positive(lesion.camiseta_id, "camiseta")?;
-    let year = chrono::Datelike::year(&lesion.fecha);
+    let year = i32::from(lesion.fecha.year());
     validation::range_i64(i64::from(year), 1900, 2100, "fecha")?;
     Ok(())
 }
@@ -40,7 +40,7 @@ pub fn validar(lesion: &Lesion) -> Result<(), DomainError> {
 /// Indica si la fecha de la lesión está en el futuro (advertencia de UI).
 #[must_use]
 pub fn fecha_futura(lesion: &Lesion) -> bool {
-    lesion.fecha > chrono::Local::now().naive_local()
+    lesion.fecha > crate::domain::dates::now_local()
 }
 
 /// Crea una lesión.
@@ -122,14 +122,15 @@ pub fn diferencias(conn: &Connection) -> Result<Reporte, ServiceError> {
         let detalle = format!(
             "#{} {} · {} ({})",
             lesion.id,
-            lesion.fecha.format("%d/%m/%Y"),
+            lesion.fecha.strftime("%d/%m/%Y"),
             lesion.tipo,
             lesion.jugador
         );
         match indice.checked_sub(1).map(|previa| &lesiones[previa]) {
             None => reporte.linea(format!("{detalle} — primera lesión")),
             Some(previa) => {
-                let dias = (lesion.fecha.date() - previa.fecha.date()).num_days();
+                let dias =
+                    crate::domain::dates::dias_entre(previa.fecha.date(), lesion.fecha.date());
                 dias_total += dias;
                 reporte.linea(format!("{detalle} — {dias} días después"));
             }
@@ -156,10 +157,9 @@ mod tests {
             jugador: "Jugador".into(),
             tipo: "Esguince".into(),
             descripcion: "Tobillo derecho".into(),
-            fecha: chrono::NaiveDate::from_ymd_opt(2026, 4, 1)
+            fecha: crate::domain::dates::fecha(2026, 4, 1)
                 .unwrap()
-                .and_hms_opt(18, 0, 0)
-                .unwrap(),
+                .at(18, 0, 0, 0),
             camiseta_id: 1,
             estado: EstadoLesion::Activa,
             partido_id: None,
@@ -214,10 +214,9 @@ mod tests {
         for (tipo, mes) in [("Esguince", 1), ("Contractura", 3)] {
             let mut lesion = base();
             lesion.tipo = tipo.into();
-            lesion.fecha = chrono::NaiveDate::from_ymd_opt(2026, mes, 10)
+            lesion.fecha = crate::domain::dates::fecha(2026, mes, 10)
                 .unwrap()
-                .and_hms_opt(18, 0, 0)
-                .unwrap();
+                .at(18, 0, 0, 0);
             crear(db.conn(), &mut lesion).unwrap();
         }
         let filtro = LesionFilter {
@@ -246,10 +245,9 @@ mod tests {
         // Se cargan desordenadas: el reporte ordena por fecha real.
         for (dia, mes) in [(20, 3), (1, 3), (5, 4)] {
             let mut lesion = base();
-            lesion.fecha = chrono::NaiveDate::from_ymd_opt(2026, mes, dia)
+            lesion.fecha = crate::domain::dates::fecha(2026, mes, dia)
                 .unwrap()
-                .and_hms_opt(10, 0, 0)
-                .unwrap();
+                .at(10, 0, 0, 0);
             crear(db.conn(), &mut lesion).unwrap();
         }
         let lineas = diferencias(db.conn()).unwrap().lineas;

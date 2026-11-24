@@ -64,11 +64,8 @@ pub fn listar(dir: &Path, usuario: Option<i64>) -> Vec<BackupInfo> {
             let fecha = meta
                 .as_ref()
                 .and_then(|m| m.modified().ok())
-                .map(|t| {
-                    chrono::DateTime::<chrono::Local>::from(t)
-                        .format("%d/%m/%Y %H:%M")
-                        .to_string()
-                })
+                .and_then(|t| jiff::ZonedDateTime::try_from(t).ok())
+                .map(|t| t.strftime("%d/%m/%Y %H:%M").to_string())
                 .unwrap_or_default();
             let partidos = Connection::open_with_flags(&ruta, OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .and_then(|c| c.query_row("SELECT COUNT(*) FROM partido", [], |row| row.get(0)))
@@ -99,14 +96,17 @@ pub fn backup_inicio(
     db: &crate::db::Database,
     dir: &Path,
     etiqueta: &str,
-    ahora: chrono::NaiveDateTime,
+    ahora: jiff::civil::DateTime,
 ) -> Result<Option<PathBuf>, String> {
     if !crate::db::tiene_datos_usuario(db.conn()) {
         return Ok(None);
     }
     std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     let sufijo = format!("_{etiqueta}.db");
-    let destino = dir.join(format!("backup_{}{sufijo}", ahora.format("%Y%m%d_%H%M%S")));
+    let destino = dir.join(format!(
+        "backup_{}{sufijo}",
+        ahora.strftime("%Y%m%d_%H%M%S")
+    ));
     if !destino.exists() {
         db.backup(&destino).map_err(|error| error.to_string())?;
     }
@@ -188,11 +188,10 @@ mod tests {
         assert_eq!(tamano(3 * 1024 * 1024), "3.0 MB");
     }
 
-    fn fecha(dia: u32, hora: u32) -> chrono::NaiveDateTime {
-        chrono::NaiveDate::from_ymd_opt(2026, 3, dia)
+    fn fecha(dia: u32, hora: i8) -> jiff::civil::DateTime {
+        crate::domain::dates::fecha(2026, 3, dia)
             .unwrap()
-            .and_hms_opt(hora, 0, 0)
-            .unwrap()
+            .at(hora, 0, 0, 0)
     }
 
     #[test]

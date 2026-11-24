@@ -538,7 +538,6 @@ fn parse_minutes(value: &str) -> Result<Option<i64>, DomainError> {
     }
     let time = dates::parse_time(value)
         .ok_or_else(|| DomainError::InvalidDate(format!("hora: {value}")))?;
-    use chrono::Timelike;
     Ok(Some(i64::from(time.hour() * 60 + time.minute())))
 }
 

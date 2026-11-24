@@ -1,6 +1,6 @@
 //! Temporadas, fases y resumen (IMP-12).
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 
 /// Temporada.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,9 +12,9 @@ pub struct Temporada {
     /// Año.
     pub anio: i64,
     /// Inicio.
-    pub fecha_inicio: NaiveDate,
+    pub fecha_inicio: Date,
     /// Fin.
-    pub fecha_fin: NaiveDate,
+    pub fecha_fin: Date,
     /// Estado.
     pub estado: String,
     /// Descripción.

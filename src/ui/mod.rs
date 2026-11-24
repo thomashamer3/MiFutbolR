@@ -195,6 +195,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Screen::TemporadaForm(_) => screens::temporadas::draw_form(frame, body, app),
         Screen::TiendasList => screens::tiendas::draw_list(frame, body, app),
         Screen::TiendaForm(_) => screens::tiendas::draw_form(frame, body, app),
+        Screen::EquipamientoList => screens::equipamiento::draw_list(frame, body, app),
+        Screen::EquipamientoForm(_) => screens::equipamiento::draw_form(frame, body, app),
         Screen::BienestarList => screens::bienestar::draw_list(frame, body, app),
         Screen::BienestarForm(_) => screens::bienestar::draw_form(frame, body, app),
         Screen::BienestarAsistente => screens::bienestar::draw_asistente(frame, body, app),

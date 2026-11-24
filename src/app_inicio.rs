@@ -94,11 +94,10 @@ impl App {
                 self.refrescar_calendario()?;
             }
             KeyCode::Char('t') => {
-                let hoy = chrono::Local::now().date_naive();
-                use chrono::Datelike;
-                self.calendario.year = hoy.year();
-                self.calendario.month = hoy.month();
-                self.calendario.dia = hoy.day();
+                let hoy = crate::domain::dates::today();
+                self.calendario.year = i32::from(hoy.year());
+                self.calendario.month = hoy.month().unsigned_abs().into();
+                self.calendario.dia = hoy.day().unsigned_abs().into();
                 self.refrescar_calendario()?;
             }
             KeyCode::Enter => self.abrir_evento_del_dia()?,
@@ -481,7 +480,7 @@ impl App {
                         .map(|fila| {
                             vec![
                                 fila.id.to_string(),
-                                fila.fecha_hora.format("%Y-%m-%d %H:%M").to_string(),
+                                fila.fecha_hora.strftime("%Y-%m-%d %H:%M").to_string(),
                                 fila.cancha.clone(),
                                 fila.camiseta.clone(),
                                 fila.rival.clone(),
@@ -507,7 +506,7 @@ impl App {
                                 fila.id.to_string(),
                                 fila.jugador.clone(),
                                 fila.tipo.clone(),
-                                fila.fecha.format("%Y-%m-%d").to_string(),
+                                fila.fecha.strftime("%Y-%m-%d").to_string(),
                                 fila.estado.label().to_string(),
                                 fila.camiseta.clone(),
                                 fila.partido.clone(),
@@ -531,7 +530,7 @@ impl App {
                         .map(|fila| {
                             vec![
                                 fila.id.to_string(),
-                                fila.fecha.format("%Y-%m-%d").to_string(),
+                                fila.fecha.strftime("%Y-%m-%d").to_string(),
                                 fila.tipo.label().to_string(),
                                 fila.categoria.label().to_string(),
                                 fila.descripcion.clone(),

@@ -1,6 +1,6 @@
 //! Recordatorios y agenda (IMP-18).
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 
 /// Periodicidad.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -64,7 +64,7 @@ pub struct Recordatorio {
     /// Nota.
     pub nota: String,
     /// Fecha.
-    pub fecha: NaiveDate,
+    pub fecha: Date,
     /// Hora en formato HH:MM.
     pub hora: String,
     /// Periodicidad.
@@ -81,7 +81,7 @@ pub struct Recordatorio {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventoAgenda {
     /// Fecha.
-    pub fecha: NaiveDate,
+    pub fecha: Date,
     /// Hora.
     pub hora: String,
     /// Título.

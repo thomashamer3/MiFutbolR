@@ -3,7 +3,7 @@
 //! `estadisticas*.c` que faltaban). Las expresiones de agrupación son
 //! constantes del código: nunca se interpola texto del usuario.
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use rusqlite::{Connection, params};
 
 use super::error::DbError;
@@ -120,9 +120,9 @@ pub struct FilaPartido {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FiltroPartidos {
     /// Desde (inclusive).
-    pub desde: Option<NaiveDate>,
+    pub desde: Option<Date>,
     /// Hasta (inclusive, el día completo).
-    pub hasta: Option<NaiveDate>,
+    pub hasta: Option<Date>,
     /// Resultado 1/2/3.
     pub resultado: Option<i64>,
     /// Cancha.
@@ -145,7 +145,7 @@ pub fn filtrar(conn: &Connection, filtro: &FiltroPartidos) -> Result<Vec<FilaPar
             AND (?5 = 0 OR p.cansancio > 7)
           ORDER BY p.fecha_hora DESC LIMIT 100",
     )?;
-    let fecha = |d: Option<NaiveDate>| d.map(|d| d.format("%Y-%m-%d").to_string());
+    let fecha = |d: Option<Date>| d.map(|d| d.strftime("%Y-%m-%d").to_string());
     let filas = stmt
         .query_map(
             params![

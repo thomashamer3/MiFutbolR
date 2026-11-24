@@ -152,13 +152,13 @@ pub fn stats(conn: &Connection) -> Result<LesionStats, DbError> {
         .query_map([], |row| row.get::<_, String>(0))?
         .collect::<Result<Vec<_>, _>>()?;
     let mut dias = Vec::new();
-    let mut anterior: Option<chrono::NaiveDateTime> = None;
+    let mut anterior: Option<jiff::civil::DateTime> = None;
     for texto in fechas {
         let Some(fecha) = dates::parse_datetime(&texto) else {
             continue;
         };
         if let Some(prev) = anterior {
-            let diferencia = fecha.signed_duration_since(prev).num_days();
+            let diferencia = fecha.duration_since(prev).as_hours() / 24;
             if diferencia >= 0 {
                 dias.push(diferencia as f64);
             }

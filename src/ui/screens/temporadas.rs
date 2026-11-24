@@ -36,8 +36,8 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(temporada.id.to_string()),
                 Cell::from(temporada.nombre.clone()),
                 Cell::from(temporada.anio.to_string()),
-                Cell::from(temporada.fecha_inicio.format("%d/%m/%Y").to_string()),
-                Cell::from(temporada.fecha_fin.format("%d/%m/%Y").to_string()),
+                Cell::from(temporada.fecha_inicio.strftime("%d/%m/%Y").to_string()),
+                Cell::from(temporada.fecha_fin.strftime("%d/%m/%Y").to_string()),
                 Cell::from(temporada.estado.clone()),
             ])
         })
@@ -83,8 +83,8 @@ pub fn draw_detail(frame: &mut Frame, area: Rect, app: &App) {
         format!(
             " {} · {} → {} · {}",
             ficha.temporada.anio,
-            ficha.temporada.fecha_inicio.format("%d/%m/%Y"),
-            ficha.temporada.fecha_fin.format("%d/%m/%Y"),
+            ficha.temporada.fecha_inicio.strftime("%d/%m/%Y"),
+            ficha.temporada.fecha_fin.strftime("%d/%m/%Y"),
             ficha.temporada.estado
         ),
         Style::default().fg(colors.muted),

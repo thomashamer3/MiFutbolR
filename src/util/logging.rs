@@ -25,7 +25,7 @@ pub fn init(path: &Path) -> std::io::Result<()> {
 
 /// Escribe una línea con timestamp.
 pub fn write_line(level: &str, message: &str) {
-    let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    let stamp = crate::domain::dates::ahora_fmt("%Y-%m-%d %H:%M:%S");
     let line = format!("[{stamp}] [{level}] {message}\n");
     if let Some(lock) = LOG.get()
         && let Ok(mut guard) = lock.lock()

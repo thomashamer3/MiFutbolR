@@ -3,7 +3,7 @@
 //! Las validaciones se ejecutan **antes** de tocar la base de datos y no
 //! devuelven `DbError`: son fallas de negocio, no de persistencia.
 
-use chrono::{NaiveDate, NaiveDateTime};
+use jiff::civil::{Date, DateTime};
 use thiserror::Error;
 
 use super::dates;
@@ -157,12 +157,12 @@ pub fn money(text: &str, field: &'static str) -> Result<Cents, DomainError> {
 }
 
 /// Parsea una fecha tolerando ISO y `DD/MM/YYYY`.
-pub fn date(text: &str, field: &'static str) -> Result<NaiveDate, DomainError> {
+pub fn date(text: &str, field: &'static str) -> Result<Date, DomainError> {
     dates::parse_date(text).ok_or_else(|| DomainError::InvalidDate(format!("{field}: {text}")))
 }
 
 /// Parsea una fecha-hora tolerando ISO y `DD/MM/YYYY HH:MM`.
-pub fn datetime(text: &str, field: &'static str) -> Result<NaiveDateTime, DomainError> {
+pub fn datetime(text: &str, field: &'static str) -> Result<DateTime, DomainError> {
     dates::parse_datetime(text).ok_or_else(|| DomainError::InvalidDate(format!("{field}: {text}")))
 }
 

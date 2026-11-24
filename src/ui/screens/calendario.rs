@@ -1,6 +1,6 @@
 //! Calendario mensual (IMP-02).
 
-use chrono::{Datelike, Local, NaiveDate};
+use crate::domain::dates;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -38,7 +38,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         MESES[(app.calendario.month as usize).saturating_sub(1) % 12],
         app.calendario.year
     );
-    let hoy = Local::now().date_naive();
+    let hoy = dates::today();
     let seleccionada = app.calendario.seleccionada();
     let cabecera_texto = Line::from(vec![
         Span::styled(
@@ -51,8 +51,8 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             format!(
                 "  seleccionado {} · hoy {} ",
-                seleccionada.format("%d/%m/%Y"),
-                hoy.format("%d/%m/%Y")
+                seleccionada.strftime("%d/%m/%Y"),
+                hoy.strftime("%d/%m/%Y")
             ),
             Style::default().fg(colors.muted),
         ),
@@ -73,9 +73,9 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App) {
 fn draw_grilla(frame: &mut Frame, area: Rect, app: &App) {
     let colors = palette(app.settings.theme);
     let primer = app.calendario.primer_dia();
-    let offset = primer.weekday().num_days_from_monday();
+    let offset = dates::dia_semana_desde_lunes(primer);
     let dias = app.calendario.dias_del_mes();
-    let hoy = Local::now().date_naive();
+    let hoy = dates::today();
 
     let mut restricciones = vec![Constraint::Length(1)];
     for _ in 0..6 {
@@ -109,7 +109,7 @@ fn draw_grilla(frame: &mut Frame, area: Rect, app: &App) {
             if dia > dias {
                 continue;
             }
-            let fecha = NaiveDate::from_ymd_opt(app.calendario.year, app.calendario.month, dia)
+            let fecha = crate::domain::dates::fecha(app.calendario.year, app.calendario.month, dia)
                 .unwrap_or(primer);
             let eventos: Vec<&EventoCalendario> = app
                 .calendario
@@ -165,7 +165,7 @@ fn draw_panel(frame: &mut Frame, area: Rect, app: &App) {
     let fecha = app.calendario.seleccionada();
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .title(format!(" {} ", fecha.format("%d/%m/%Y")))
+        .title(format!(" {} ", fecha.strftime("%d/%m/%Y")))
         .border_style(Style::default().fg(colors.border))
         .style(Style::default().bg(colors.bg));
     let interior = block.inner(area);

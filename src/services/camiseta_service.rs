@@ -13,6 +13,7 @@ use crate::db::camiseta_repo;
 use crate::domain::models::{
     Camiseta, CamisetaDependencias, CamisetaFilter, CamisetaRow, FichaCamiseta,
 };
+use crate::domain::reporte::Reporte;
 use crate::domain::validation::{self, DomainError};
 
 /// Error de negocio del módulo.
@@ -66,7 +67,7 @@ pub fn validar(camiseta: &Camiseta) -> Result<(), DomainError> {
         return Err(DomainError::Required("regalo de"));
     }
     if let Some(fecha) = camiseta.fecha_compra {
-        let year = chrono::Datelike::year(&fecha);
+        let year = i32::from(fecha.year());
         validation::range_i64(i64::from(year), 1900, 2100, "fecha de compra")?;
     }
     validar_imagen(&camiseta.imagen_ruta)?;
@@ -148,6 +149,32 @@ pub fn listar(
     Ok(camiseta_repo::list(conn, filter)?)
 }
 
+/// "Gráfico de Uso" de `camiseta.c`: partidos por camiseta (las 12 más usadas,
+/// activas o no), con los goles como dato extra.
+pub fn grafico_uso(conn: &Connection) -> Result<Reporte, ServiceError> {
+    let mut camisetas = camiseta_repo::list(conn, &CamisetaFilter::default())?;
+    camisetas.sort_by(|a, b| {
+        b.partidos
+            .cmp(&a.partidos)
+            .then_with(|| a.nombre.cmp(&b.nombre))
+    });
+    camisetas.truncate(12);
+    let mut r = Reporte::new("Camisetas · gráfico de uso");
+    r.seccion("Partidos por camiseta");
+    if camisetas.is_empty() {
+        r.linea("No hay camisetas registradas.");
+    }
+    for c in &camisetas {
+        r.linea(format!(
+            "{}: {} partidos · {} goles",
+            c.nombre, c.partidos, c.goles
+        ));
+        r.barras
+            .push((c.nombre.clone(), u64::try_from(c.partidos).unwrap_or(0)));
+    }
+    Ok(r)
+}
+
 /// Obtiene una camiseta por id.
 pub fn obtener(conn: &Connection, id: i64) -> Result<Camiseta, ServiceError> {
     Ok(camiseta_repo::get(conn, id)?)
@@ -189,6 +216,30 @@ mod tests {
     use crate::domain::models::EstadoFisico;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
+
+    #[test]
+    fn usage_chart_orders_by_matches() {
+        let db = Database::open_in_memory().unwrap();
+        db.conn()
+            .execute_batch(
+                "INSERT INTO cancha (id, nombre) VALUES (1, 'C');
+                 INSERT INTO camiseta (id, nombre, activa) VALUES (1, 'Alternativa', 1), (2, 'Titular', 0), (3, 'Vieja', 1);
+                 INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, goles) VALUES
+                    (1, 2, '2026-01-01 10:00:00', 2), (1, 2, '2026-01-02 10:00:00', 1),
+                    (1, 1, '2026-01-03 10:00:00', 0);",
+            )
+            .unwrap();
+        let r = grafico_uso(db.conn()).unwrap();
+        assert_eq!(
+            r.barras,
+            vec![
+                ("Titular".to_string(), 2),
+                ("Alternativa".to_string(), 1),
+                ("Vieja".to_string(), 0)
+            ]
+        );
+        assert!(r.texto().contains("Titular: 2 partidos · 3 goles"));
+    }
 
     fn base(nombre: &str) -> Camiseta {
         Camiseta {

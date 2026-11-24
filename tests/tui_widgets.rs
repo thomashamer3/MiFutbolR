@@ -38,8 +38,8 @@ fn camisetas_list_shows_side_preview() {
 #[test]
 fn financiamiento_uses_gauge_and_barchart() {
     let (mut app, _dir) = test_app();
-    let mes = chrono::Local::now().format("%Y-%m").to_string();
-    let hoy = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let mes = mifutbol_rs::domain::dates::ahora_fmt("%Y-%m");
+    let hoy = mifutbol_rs::domain::dates::ahora_fmt("%Y-%m-%d");
     app.db
         .conn()
         .execute(

@@ -1,6 +1,6 @@
 //! Consultas del panel "Hoy" (IMP-01).
 
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use super::error::DbError;
@@ -8,7 +8,7 @@ use crate::domain::dates;
 use crate::domain::inicio::{MesResumen, PartidoBreve, RachaInfo};
 use crate::domain::models::{RachaTipo, Resultado};
 
-fn parse_fecha(texto: &str) -> Result<NaiveDateTime, DbError> {
+fn parse_fecha(texto: &str) -> Result<DateTime, DbError> {
     dates::parse_datetime(texto)
         .ok_or_else(|| DbError::InvalidData(format!("fecha inválida: {texto}")))
 }
@@ -160,7 +160,6 @@ pub fn lesiones_activas(conn: &Connection) -> Result<i64, DbError> {
 mod tests {
     use super::*;
     use crate::db::Database;
-    use chrono::Duration;
 
     fn base(conn: &Connection) -> (i64, i64) {
         conn.execute("INSERT INTO cancha (nombre) VALUES ('Cancha test')", [])
@@ -176,7 +175,7 @@ mod tests {
         conn: &Connection,
         cancha: i64,
         camiseta: i64,
-        fecha: chrono::NaiveDateTime,
+        fecha: jiff::civil::DateTime,
         resultado: i64,
         goles: i64,
     ) {
@@ -187,7 +186,7 @@ mod tests {
             params![
                 cancha,
                 camiseta,
-                fecha.format("%Y-%m-%d %H:%M:%S").to_string(),
+                fecha.strftime("%Y-%m-%d %H:%M:%S").to_string(),
                 resultado,
                 goles
             ],
@@ -199,13 +198,26 @@ mod tests {
     fn dashboard_data_with_matches() {
         let db = Database::open_in_memory().unwrap();
         let (cancha, camiseta) = base(db.conn());
-        let base = chrono::NaiveDate::from_ymd_opt(2026, 1, 10)
+        let base = crate::domain::dates::fecha(2026, 1, 10)
             .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap();
+            .at(12, 0, 0, 0);
         partido(db.conn(), cancha, camiseta, base, 1, 2);
-        partido(db.conn(), cancha, camiseta, base + Duration::days(5), 1, 1);
-        partido(db.conn(), cancha, camiseta, base + Duration::days(10), 3, 0);
+        partido(
+            db.conn(),
+            cancha,
+            camiseta,
+            base + jiff::Span::new().days(5),
+            1,
+            1,
+        );
+        partido(
+            db.conn(),
+            cancha,
+            camiseta,
+            base + jiff::Span::new().days(10),
+            3,
+            0,
+        );
 
         let ultimo = ultimo_partido(db.conn()).unwrap().unwrap();
         assert_eq!(ultimo.resultado, Resultado::Derrota);
@@ -225,7 +237,7 @@ mod tests {
     fn month_totals_respect_december_january_boundary() {
         let db = Database::open_in_memory().unwrap();
         let (cancha, camiseta) = base(db.conn());
-        let fecha = |texto| chrono::NaiveDateTime::parse_from_str(texto, "%Y-%m-%d %H:%M:%S");
+        let fecha = |texto| jiff::civil::DateTime::strptime("%Y-%m-%d %H:%M:%S", texto);
         for texto in [
             "2025-12-01 00:00:00",
             "2025-12-31 23:59:59",
@@ -242,8 +254,15 @@ mod tests {
     fn next_match_and_active_injuries() {
         let db = Database::open_in_memory().unwrap();
         let (cancha, camiseta) = base(db.conn());
-        let ahora = chrono::Local::now().naive_local();
-        partido(db.conn(), cancha, camiseta, ahora + Duration::days(2), 0, 0);
+        let ahora = crate::domain::dates::now_local();
+        partido(
+            db.conn(),
+            cancha,
+            camiseta,
+            ahora + jiff::Span::new().days(2),
+            0,
+            0,
+        );
         db.conn()
             .execute(
                 "INSERT INTO lesion (jugador, tipo, descripcion, fecha, camiseta_id, estado)

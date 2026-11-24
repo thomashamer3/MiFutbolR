@@ -93,6 +93,8 @@ pub struct PartidoTorneoRow {
 /// Fila de la tabla de posiciones.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StandingRow {
+    /// Id del equipo.
+    pub equipo_id: i64,
     /// Equipo.
     pub equipo: String,
     /// Partidos jugados.
@@ -112,6 +114,32 @@ pub struct StandingRow {
     /// Puntos.
     pub puntos: i64,
 }
+
+/// Fila de `equipo_historial`: cómo terminó un equipo un torneo finalizado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistorialEquipo {
+    /// Equipo.
+    pub equipo: String,
+    /// Torneo.
+    pub torneo: String,
+    /// Posición final.
+    pub posicion: i64,
+    /// Partidos jugados.
+    pub pj: i64,
+    /// Ganados.
+    pub pg: i64,
+    /// Empatados.
+    pub pe: i64,
+    /// Perdidos.
+    pub pp: i64,
+    /// Goles a favor.
+    pub gf: i64,
+    /// Goles en contra.
+    pub gc: i64,
+}
+
+/// Fase de un torneo cerrado con "Finalizar torneo".
+pub const FASE_FINALIZADO: &str = "Finalizado";
 
 /// Ficha completa del torneo.
 #[derive(Debug, Clone, PartialEq, Eq)]

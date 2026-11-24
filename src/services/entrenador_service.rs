@@ -4,7 +4,7 @@
 //! contaba el 0, "sin cargar") y las fechas se comparan con `fecha_hora` ISO.
 //! El aviso previo a crear un partido es [`alerta_antes_partido`].
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use rusqlite::Connection;
 use thiserror::Error;
 
@@ -29,7 +29,7 @@ pub enum ServiceError {
 /// Estado del jugador a partir de los últimos partidos (más recientes primero).
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
-pub fn evaluar(partidos: &[PartidoIa], hoy: NaiveDate) -> EstadoJugador {
+pub fn evaluar(partidos: &[PartidoIa], hoy: Date) -> EstadoJugador {
     let muestra = &partidos[..partidos.len().min(10)];
     if muestra.is_empty() {
         return EstadoJugador::default();
@@ -38,7 +38,7 @@ pub fn evaluar(partidos: &[PartidoIa], hoy: NaiveDate) -> EstadoJugador {
     let promedio = |f: fn(&PartidoIa) -> i64| muestra.iter().map(f).sum::<i64>() as f64 / n;
     let dias = |p: &PartidoIa| {
         dates::parse_datetime(&p.fecha_hora)
-            .map_or(0, |fecha| (hoy - fecha.date()).num_days().max(0))
+            .map_or(0, |fecha| dates::dias_entre(fecha.date(), hoy).max(0))
     };
     let dias_descanso = dias(&muestra[0]);
     let consecutivos = muestra.iter().take(7).filter(|p| dias(p) <= 7).count() as i64;
@@ -228,7 +228,7 @@ pub const fn umbral(nivel: i64) -> Option<f64> {
 }
 
 /// Análisis completo con los datos actuales.
-pub fn analizar(conn: &Connection, hoy: NaiveDate) -> Result<Analisis, ServiceError> {
+pub fn analizar(conn: &Connection, hoy: Date) -> Result<Analisis, ServiceError> {
     let estado = evaluar(&entrenador_repo::ultimos_partidos(conn, 10)?, hoy);
     let nivel = entrenador_repo::nivel(conn)?;
     let (formacion, tacticas) = formacion(&estado);
@@ -261,7 +261,7 @@ const MARGEN_CRITICO: f64 = 1.0;
 /// crítico; cuando avisa, guarda `ultima_alerta` y `ultimo_riesgo`.
 pub fn alerta_antes_partido(
     conn: &Connection,
-    hoy: NaiveDate,
+    hoy: Date,
     ahora: i64,
 ) -> Result<Option<String>, ServiceError> {
     let analisis = analizar(conn, hoy)?;
@@ -317,12 +317,12 @@ mod tests {
     use super::*;
     use crate::db::Database;
 
-    fn hoy() -> NaiveDate {
-        NaiveDate::from_ymd_opt(2026, 11, 17).unwrap()
+    fn hoy() -> Date {
+        crate::domain::dates::fecha(2026, 11, 17).unwrap()
     }
 
     fn partido(dias_atras: i64, rend: i64, cans: i64, animo: i64, resultado: i64) -> PartidoIa {
-        let fecha = hoy() - chrono::Duration::days(dias_atras);
+        let fecha = hoy() - jiff::Span::new().days(dias_atras);
         PartidoIa {
             fecha_hora: format!("{} 20:00:00", dates::to_iso_date(fecha)),
             rendimiento: rend,

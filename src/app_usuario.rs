@@ -145,6 +145,7 @@ impl App {
     /// Cambia de base conservando lo que decidió el binario (tareas de arranque).
     fn reemplazar_app(&mut self, mut app: App) {
         app.tareas_inicio = self.tareas_inicio;
+        app.abrir_con_sistema = self.abrir_con_sistema;
         app.url_actualizaciones = self.url_actualizaciones.take();
         *self = app;
     }

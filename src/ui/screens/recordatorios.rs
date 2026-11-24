@@ -40,7 +40,7 @@ pub fn draw_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .map(|item| {
             Row::new(vec![
-                Cell::from(item.fecha.format("%d/%m/%Y").to_string()),
+                Cell::from(item.fecha.strftime("%d/%m/%Y").to_string()),
                 Cell::from(item.hora.clone()),
                 Cell::from(item.titulo.clone()),
                 Cell::from(item.periodicidad.label()),
@@ -125,7 +125,7 @@ pub fn draw_agenda(frame: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .map(|evento| {
             Row::new(vec![
-                Cell::from(evento.fecha.format("%d/%m/%Y").to_string()),
+                Cell::from(evento.fecha.strftime("%d/%m/%Y").to_string()),
                 Cell::from(evento.hora.clone()),
                 Cell::from(evento.tipo),
                 Cell::from(evento.titulo.clone()),

@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use chrono::{Months, NaiveDate};
+use jiff::civil::Date;
 use rusqlite::Connection;
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -87,14 +87,14 @@ pub fn avanzar_recurrentes(conn: &Connection) -> Result<usize, ServiceError> {
 
 /// Siguiente fecha según periodicidad.
 #[must_use]
-pub fn siguiente(fecha: NaiveDate, periodicidad: Periodicidad) -> NaiveDate {
+pub fn siguiente(fecha: Date, periodicidad: Periodicidad) -> Date {
     match periodicidad {
         Periodicidad::UnaVez => fecha,
-        Periodicidad::Diaria => fecha + chrono::Duration::days(1),
-        Periodicidad::Semanal => fecha + chrono::Duration::days(7),
+        Periodicidad::Diaria => fecha + jiff::Span::new().days(1),
+        Periodicidad::Semanal => fecha + jiff::Span::new().days(7),
         Periodicidad::Mensual => fecha
-            .checked_add_months(Months::new(1))
-            .unwrap_or(fecha + chrono::Duration::days(30)),
+            .checked_add(jiff::Span::new().months(1))
+            .unwrap_or_else(|_| dates::sumar_dias(fecha, 30)),
     }
 }
 
@@ -108,7 +108,7 @@ pub fn exportar(conn: &Connection, dir: &Path) -> Result<PathBuf, ServiceError> 
     let items: Vec<Value> = recordatorio_repo::list(conn)?
         .iter()
         .map(|r| {
-            let fecha = r.fecha.format("%Y-%m-%d").to_string();
+            let fecha = r.fecha.strftime("%Y-%m-%d").to_string();
             json!({
                 "id": r.id,
                 "fecha": if r.hora.is_empty() { fecha } else { format!("{fecha} {}", r.hora) },
@@ -195,7 +195,7 @@ fn desde_json(item: &Value) -> Result<Recordatorio, String> {
         nota,
         fecha: fecha.date(),
         hora: if crudo.contains(':') {
-            fecha.format("%H:%M").to_string()
+            fecha.strftime("%H:%M").to_string()
         } else {
             String::new()
         },
@@ -293,25 +293,25 @@ mod tests {
 
     #[test]
     fn advances_daily_and_monthly() {
-        let base = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let base = crate::domain::dates::fecha(2026, 1, 31).unwrap();
         assert_eq!(
             siguiente(base, Periodicidad::Diaria),
-            base + chrono::Duration::days(1)
+            base + jiff::Span::new().days(1)
         );
         assert_eq!(
             siguiente(base, Periodicidad::Semanal),
-            base + chrono::Duration::days(7)
+            base + jiff::Span::new().days(7)
         );
         assert_eq!(
             siguiente(base, Periodicidad::Mensual),
-            NaiveDate::from_ymd_opt(2026, 2, 28).unwrap()
+            crate::domain::dates::fecha(2026, 2, 28).unwrap()
         );
     }
 
     #[test]
     fn recurrence_is_materialized() {
         let db = Database::open_in_memory().unwrap();
-        let ayer = dates::today() - chrono::Duration::days(2);
+        let ayer = dates::today() - jiff::Span::new().days(2);
         let item = Recordatorio {
             id: 0,
             titulo: "Agua".to_string(),

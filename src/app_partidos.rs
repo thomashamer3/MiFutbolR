@@ -812,7 +812,7 @@ impl App {
         match crate::services::entrenador_service::alerta_antes_partido(
             self.db.conn(),
             crate::domain::dates::today(),
-            chrono::Local::now().timestamp(),
+            jiff::Timestamp::now().as_second(),
         ) {
             Ok(Some(aviso)) => self.modal = Some(Modal::Info(aviso)),
             Ok(None) => {}

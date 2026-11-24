@@ -304,7 +304,7 @@ pub fn json_mobile(conn: &Connection, usuario: Option<&str>) -> Result<Value, Db
     raiz.insert("origen".into(), json!("MiFutbolC"));
     raiz.insert(
         "generadoEn".into(),
-        json!(chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()),
+        json!(crate::domain::dates::ahora_fmt("%Y-%m-%dT%H:%M:%S")),
     );
     let nombre = match usuario {
         Some(nombre) if !nombre.is_empty() => nombre.to_string(),
@@ -594,7 +594,7 @@ pub fn sincronizar_pendientes(
     }
     let destino = import_dir.join(format!(
         "partidos_importados_{}.json",
-        chrono::Local::now().format("%Y%m%d_%H%M%S")
+        crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S")
     ));
     if std::fs::rename(&ruta, &destino).is_err() {
         let _ = std::fs::remove_file(&ruta);

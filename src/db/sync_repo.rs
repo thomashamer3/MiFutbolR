@@ -22,7 +22,7 @@ const UUID_SQL: &str = "lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) ||
 /// Marca de tiempo local ISO (`sync_ahora` de C).
 #[must_use]
 pub fn ahora_iso() -> String {
-    chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()
+    crate::domain::dates::ahora_fmt("%Y-%m-%dT%H:%M:%S")
 }
 
 /// Compara marcas ISO aceptando 'T' o espacio como separador (`sync_comparar_fechas`).
@@ -997,8 +997,8 @@ pub fn aplicar_entidad(
         return Ok(Descarga::Omitido);
     }
     let actualizado = match texto(item, "updated_at_client") {
-        "" => chrono::Utc::now()
-            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        "" => jiff::Timestamp::now()
+            .strftime("%Y-%m-%dT%H:%M:%S%.3fZ")
             .to_string(),
         marca => marca.to_string(),
     };

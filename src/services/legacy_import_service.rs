@@ -141,6 +141,35 @@ pub fn importar(conn: &mut Connection, ruta: &Path) -> Result<ImportResumen, Imp
     Ok(resumen)
 }
 
+/// Copia a `destino` (el `Imagenes/` de MiFutbolRS) los archivos de las carpetas
+/// `Imagenes/` e `images/` de MiFutbolC, buscadas junto a la base legacy y en la
+/// carpeta de arriba. El origen solo se lee; un archivo que ya existe con el
+/// mismo nombre se saltea (las rutas guardadas son `Imagenes/<nombre>`).
+/// Devuelve cuántos archivos se copiaron.
+pub fn copiar_imagenes(ruta_db: &Path, destino: &Path) -> Result<usize, ImportError> {
+    let io = |error: std::io::Error| ImportError::Io(error.to_string());
+    let base = ruta_db.parent().unwrap_or(Path::new(""));
+    let mut copiados = 0;
+    for dir in [Some(base), base.parent()].into_iter().flatten() {
+        for carpeta in ["Imagenes", "images"] {
+            let Ok(entradas) = std::fs::read_dir(dir.join(carpeta)) else {
+                continue;
+            };
+            for entrada in entradas.flatten() {
+                let origen = entrada.path();
+                let objetivo = destino.join(entrada.file_name());
+                if !origen.is_file() || objetivo.exists() {
+                    continue;
+                }
+                std::fs::create_dir_all(destino).map_err(io)?;
+                std::fs::copy(&origen, &objetivo).map_err(io)?;
+                copiados += 1;
+            }
+        }
+    }
+    Ok(copiados)
+}
+
 /// URI `file:` de solo lectura (rusqlite abre las conexiones con URIs habilitadas).
 fn uri_solo_lectura(ruta: &Path) -> String {
     let ruta = std::fs::canonicalize(ruta).unwrap_or_else(|_| ruta.to_path_buf());
@@ -432,6 +461,43 @@ mod tests {
                  INSERT INTO financiamiento VALUES (7, '2026-03-01', 1, 5, 'Alquiler', 15000.5);",
             )
             .unwrap();
+    }
+
+    #[test]
+    fn copies_legacy_images_without_touching_the_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = dir.path().join("MiFutbolC");
+        std::fs::create_dir_all(c.join("images")).unwrap();
+        std::fs::create_dir_all(c.join("Imagenes").join("sub")).unwrap();
+        std::fs::write(c.join("images").join("camiseta_1.png"), b"png").unwrap();
+        std::fs::write(c.join("Imagenes").join("estudio_5.pdf"), b"%PDF").unwrap();
+        std::fs::write(c.join("Imagenes").join("repetida.jpg"), b"nueva").unwrap();
+        let db = c.join("mifutbol.db");
+        std::fs::write(&db, b"").unwrap();
+        let destino = dir.path().join("Rust").join("Imagenes");
+        std::fs::create_dir_all(&destino).unwrap();
+        std::fs::write(destino.join("repetida.jpg"), b"vieja").unwrap();
+
+        assert_eq!(copiar_imagenes(&db, &destino).unwrap(), 2);
+        assert_eq!(
+            std::fs::read(destino.join("camiseta_1.png")).unwrap(),
+            b"png"
+        );
+        assert_eq!(
+            std::fs::read(destino.join("estudio_5.pdf")).unwrap(),
+            b"%PDF"
+        );
+        assert_eq!(
+            std::fs::read(destino.join("repetida.jpg")).unwrap(),
+            b"vieja"
+        );
+        assert!(!destino.join("sub").exists(), "solo archivos");
+        // El origen queda intacto y repetir no copia nada.
+        assert_eq!(
+            std::fs::read(c.join("Imagenes").join("repetida.jpg")).unwrap(),
+            b"nueva"
+        );
+        assert_eq!(copiar_imagenes(&db, &destino).unwrap(), 0);
     }
 
     #[test]

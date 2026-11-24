@@ -20,6 +20,7 @@ impl Eleccion {
             Self::FiltrosPartidos => "Estadísticas · filtros avanzados",
             Self::GenerarReporte => "Estadísticas · reportes automáticos",
             Self::NuevaNotificacion => "Notificaciones · nueva",
+            Self::InformeBienestar => "Bienestar · informe personal mensual (PDF)",
         }
     }
 }
@@ -54,7 +55,7 @@ impl App {
     fn exportar_reporte(&mut self) {
         let destino = self.paths.export_dir.join(format!(
             "reporte_{}.txt",
-            chrono::Local::now().format("%Y%m%d_%H%M%S")
+            crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S")
         ));
         let resultado = std::fs::create_dir_all(&self.paths.export_dir)
             .and_then(|()| std::fs::write(&destino, self.reporte.texto()));
@@ -85,6 +86,7 @@ impl App {
             Eleccion::FiltrosPartidos => self.filtrar_partidos(&form),
             Eleccion::GenerarReporte => self.generar_reporte(&form),
             Eleccion::NuevaNotificacion => self.crear_notificacion(&form),
+            Eleccion::InformeBienestar => self.informe_bienestar(&form),
         };
         match resultado {
             Ok(Some(reporte)) => {

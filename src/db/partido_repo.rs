@@ -434,7 +434,7 @@ fn list_tags(conn: &Connection, id: i64) -> Result<Vec<String>, DbError> {
     Ok(tags)
 }
 
-fn parse_fecha(row: &Row<'_>, index: usize) -> rusqlite::Result<chrono::NaiveDateTime> {
+fn parse_fecha(row: &Row<'_>, index: usize) -> rusqlite::Result<jiff::civil::DateTime> {
     let texto: String = row.get(index)?;
     dates::parse_datetime(&texto).ok_or_else(|| {
         rusqlite::Error::InvalidColumnType(

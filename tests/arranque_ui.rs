@@ -83,11 +83,11 @@ fn aviso_modo_retro_abre_carrera_retro() {
     let (mut app, _dir) = test_app();
     preparar_partidos(&app);
     // Mismo día y mes, cuatro años atrás (válido también un 29 de febrero).
-    let hoy = chrono::Local::now().date_naive();
+    let hoy = mifutbol_rs::domain::dates::today();
     let fecha = format!(
         "{:04}-{} 18:00:00",
-        chrono::Datelike::year(&hoy) - 4,
-        hoy.format("%m-%d")
+        i32::from(hoy.year()) - 4,
+        hoy.strftime("%m-%d")
     );
     app.db
         .conn()

@@ -196,7 +196,7 @@ fn draw_hoy(frame: &mut Frame, area: Rect, app: &App, colors: &crate::ui::theme:
         |partido| {
             format!(
                 "{} · {}\n{} · {}",
-                partido.fecha_hora.format("%d/%m %H:%M"),
+                partido.fecha_hora.strftime("%d/%m %H:%M"),
                 if partido.rival.trim().is_empty() {
                     "Rival a confirmar"
                 } else {

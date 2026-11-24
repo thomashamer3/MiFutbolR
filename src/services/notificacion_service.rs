@@ -1,6 +1,6 @@
 //! Generación de alertas y notificaciones (IMP-06).
 
-use chrono::Local;
+use crate::domain::dates;
 use rusqlite::Connection;
 
 use crate::db::error::DbError;
@@ -40,11 +40,10 @@ pub fn crear(conn: &Connection, tipo: &str, titulo: &str, mensaje: &str) -> Resu
 /// Días que faltan para el próximo cumpleaños (0 = hoy). El 29/02 se festeja
 /// el 28/02 en los años no bisiestos.
 #[must_use]
-pub fn dias_hasta_cumple(nacimiento: chrono::NaiveDate, hoy: chrono::NaiveDate) -> i64 {
-    use chrono::Datelike;
-    let en = |anio: i32| {
-        chrono::NaiveDate::from_ymd_opt(anio, nacimiento.month(), nacimiento.day())
-            .or_else(|| chrono::NaiveDate::from_ymd_opt(anio, 2, 28))
+pub fn dias_hasta_cumple(nacimiento: jiff::civil::Date, hoy: jiff::civil::Date) -> i64 {
+    let en = |anio: i16| {
+        jiff::civil::Date::new(anio, nacimiento.month(), nacimiento.day())
+            .or_else(|_| jiff::civil::Date::new(anio, 2, 28))
             .unwrap_or(hoy)
     };
     let este = en(hoy.year());
@@ -53,7 +52,7 @@ pub fn dias_hasta_cumple(nacimiento: chrono::NaiveDate, hoy: chrono::NaiveDate) 
     } else {
         en(hoy.year() + 1)
     };
-    (proximo - hoy).num_days()
+    dates::dias_entre(hoy, proximo)
 }
 
 /// Genera las alertas que correspondan y devuelve cuántas nuevas creó.
@@ -76,11 +75,9 @@ pub fn generar(conn: &Connection) -> Result<usize, DbError> {
     }
 
     if let Some(partido) = inicio_repo::proximo_partido(conn)? {
-        let faltan = partido
-            .fecha_hora
-            .signed_duration_since(Local::now().naive_local());
-        if faltan.num_hours() >= 0
-            && faltan.num_hours() <= 24
+        let faltan = partido.fecha_hora.duration_since(dates::now_local());
+        if faltan.as_hours() >= 0
+            && faltan.as_hours() <= 24
             && !notificacion_repo::existe_hoy(conn, "partido", "partido", Some(partido.id))?
         {
             notificacion_repo::insert(
@@ -95,7 +92,7 @@ pub fn generar(conn: &Connection) -> Result<usize, DbError> {
                     } else {
                         &partido.rival
                     },
-                    partido.fecha_hora.format("%d/%m %H:%M")
+                    partido.fecha_hora.strftime("%d/%m %H:%M")
                 ),
                 "partido",
                 Some(partido.id),
@@ -104,7 +101,7 @@ pub fn generar(conn: &Connection) -> Result<usize, DbError> {
         }
     }
 
-    let mes = Local::now().format("%Y-%m").to_string();
+    let mes = dates::ahora_fmt("%Y-%m");
     if let Ok(Some(vista)) = financiamiento_service::presupuesto(conn, &mes)
         && !matches!(vista.alerta, crate::domain::models::AlertaPresupuesto::Ok)
         && !notificacion_repo::existe_hoy(conn, "presupuesto", "presupuesto", None)?
@@ -126,7 +123,7 @@ pub fn generar(conn: &Connection) -> Result<usize, DbError> {
     }
 
     // C listaba los del mes; aquí se avisa desde 7 días antes, una vez por día.
-    let hoy = Local::now().date_naive();
+    let hoy = dates::today();
     for (id, nombre, fecha) in notificacion_repo::cumpleanos(conn)? {
         let Some(nacimiento) = crate::domain::dates::parse_date(&fecha) else {
             continue;
@@ -209,10 +206,10 @@ pub fn notificar_logros(
 mod tests {
     use super::*;
     use crate::db::Database;
-    use chrono::NaiveDate;
+    use jiff::civil::Date;
 
-    fn fecha(a: i32, m: u32, d: u32) -> NaiveDate {
-        NaiveDate::from_ymd_opt(a, m, d).unwrap()
+    fn fecha(a: i32, m: u32, d: u32) -> Date {
+        crate::domain::dates::fecha(a, m, d).unwrap()
     }
 
     #[test]
@@ -226,8 +223,8 @@ mod tests {
     #[test]
     fn genera_cumpleanos_y_torneos_por_vencer_una_vez_por_dia() {
         let db = Database::open_in_memory().unwrap();
-        let hoy = Local::now().date_naive();
-        let fin = hoy + chrono::Duration::days(10);
+        let hoy = dates::today();
+        let fin = hoy + jiff::Span::new().days(10);
         db.conn()
             .execute_batch(&format!(
                 "INSERT INTO equipo (id, nombre) VALUES (1, 'Rojos');
@@ -238,8 +235,8 @@ mod tests {
                  INSERT INTO temporada (id, nombre, anio, fecha_inicio, fecha_fin)
                     VALUES (1, '2026', 2026, '2026-01-01', '{}');
                  INSERT INTO torneo_temporada VALUES (1, 1), (1, 2);",
-                hoy.format("1995-%m-%d"),
-                fin.format("%Y-%m-%d")
+                hoy.strftime("1995-%m-%d"),
+                fin.strftime("%Y-%m-%d")
             ))
             .unwrap();
         let antes = notificacion_repo::list(db.conn(), false).unwrap().len();

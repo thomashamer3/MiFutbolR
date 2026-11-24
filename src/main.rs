@@ -57,6 +57,13 @@ fn main() -> anyhow::Result<()> {
             for aviso in &resumen.advertencias {
                 println!("  aviso: {aviso}");
             }
+            match legacy_import_service::copiar_imagenes(Path::new(ruta), &paths.images_dir) {
+                Ok(copiadas) => println!(
+                    "Imágenes copiadas a {}: {copiadas}",
+                    paths.images_dir.display()
+                ),
+                Err(error) => println!("  aviso: no se pudieron copiar las imágenes: {error}"),
+            }
             return Ok(());
         }
         Some("--importar-perfiles") => {
@@ -98,6 +105,7 @@ fn main() -> anyhow::Result<()> {
     let mut app = App::new(db, paths)?;
     // Backup de inicio, aviso de actualización y de Modo Retro (como `main.c`).
     app.tareas_inicio = true;
+    app.abrir_con_sistema = true;
     app.url_actualizaciones =
         Some(mifutbol_rs::services::actualizacion_service::URL_ULTIMA_RELEASE.to_string());
     // El binario siempre arranca en la portada de inicio de sesión.

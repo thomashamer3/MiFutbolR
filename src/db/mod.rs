@@ -15,6 +15,7 @@ pub mod carrera_repo;
 pub mod coleccion_repo;
 pub mod comparador_repo;
 pub mod entrenador_repo;
+pub mod equipamiento_repo;
 pub mod equipo_repo;
 pub mod error;
 pub mod estadisticas_repo;
@@ -71,6 +72,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/017_ajustes.sql"),
     include_str!("../../migrations/018_reportes.sql"),
     include_str!("../../migrations/019_notificaciones.sql"),
+    include_str!("../../migrations/020_equipamiento.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.
@@ -335,7 +337,7 @@ fn vacuum_into(conn: &Connection, destination: &Path) -> Result<(), DbError> {
 }
 
 fn backup_path(path: &Path) -> PathBuf {
-    let stamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let stamp = crate::domain::dates::ahora_fmt("%Y%m%d_%H%M%S");
     let name = path.file_name().map_or_else(
         || "mifutbol.db".to_string(),
         |n| n.to_string_lossy().into_owned(),

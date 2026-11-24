@@ -7,8 +7,9 @@ use thiserror::Error;
 
 use crate::db::DbError;
 use crate::db::torneo_repo;
+use crate::domain::reporte::Reporte;
 use crate::domain::torneos::{
-    PartidoTorneoRow, StandingRow, TipoTorneo, Torneo, TorneoEquipo, TorneoFicha,
+    FASE_FINALIZADO, PartidoTorneoRow, StandingRow, TipoTorneo, Torneo, TorneoEquipo, TorneoFicha,
 };
 
 /// Error del servicio de torneos.
@@ -109,6 +110,71 @@ pub fn ficha(conn: &Connection, id: i64) -> Result<TorneoFicha, ServiceError> {
     })
 }
 
+/// "Finalizar Torneo" de `torneo.c`: guarda la tabla final en `equipo_historial`
+/// y marca la fase como finalizada. A diferencia de C, finalizar de nuevo
+/// reemplaza el historial del torneo en vez de duplicarlo.
+pub fn finalizar(conn: &Connection, id: i64) -> Result<usize, ServiceError> {
+    let datos = ficha(conn, id)?;
+    if datos.jugados() == 0 {
+        return Err(ServiceError::Message(
+            "Todavía no hay partidos jugados para finalizar el torneo".to_string(),
+        ));
+    }
+    torneo_repo::finalizar(conn, id, &datos.tabla, FASE_FINALIZADO)?;
+    Ok(datos.tabla.len())
+}
+
+/// "Generar Reporte del Torneo" + "Historial del Equipo" de `torneo.c`: tabla,
+/// resultados y el historial de torneos finalizados de cada equipo.
+pub fn reporte(conn: &Connection, id: i64) -> Result<Reporte, ServiceError> {
+    let datos = ficha(conn, id)?;
+    let mut r = Reporte::new(format!("Reporte del torneo: {}", datos.torneo.nombre));
+    r.linea(format!("Fase: {}", datos.torneo.fase_actual));
+    r.seccion("Tabla de posiciones");
+    for (pos, f) in datos.tabla.iter().enumerate() {
+        r.linea(format!(
+            "{}. {} - Pts:{} PJ:{} PG:{} PE:{} PP:{} GF:{} GC:{} DG:{:+}",
+            pos + 1,
+            f.equipo,
+            f.puntos,
+            f.pj,
+            f.pg,
+            f.pe,
+            f.pp,
+            f.gf,
+            f.gc,
+            f.dif
+        ));
+    }
+    r.seccion("Resultados");
+    let jugados: Vec<_> = datos
+        .partidos
+        .iter()
+        .filter(|p| p.estado == "Jugado")
+        .collect();
+    if jugados.is_empty() {
+        r.linea("Sin partidos jugados.");
+    }
+    for p in jugados {
+        r.linea(format!(
+            "{} {} - {} {}",
+            p.local, p.goles_local, p.goles_visitante, p.visitante
+        ));
+    }
+    r.seccion("Historial de los equipos");
+    let historial = torneo_repo::historial(conn, id)?;
+    if historial.is_empty() {
+        r.linea("Sin torneos finalizados (f en el detalle del torneo).");
+    }
+    for h in historial {
+        r.linea(format!(
+            "{} · {}: posición {} | PJ: {} | PG: {} | PE: {} | PP: {} | GF: {} | GC: {}",
+            h.equipo, h.torneo, h.posicion, h.pj, h.pg, h.pe, h.pp, h.gf, h.gc
+        ));
+    }
+    Ok(r)
+}
+
 /// Tabla de posiciones a partir del fixture.
 #[must_use]
 pub fn calcular_tabla(equipos: &[TorneoEquipo], partidos: &[PartidoTorneoRow]) -> Vec<StandingRow> {
@@ -118,6 +184,7 @@ pub fn calcular_tabla(equipos: &[TorneoEquipo], partidos: &[PartidoTorneoRow]) -
             (
                 equipo.id,
                 StandingRow {
+                    equipo_id: equipo.id,
                     equipo: equipo.nombre.clone(),
                     pj: 0,
                     pg: 0,
@@ -295,6 +362,25 @@ mod tests {
         registrar_resultado(db.conn(), partido.id, 3, 1).unwrap();
         let datos = ficha(db.conn(), id).unwrap();
         assert!(datos.tabla.iter().any(|fila| fila.puntos == 3));
+
+        // Finalizar guarda el historial una sola vez aunque se repita.
+        assert_eq!(finalizar(db.conn(), id).unwrap(), 4);
+        assert_eq!(finalizar(db.conn(), id).unwrap(), 4);
+        let datos = ficha(db.conn(), id).unwrap();
+        assert_eq!(datos.torneo.fase_actual, FASE_FINALIZADO);
+        let historial = torneo_repo::historial(db.conn(), id).unwrap();
+        assert_eq!(historial.len(), 4);
+        let primero = historial.iter().find(|h| h.posicion == 1).unwrap();
+        assert_eq!(primero.equipo, datos.tabla[0].equipo);
+        assert_eq!((primero.pg, primero.gf, primero.gc), (1, 3, 1));
+        let texto = reporte(db.conn(), id).unwrap().texto();
+        assert!(
+            texto.contains("Pts:3 PJ:1 PG:1 PE:0 PP:0 GF:3 GC:1 DG:+2"),
+            "{texto}"
+        );
+        assert!(texto.contains(&format!("{} · Copa: posición 1", primero.equipo)));
+        let otro = crear(db.conn(), "Vacío", TipoTorneo::SoloIda).unwrap();
+        assert!(finalizar(db.conn(), otro).is_err(), "sin partidos jugados");
 
         // Si la inserción falla, el borrado del fixture anterior se revierte.
         assert!(torneo_repo::reemplazar_fixture(db.conn(), id, &[(9_998, 9_999)]).is_err());

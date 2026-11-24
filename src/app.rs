@@ -498,6 +498,10 @@ pub enum Screen {
     ColeccionForm(FormMode),
     /// Ítems de una colección.
     ColeccionDetail(i64),
+    /// Historial de equipamiento (Colecciones → H).
+    EquipamientoList,
+    /// Formulario de equipamiento.
+    EquipamientoForm(FormMode),
     /// Entrenador IA.
     EntrenadorIa,
     /// Ranking de amigos.
@@ -551,6 +555,8 @@ pub enum Eleccion {
     GenerarReporte,
     /// Notificaciones → crear una a mano.
     NuevaNotificacion,
+    /// Bienestar → informe personal mensual en PDF.
+    InformeBienestar,
 }
 
 /// Acción confirmable en un modal.
@@ -596,10 +602,14 @@ pub enum ConfirmAction {
     DeleteTorneo(i64),
     /// Generar el fixture del torneo indicado.
     GenerarFixture(i64),
+    /// Finalizar el torneo indicado (guarda el historial de los equipos).
+    FinalizarTorneo(i64),
     /// Eliminar la temporada indicada.
     DeleteTemporada(i64),
     /// Eliminar la tienda indicada.
     DeleteTienda(i64),
+    /// Eliminar el ítem de equipamiento indicado.
+    DeleteEquipamiento(i64),
     /// Eliminar un registro de la sección activa de Bienestar.
     DeleteBienestar(i64),
     /// Eliminar un ítem del inventario.
@@ -1513,6 +1523,12 @@ pub struct App {
     pub tiendas_table: TableState,
     /// Tienda en edición.
     pub tienda_edit_id: Option<i64>,
+    /// Historial de equipamiento.
+    pub equipamiento: Vec<crate::domain::equipamiento::Equipamiento>,
+    /// Selección del equipamiento.
+    pub equipamiento_table: TableState,
+    /// Ítem en edición.
+    pub equipamiento_edit_id: Option<i64>,
     /// Sección activa de Bienestar.
     pub bienestar_seccion: crate::domain::bienestar::Seccion,
     /// Registros de la sección activa.
@@ -1661,6 +1677,9 @@ pub struct App {
     pub tareas_inicio: bool,
     /// Las tareas de arranque ya corrieron sobre esta base.
     pub tareas_inicio_hechas: bool,
+    /// Abrir documentos con la app del sistema. Solo el binario lo activa: los
+    /// tests validan la ruta pero no lanzan procesos.
+    pub abrir_con_sistema: bool,
     /// URL de la última release; `None` = no consultar nunca (tests).
     pub url_actualizaciones: Option<String>,
     /// Comprobación de actualizaciones en segundo plano.
@@ -1814,6 +1833,9 @@ impl App {
             tiendas: Vec::new(),
             tiendas_table: TableState::default(),
             tienda_edit_id: None,
+            equipamiento: Vec::new(),
+            equipamiento_table: TableState::default(),
+            equipamiento_edit_id: None,
             bienestar_seccion: crate::domain::bienestar::Seccion::Habitos,
             bienestar_registros: Vec::new(),
             bienestar_table: TableState::default(),
@@ -1887,6 +1909,7 @@ impl App {
             sincronizacion_inicio_hecha: false,
             tareas_inicio: false,
             tareas_inicio_hechas: false,
+            abrir_con_sistema: false,
             url_actualizaciones: None,
             actualizacion: Default::default(),
             menus_hub: ListState::default().with_selected(Some(0)),
@@ -1986,6 +2009,8 @@ impl App {
             Screen::ColeccionesList => "Colecciones e inventario".to_string(),
             Screen::ColeccionForm(_) => "Colecciones · formulario".to_string(),
             Screen::ColeccionDetail(_) => "Colecciones · detalle".to_string(),
+            Screen::EquipamientoList => "Colecciones · historial de equipamiento".to_string(),
+            Screen::EquipamientoForm(_) => "Equipamiento · formulario".to_string(),
             Screen::EntrenadorIa => "Entrenador IA".to_string(),
             Screen::AmigosList => "Ranking de amigos".to_string(),
             Screen::AmigoForm(_) => "Amigos · formulario".to_string(),
@@ -2022,7 +2047,7 @@ impl App {
                 "↑↓/jk: mover  Enter/número: abrir  0/Esc/q: salir  Ctrl+F: buscar  !: avisos  ?: ayuda"
             }
             Screen::CamisetasList => {
-                "n: nueva  e: editar  d: borrar  a: activar/reactivar  Enter: detalle  s: sortear  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
+                "n: nueva  e: editar  d: borrar  a: activar/reactivar  Enter: detalle  s: sortear  u: gráfico de uso  f: filtro  o: orden  /: buscar  x: exportar  r: refrescar"
             }
             Screen::CamisetaDetail(_) => {
                 "e: editar  d: borrar  a: activar/reactivar  v: imagen  Esc: volver"
@@ -2038,6 +2063,7 @@ impl App {
             | Screen::TorneoResultadoForm(_)
             | Screen::TemporadaForm(_)
             | Screen::TiendaForm(_)
+            | Screen::EquipamientoForm(_)
             | Screen::BienestarForm(_)
             | Screen::ColeccionForm(_)
             | Screen::AmigoForm(_)
@@ -2126,14 +2152,14 @@ impl App {
                 "n: nuevo  e: editar  d: borrar  Enter: detalle  x: exportar  r: refrescar"
             }
             Screen::TorneoDetail(_) => {
-                "g: fixture  r: resultado  a: equipos  e: editar  d: borrar  Esc: volver"
+                "g: fixture  r: resultado  a: equipos  f: finalizar  x: reporte  e: editar  d: borrar  Esc: volver"
             }
             Screen::Ultimos => "j/k: mover  Enter: abrir partido  r: refrescar  Esc: volver",
             Screen::TemporadasList => {
                 "n: nueva  e: editar  d: borrar  Enter: detalle  r: refrescar"
             }
             Screen::TemporadaDetail(_) => {
-                "e: editar  d: borrar  c: comparar  ↑↓: desplazar  Esc: volver"
+                "e: editar  d: borrar  c: comparar  t: asociar torneos  x: resumen  ↑↓: desplazar  Esc: volver"
             }
             Screen::AnalisisMenu => "↑↓: opción  Enter: abrir  Esc: volver",
             Screen::Sincronizacion => "↑↓: opción  Enter o 1-8: ejecutar  Esc: volver",
@@ -2148,12 +2174,15 @@ impl App {
                 "1/2: tipo  Tab: A/B  j/k: mover  Enter: comparar  r: recargar  Esc: volver"
             }
             Screen::TiendasList => "n: nueva  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::EquipamientoList => {
+                "n: nuevo  e/Enter: editar  d: borrar  s: estadísticas  r: refrescar  Esc: volver"
+            }
             Screen::BienestarList => {
-                "Tab/←→: sección  n: nuevo  e: editar  d: borrar  o: omitido  v: ver archivo  a: asistente  r: refrescar"
+                "Tab/←→: sección  n: nuevo  e: editar  d: borrar  o: omitido  v: ver/abrir archivo  a: asistente  A: análisis  p: informe PDF  r: refrescar"
             }
             Screen::BienestarAsistente => "s: guardar recomendación  r: recalcular  Esc: volver",
             Screen::ColeccionesList => {
-                "Tab: pestaña  n: nuevo  e: editar  d: borrar  s: sincronizar camisetas  a: agregar a colección  Enter: abrir  x/i: backup JSON exportar/importar"
+                "Tab: pestaña  n: nuevo  e: editar  d: borrar  s: sincronizar camisetas  a: agregar a colección  Enter: abrir  x/i: backup JSON  H: historial de equipamiento"
             }
             Screen::ColeccionDetail(_) => "u: quitar de la colección  Esc: volver",
             Screen::EntrenadorIa => {
@@ -2524,6 +2553,11 @@ impl App {
             Screen::TemporadasList => self.handle_temporadas_list_key(key)?,
             Screen::TemporadaDetail(_) => self.handle_temporada_detail_key(key)?,
             Screen::TiendasList => self.handle_tiendas_list_key(key)?,
+            Screen::EquipamientoList => self.handle_equipamiento_key(key)?,
+            Screen::EquipamientoForm(_) => {
+                self.handle_form_key(key)?;
+                true
+            }
             Screen::BienestarList => self.handle_bienestar_list_key(key)?,
             Screen::BienestarAsistente => self.handle_bienestar_asistente_key(key)?,
             Screen::ColeccionesList => self.handle_colecciones_list_key(key)?,
@@ -2739,6 +2773,10 @@ impl App {
             KeyCode::Char('d') => self.confirm_delete_camiseta(),
             KeyCode::Char('a') => self.toggle_camiseta_activa()?,
             KeyCode::Char('s') => self.sortear_camiseta()?,
+            KeyCode::Char('u') => match camiseta_service::grafico_uso(self.db.conn()) {
+                Ok(reporte) => self.abrir_reporte(reporte),
+                Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+            },
             KeyCode::Char('f') => {
                 self.camiseta_filter.estado = self.camiseta_filter.estado.next();
                 self.refresh_camisetas()?;
@@ -2925,6 +2963,10 @@ impl App {
                     app.refresh_torneos()
                 });
             }
+            ConfirmAction::DeleteEquipamiento(id) => {
+                let resultado = crate::services::equipamiento_service::eliminar(self.db.conn(), id);
+                self.confirmar_eliminacion(resultado, App::refresh_equipamiento);
+            }
             ConfirmAction::DeleteTienda(id) => {
                 let resultado = crate::services::tiendas_service::eliminar(self.db.conn(), id);
                 self.confirmar_eliminacion(resultado, App::refresh_tiendas);
@@ -3004,6 +3046,18 @@ impl App {
             ConfirmAction::DeleteJugador(id) => {
                 let resultado = self.delete_jugador(id);
                 self.confirmar_eliminacion(resultado, |_| Ok(()));
+            }
+            ConfirmAction::FinalizarTorneo(id) => {
+                match crate::services::torneos_service::finalizar(self.db.conn(), id) {
+                    Ok(equipos) => {
+                        self.status =
+                            format!("Torneo finalizado: historial de {equipos} equipo(s) guardado");
+                        if let Err(error) = self.refresh_torneo_detail() {
+                            self.modal = Some(Modal::Error(error.to_string()));
+                        }
+                    }
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                }
             }
             ConfirmAction::GenerarFixture(id) => {
                 match crate::services::torneos_service::generar_fixture(self.db.conn(), id) {
@@ -3431,6 +3485,7 @@ impl App {
             Screen::TorneoResultadoForm(_) => self.save_torneo_resultado_form(),
             Screen::TemporadaForm(mode) => self.save_temporada_form(mode),
             Screen::TiendaForm(mode) => self.save_tienda_form(mode),
+            Screen::EquipamientoForm(mode) => self.save_equipamiento_form(mode),
             Screen::BienestarForm(_) => self.save_bienestar_form(),
             Screen::ColeccionForm(_) => self.save_coleccion_form(),
             Screen::AmigoForm(mode) => self.save_amigo_form(mode),

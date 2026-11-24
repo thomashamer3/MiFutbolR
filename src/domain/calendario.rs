@@ -1,6 +1,6 @@
 //! Eventos del calendario mensual (IMP-02).
 
-use chrono::{Datelike, NaiveDate};
+use jiff::civil::Date;
 
 /// Tipo de evento del calendario.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -39,7 +39,7 @@ impl EventoTipo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventoCalendario {
     /// Fecha.
-    pub fecha: NaiveDate,
+    pub fecha: Date,
     /// Tipo.
     pub tipo: EventoTipo,
     /// Título.
@@ -65,11 +65,11 @@ pub struct CalendarioState {
 
 impl Default for CalendarioState {
     fn default() -> Self {
-        let hoy = chrono::Local::now().date_naive();
+        let hoy = crate::domain::dates::today();
         Self {
-            year: hoy.year(),
-            month: hoy.month(),
-            dia: hoy.day(),
+            year: i32::from(hoy.year()),
+            month: hoy.month().unsigned_abs().into(),
+            dia: hoy.day().unsigned_abs().into(),
             eventos: Vec::new(),
         }
     }
@@ -78,22 +78,16 @@ impl Default for CalendarioState {
 impl CalendarioState {
     /// Primer día del mes visible.
     #[must_use]
-    pub fn primer_dia(&self) -> NaiveDate {
-        NaiveDate::from_ymd_opt(self.year, self.month, 1)
-            .unwrap_or_else(|| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap_or_default())
+    pub fn primer_dia(&self) -> Date {
+        crate::domain::dates::fecha(self.year, self.month, 1)
+            .unwrap_or_else(|| crate::domain::dates::fecha(2000, 1, 1).unwrap_or_default())
     }
 
     /// Cantidad de días del mes visible.
     #[must_use]
     pub fn dias_del_mes(&self) -> u32 {
-        let siguiente = if self.month == 12 {
-            NaiveDate::from_ymd_opt(self.year + 1, 1, 1)
-        } else {
-            NaiveDate::from_ymd_opt(self.year, self.month + 1, 1)
-        };
-        siguiente
-            .and_then(|fecha| fecha.pred_opt())
-            .map_or(30, |fecha| fecha.day())
+        crate::domain::dates::fecha(self.year, self.month, 1)
+            .map_or(30, |fecha| fecha.days_in_month().unsigned_abs().into())
     }
 
     /// Avanza o retrocede un mes.
@@ -112,8 +106,8 @@ impl CalendarioState {
 
     /// Fecha seleccionada.
     #[must_use]
-    pub fn seleccionada(&self) -> NaiveDate {
-        NaiveDate::from_ymd_opt(self.year, self.month, self.dia)
+    pub fn seleccionada(&self) -> Date {
+        crate::domain::dates::fecha(self.year, self.month, self.dia)
             .unwrap_or_else(|| self.primer_dia())
     }
 

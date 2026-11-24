@@ -57,8 +57,10 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
 - [x] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger). Commit `e9cd489`.
 - [x] B7 Exportar/Importar. Ruta: delegated (writer trigger). Commits `1242ee7`, `ed27f87`, `6b6c979`, `711d2c3`.
 - [x] B8 Ajustes y arranque. Ruta: delegated (writer trigger). Commit `fdcb3ab`.
-- [ ] B9 Módulos faltantes. Ruta: delegated (writer trigger).
-- [ ] B10 Bienestar restante. Ruta: delegated (writer trigger).
+- [x] B9 Módulos faltantes. Ruta: delegated (writer trigger). Hecho: 9a `3642500`, 9b `0f061e1`,
+  9c `34c682b`, 9d `bcd073a`, 9e `edf2ce3`, 9f `fdb14e7`; 9g historial de equipamiento, 9h gráfico
+  de uso de camisetas y 9i Administrar torneos/temporadas: sin commit (lo hace el usuario).
+- [x] B10 Bienestar restante. Ruta: delegated (writer trigger). Sin commit (lo hace el usuario).
 - [ ] B11 chrono → jiff. Ruta: delegated (writer trigger: todo el crate).
 
 ## Criterios de aceptación
@@ -340,3 +342,55 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
     del Modo Retro de C (primer partido/gol/rival/camiseta, mejor racha) — el aviso cuenta solo
     partidos, como la pantalla retro de Rust; la oferta de restaurar de B2 sigue mirando todos
     los `backup_*.db` de `Exportaciones/` (compartida entre perfiles).
+- B9g–9i y B10 (sin commit (lo hace el usuario); RDD unmanaged; 378 OK en
+  `cargo test --all-targets --no-fail-fast` (368 + 10), `cargo clippy --all-targets -D warnings`
+  y `cargo fmt --check` limpios). Sin migración nueva (la próxima libre sigue siendo 021).
+  - 10a Bienestar → `A`: `bienestar_repo::analisis` + `bienestar_service::reporte_analisis`
+    (pantalla `Screen::Reporte`, exportable con `x`): entrenamiento vs rendimiento (días con
+    entrenamiento no omitido, partidos, rendimiento con/sin entrenamiento), estadísticas de
+    alimentación (días, días buenos, %), alimentación vs rendimiento y los 10 últimos partidos
+    con comida mala ese día (`bienestar.c`). Las alertas de intensidad ya estaban en el asistente.
+  - 10b Bienestar → `p` (`Eleccion::InformeBienestar`, mes MM/AAAA, por defecto el actual):
+    `informe_service::pdf_bienestar_mes`/`exportar_bienestar_mes` con el escritor PDF existente →
+    `Exportaciones/Informe Personal MM-AAAA.pdf`: título, usuario, Resumen de Partidos,
+    Entrenamiento, Alimentación (con hidratación), Mentalidad (con tendencia) y "Este informe es
+    100% local." (secciones de `generar_informe_personal_mensual_pdf`).
+  - 10c `v` en un documento: `bienestar_service::comando_abrir` valida (solo `Imagenes/...`
+    existente, sin `..`/absolutas; en Windows rechaza `& | < > ^ % " !`) y arma `cmd /C start ""
+    <ruta>` / `open` / `xdg-open` con la ruta como único argumento y E/S nula. Solo lanza si
+    `App::abrir_con_sistema` (lo activa `main.rs`; los tests validan sin lanzar procesos).
+  - 10d `copiar_optimizado`: PNG/JPEG con lado mayor > 1600 px se reducen (Triangle) y se
+    re-codifican en su formato (JPEG calidad 85); chicas, otros formatos o archivos que no
+    decodifican se copian tal cual.
+  - 10e `legacy_import_service::copiar_imagenes`: copia `Imagenes/` e `images/` de MiFutbolC
+    (junto a la base y una carpeta arriba) a `Imagenes/` de Rust; solo lee el origen, saltea
+    nombres existentes y devuelve la cantidad (Ajustes → Ctrl+L y `--importar-legacy` la
+    muestran). El importador de perfiles no la llama (usa su propio flujo; pendiente si hace falta).
+  - 9h Camisetas → `u`: `camiseta_service::grafico_uso` (12 más usadas por partidos, activas o
+    no, con goles) en `Screen::Reporte` con barras (BarChart). Visor/preview de C no aplica:
+    "Configurar/Probar visor" e instalar `chafa` dependen de visores externos e instalación de
+    paquetes; Rust muestra la imagen en la terminal con ratatui-image (`v` en la ficha).
+  - 9i Torneos (detalle): `f` Finalizar (`torneo_repo::finalizar`: tabla final a
+    `equipo_historial` en transacción, reemplazando el historial previo del torneo, fase
+    "Finalizado"; exige partidos jugados), `x` reporte (tabla con DG, resultados e historial de
+    los equipos = "Historial del Equipo"; `x` lo exporta a TXT), fase visible en la cabecera.
+    Temporadas (detalle): `t` asocia los torneos nuevos, `x` resumen de temporada (estadísticas,
+    fases, torneos; exportable). No portado: estadísticas de jugadores/goleadores por torneo y
+    sus tablas (Rust no tiene stats de jugadores por torneo), estado de equipos por grupo/
+    eliminación y fases eliminatorias automáticas (`equipo_fase`, `equipo_torneo_estadisticas`:
+    el fixture de Rust es todos contra todos), dashboard del torneo (el detalle ya muestra
+    fixture y tabla), resúmenes mensuales de temporada (tablas `temporada_resumen*` de C),
+    "Gestionar fases" (en C "no implementada aún").
+  - Errores de C encontrados: `comparar_entrenamiento_vs_rendimiento`,
+    `comparacion_alimentacion_vs_rendimiento` y el resumen de partidos del informe mensual usan
+    `partido.fecha` (no existe: es `fecha_hora`) y fallan/quedan vacíos; `flags_alimentacion`
+    pasa `'%%Y-%%m-%%d'` a `strftime` fuera de un printf (nunca coincide) y su JOIN duplica
+    partidos con dos comidas malas; `app_optimize_image_file` solo copia pero renombra a `.jpg`
+    (un PNG queda con extensión equivocada); `finalizar_torneo` duplica el historial si se
+    repite y no marca el torneo como finalizado; "Asociar Torneo a Temporada" se llama con id 0.
+  - Tests nuevos (10): análisis de bienestar (cruces por fecha, omitidos, sin duplicar, vacío),
+    imágenes grandes PNG/JPEG reducidas y chicas byte a byte, `comando_abrir` (rutas válidas e
+    inválidas, sin lanzar), PDF mensual (`%PDF`, secciones, `mes_iso`, nombre de archivo), copia
+    de imágenes legacy, gráfico de uso; UI: análisis + PDF de Bienestar, gráfico de camisetas,
+    finalizar + reporte de torneo, asociar + resumen de temporada. Ampliados: flujo de torneos
+    (finalizar dos veces, historial, reporte) y temporadas (reporte, asociar sin duplicar).

@@ -166,12 +166,12 @@ fn amigos_comparar_conmigo() {
 fn notificaciones_crear_a_mano_y_cumpleanos_del_jugador() {
     let (mut app, _dir) = test_app();
     dos_equipos(&app);
-    let hoy = chrono::Local::now().date_naive();
+    let hoy = mifutbol_rs::domain::dates::today();
     app.db
         .conn()
         .execute(
             "UPDATE jugador SET fecha_nacimiento = ?1 WHERE nombre = 'Ana'",
-            [hoy.format("2000-%m-%d").to_string()],
+            [hoy.strftime("2000-%m-%d").to_string()],
         )
         .unwrap();
     press(&mut app, KeyCode::Char('!'));
@@ -200,4 +200,119 @@ fn notificaciones_crear_a_mano_y_cumpleanos_del_jugador() {
     );
     let texto = render_con(&mut app, 120, 30);
     assert!(texto.contains("Pagar cancha"), "{texto}");
+}
+
+#[test]
+fn historial_de_equipamiento_desde_colecciones() {
+    let (mut app, _dir) = test_app();
+    abrir_opcion(&mut app, Module::Colecciones);
+    press(&mut app, KeyCode::Char('H'));
+    assert_eq!(app.current_screen(), Screen::EquipamientoList);
+    render_con(&mut app, 120, 30);
+    press(&mut app, KeyCode::Char('n'));
+    assert!(matches!(app.current_screen(), Screen::EquipamientoForm(_)));
+    press(&mut app, KeyCode::Tab);
+    type_text(&mut app, "Adidas");
+    press_ctrl(&mut app, 's');
+    assert_eq!(
+        app.current_screen(),
+        Screen::EquipamientoList,
+        "{:?}",
+        app.modal
+    );
+    assert_eq!(
+        count(&app, "SELECT COUNT(*) FROM equipamiento_historial"),
+        1
+    );
+    let texto = render_con(&mut app, 120, 30);
+    assert!(texto.contains("Adidas"), "{texto}");
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    assert!(app.reporte.texto().contains("Total items:      1"));
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('d'));
+    press(&mut app, KeyCode::Char('s'));
+    assert_eq!(
+        count(&app, "SELECT COUNT(*) FROM equipamiento_historial"),
+        0
+    );
+}
+
+#[test]
+fn camisetas_grafico_de_uso() {
+    let (mut app, _dir) = test_app();
+    app.db
+        .conn()
+        .execute_batch(
+            "INSERT INTO cancha (id, nombre) VALUES (1, 'C');
+             INSERT INTO camiseta (id, nombre) VALUES (1, 'Titular'), (2, 'Suplente');
+             INSERT INTO partido (cancha_id, camiseta_id, fecha_hora, goles) VALUES
+                (1, 1, '2026-01-01 10:00:00', 2), (1, 1, '2026-01-02 10:00:00', 1);",
+        )
+        .unwrap();
+    abrir_opcion(&mut app, Module::Camisetas);
+    press(&mut app, KeyCode::Char('u'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    assert_eq!(app.reporte.barras[0], ("Titular".to_string(), 2));
+    let texto = render_con(&mut app, 120, 40);
+    assert!(texto.contains("Gráfico"), "{texto}");
+    assert!(texto.contains("Titular: 2 partidos · 3 goles"), "{texto}");
+}
+
+#[test]
+fn torneo_finalizar_y_reporte_con_historial() {
+    let (mut app, _dir) = test_app();
+    dos_equipos(&app);
+    abrir_opcion(&mut app, Module::Torneos);
+    press(&mut app, KeyCode::Char('n'));
+    type_text(&mut app, "Copa");
+    press_ctrl(&mut app, 's');
+    assert!(matches!(app.current_screen(), Screen::TorneoDetail(_)));
+    press(&mut app, KeyCode::Char('g'));
+    press(&mut app, KeyCode::Char('s'));
+    app.db
+        .conn()
+        .execute_batch(
+            "UPDATE partido_torneo SET goles_equipo1 = 2, goles_equipo2 = 0, estado = 'Jugado';",
+        )
+        .unwrap();
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('f'));
+    press(&mut app, KeyCode::Char('s'));
+    assert!(app.status.contains("Torneo finalizado"), "{}", app.status);
+    assert_eq!(count(&app, "SELECT COUNT(*) FROM equipo_historial"), 2);
+    let texto = render_con(&mut app, 130, 30);
+    assert!(texto.contains("Finalizado"), "{texto}");
+
+    press(&mut app, KeyCode::Char('x'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    let reporte = app.reporte.texto();
+    assert!(reporte.contains("Tabla de posiciones"), "{reporte}");
+    assert!(reporte.contains("· Copa: posición 1"), "{reporte}");
+    press(&mut app, KeyCode::Char('x'));
+    assert!(app.status.contains("reporte_"), "{}", app.status);
+}
+
+#[test]
+fn temporada_asociar_torneos_y_resumen() {
+    let (mut app, _dir) = test_app();
+    app.db
+        .conn()
+        .execute_batch(
+            "INSERT INTO temporada (nombre, anio, fecha_inicio, fecha_fin, descripcion)
+                VALUES ('2026', 2026, '2026-01-01', '2026-12-31', '');
+             INSERT INTO torneo (nombre) VALUES ('Liga');",
+        )
+        .unwrap();
+    abrir_opcion(&mut app, Module::Temporadas);
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.current_screen(), Screen::TemporadaDetail(_)));
+    press(&mut app, KeyCode::Char('t'));
+    assert!(app.status.contains("1 torneo(s)"), "{}", app.status);
+    press(&mut app, KeyCode::Char('x'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    let texto = app.reporte.texto();
+    assert!(texto.contains("Resumen de temporada: 2026"), "{texto}");
+    assert!(texto.contains("Liga"), "{texto}");
 }

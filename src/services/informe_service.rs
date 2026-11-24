@@ -87,7 +87,7 @@ const CONSEJOS_IA: &str =
    FROM consejos_historial ORDER BY fecha DESC, id DESC";
 
 fn sello() -> String {
-    chrono::Local::now().format("%Y%m%d-%H%M%S").to_string()
+    crate::domain::dates::ahora_fmt("%Y%m%d-%H%M%S")
 }
 
 fn escribir(dir: &Path, nombre: &str, bytes: &[u8]) -> Result<PathBuf, ExportError> {
@@ -280,6 +280,100 @@ fn bienestar_mes(conn: &Connection, mes: &str) -> Result<Vec<String>, ExportErro
     Ok(lineas)
 }
 
+/// Resumen de partidos del mes (`escribir_resumen_partidos` de `export_pdf.c`;
+/// allá filtraba por `partido.fecha`, que no existe, y la sección salía vacía).
+fn partidos_mes(conn: &Connection, mes: &str) -> Result<Vec<String>, ExportError> {
+    let (total, goles, asist, rend, cans, animo): (i64, f64, f64, f64, f64, f64) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(AVG(goles), 0.0), COALESCE(AVG(asistencias), 0.0),
+                    COALESCE(AVG(rendimiento_general), 0.0), COALESCE(AVG(cansancio), 0.0),
+                    COALESCE(AVG(estado_animo), 0.0)
+               FROM partido WHERE substr(fecha_hora, 1, 7) = ?1",
+            [mes],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .map_err(db)?;
+    Ok(vec![
+        format!("Partidos: {total}"),
+        format!("Promedio goles: {goles:.2} | asistencias: {asist:.2}"),
+        format!("Rendimiento: {rend:.2} | cansancio: {cans:.2} | ánimo: {animo:.2}"),
+    ])
+}
+
+/// `MM/AAAA` (como pide MiFutbolC) o `AAAA-MM` → `AAAA-MM`.
+#[must_use]
+pub fn mes_iso(texto: &str) -> Option<String> {
+    let texto = texto.trim();
+    let (anio, mes) = match texto.split_once('/') {
+        Some((mes, anio)) => (anio, mes),
+        None => texto.split_once('-')?,
+    };
+    let valido = anio.len() == 4
+        && mes.len() == 2
+        && anio.bytes().chain(mes.bytes()).all(|b| b.is_ascii_digit())
+        && (1..=12).contains(&mes.parse::<u8>().ok()?);
+    valido.then(|| format!("{anio}-{mes}"))
+}
+
+/// Bytes del Informe Personal Mensual (`generar_informe_personal_mensual_pdf`):
+/// partidos, entrenamiento, alimentación y mentalidad del mes `AAAA-MM`.
+pub fn pdf_bienestar_mes(
+    conn: &Connection,
+    mes: &str,
+    usuario: Option<&str>,
+) -> Result<Vec<u8>, ExportError> {
+    let mes_display = format!("{}/{}", &mes[5..7], &mes[..4]);
+    let mut encabezado = vec![format!("INFORME PERSONAL MENSUAL - {mes_display}")];
+    if let Some(usuario) = usuario {
+        encabezado.push(format!("Usuario: {usuario}"));
+    }
+    encabezado.push(format!(
+        "Fecha: {}",
+        crate::domain::dates::ahora_fmt("%d/%m/%Y %H:%M")
+    ));
+    let mut bienestar = bienestar_mes(conn, mes)?;
+    let mental = bienestar.split_off(5);
+    let alimentacion = bienestar.split_off(2);
+    let secciones = [
+        ("Resumen de Partidos", partidos_mes(conn, mes)?),
+        ("Resumen de Entrenamiento", bienestar),
+        ("Resumen de Alimentación", alimentacion),
+        ("Resumen de Mentalidad", mental),
+        ("Nota", vec!["Este informe es 100% local.".to_string()]),
+    ]
+    .into_iter()
+    .map(|(titulo, lineas)| Seccion {
+        titulo: titulo.into(),
+        lineas,
+    })
+    .collect::<Vec<_>>();
+    Ok(informe("Informe Personal Mensual", &encabezado, &secciones))
+}
+
+/// Exporta `Informe Personal MM-AAAA.pdf` (nombre de MiFutbolC) en `dir`.
+pub fn exportar_bienestar_mes(
+    conn: &Connection,
+    mes: &str,
+    usuario: Option<&str>,
+    dir: &Path,
+) -> Result<PathBuf, ExportError> {
+    let mes = mes_iso(mes).ok_or_else(|| ExportError("Mes inválido: use MM/AAAA".into()))?;
+    escribir(
+        dir,
+        &format!("Informe Personal {}-{}.pdf", &mes[5..7], &mes[..4]),
+        &pdf_bienestar_mes(conn, &mes, usuario)?,
+    )
+}
+
 /// Totales del Entrenador IA y últimos consejos.
 fn entrenador_ia(conn: &Connection) -> Result<Vec<String>, ExportError> {
     let (nivel, riesgo, seguidos, total): (i64, f64, i64, i64) = conn
@@ -307,10 +401,10 @@ pub fn pdf_bytes(conn: &Connection, usuario: Option<&str>) -> Result<Vec<u8>, Ex
     }
     encabezado.push(format!(
         "Fecha: {}",
-        chrono::Local::now().format("%d/%m/%Y %H:%M")
+        crate::domain::dates::ahora_fmt("%d/%m/%Y %H:%M")
     ));
 
-    let mes = chrono::Local::now().format("%Y-%m").to_string();
+    let mes = crate::domain::dates::ahora_fmt("%Y-%m");
     let resumen = match resumen_service::generar(conn) {
         Ok(datos) => datos.to_text().lines().map(str::to_string).collect(),
         Err(_) => vec!["Todavía no hay partidos registrados.".to_string()],
@@ -439,7 +533,7 @@ pub fn markdown_todo(conn: &Connection) -> Result<String, ExportError> {
     let celda = |v: &String| v.replace('|', "\\|").replace('\n', " ");
     let mut texto = format!(
         "# MiFutbolR · Exportación completa\n\nGenerado {}\n",
-        chrono::Local::now().format("%d/%m/%Y %H:%M")
+        crate::domain::dates::ahora_fmt("%d/%m/%Y %H:%M")
     );
     for (titulo, sql) in [
         ("Partidos", PARTIDOS),
@@ -605,6 +699,41 @@ mod tests {
             "Rendimiento con confianza alta: 8.00 | baja: 0.00"
         );
         assert!(lineas[8].starts_with("Tendencia"));
+    }
+
+    #[test]
+    fn monthly_wellness_pdf_has_c_sections() {
+        let db = base();
+        db.conn()
+            .execute_batch(
+                "INSERT INTO bienestar_entrenamiento (fecha, tipo, duracion_min, intensidad)
+                    VALUES ('2025-03-02', 'Fuerza', 60, 8);",
+            )
+            .unwrap();
+        assert_eq!(mes_iso("03/2025").as_deref(), Some("2025-03"));
+        assert_eq!(mes_iso("2025-03").as_deref(), Some("2025-03"));
+        assert_eq!(mes_iso("13/2025"), None);
+        assert_eq!(mes_iso("3/2025"), None);
+        let pdf: String = pdf_bienestar_mes(db.conn(), "2025-03", Some("Ana"))
+            .unwrap()
+            .iter()
+            .map(|b| *b as char)
+            .collect();
+        assert!(pdf.starts_with("%PDF"));
+        assert!(pdf.contains("(INFORME PERSONAL MENSUAL - 03/2025)"));
+        assert!(pdf.contains("(Resumen de Partidos)"));
+        assert!(
+            pdf.contains("(Partidos: 1)"),
+            "el partido de marzo se cuenta"
+        );
+        assert!(pdf.contains("(Resumen de Entrenamiento)"));
+        assert!(pdf.contains("(Entrenamiento: 1 sesiones | minutos: 60"));
+        assert!(pdf.contains("(Resumen de Mentalidad)"));
+        assert!(pdf.contains("(Este informe es 100% local.)"));
+        let dir = tempfile::tempdir().unwrap();
+        let ruta = exportar_bienestar_mes(db.conn(), "03/2025", None, dir.path()).unwrap();
+        assert!(ruta.ends_with("Informe Personal 03-2025.pdf"));
+        assert!(exportar_bienestar_mes(db.conn(), "marzo", None, dir.path()).is_err());
     }
 
     #[test]

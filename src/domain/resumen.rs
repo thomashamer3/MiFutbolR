@@ -1,6 +1,6 @@
 //! Datos del Resumen Compartible y sus plantillas (§17).
 
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 
 use super::models::{RachaTipo, Resultado};
 use crate::util::text::escape_html;
@@ -21,7 +21,7 @@ pub struct DatosResumen {
     /// Promedio de asistencias.
     pub promedio_asistencias: f64,
     /// Fecha de generación.
-    pub fecha_gen: NaiveDateTime,
+    pub fecha_gen: DateTime,
     /// Logros (hitos + badges).
     pub logros_total: i64,
     /// Mejor partido.
@@ -44,7 +44,7 @@ pub struct MejorPartido {
     /// Rendimiento.
     pub rendimiento: i64,
     /// Fecha.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
 }
 
 /// Racha actual.
@@ -84,7 +84,7 @@ pub struct Resultados {
 #[derive(Debug, Clone, PartialEq)]
 pub struct UltimoPartido {
     /// Fecha.
-    pub fecha: NaiveDateTime,
+    pub fecha: DateTime,
     /// Rival.
     pub rival: String,
     /// Goles.
@@ -148,7 +148,7 @@ impl DatosResumen {
         out.push_str(&format!("# Resumen de carrera — {}\n\n", self.jugador));
         out.push_str(&format!(
             "**Generado:** {}\n\n",
-            self.fecha_gen.format("%Y-%m-%d %H:%M")
+            self.fecha_gen.strftime("%Y-%m-%d %H:%M")
         ));
         out.push_str("| Métrica | Valor |\n|---|---|\n");
         out.push_str(&format!("| Partidos | {} |\n", self.total_partidos));
@@ -170,7 +170,7 @@ impl DatosResumen {
         out.push_str(&format!(
             "\n## Mejor partido\n{:.2} de rendimiento el {}.\n",
             self.mejor.rendimiento as f64,
-            self.mejor.fecha.format("%d/%m/%Y")
+            self.mejor.fecha.strftime("%d/%m/%Y")
         ));
         out.push_str(&format!("\n## Racha\n{}.\n", self.racha.descripcion));
         out.push_str("\n## Favoritos\n");
@@ -192,7 +192,7 @@ impl DatosResumen {
         ));
         out.push_str(&format!(
             "\n## Último partido\n{} vs {} · {} G, {} A · {}.\n",
-            self.ultimo.fecha.format("%d/%m/%Y"),
+            self.ultimo.fecha.strftime("%d/%m/%Y"),
             texto_o_guion(&self.ultimo.rival),
             self.ultimo.goles,
             self.ultimo.asistencias,
@@ -244,16 +244,16 @@ impl DatosResumen {
         format!(
             "<!doctype html>\n<html lang=es>\n<head>\n<meta charset=utf-8>\n<meta name=viewport content=\"width=device-width, initial-scale=1\">\n<title>Resumen — {jugador}</title>\n<style>\n:root{{--bg:#f6f7fb;--fg:#1b1f2a;--muted:#5b6475;--accent:#2563eb;--card:#ffffff;--border:#e3e7ef;}}\n@media (prefers-color-scheme: dark){{:root{{--bg:#0f1420;--fg:#e6ecf7;--muted:#94a3b8;--accent:#60a5fa;--card:#161d2c;--border:#263143;}}}}\n*{{box-sizing:border-box}}\nbody{{margin:0;padding:32px;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg);}}\nh1{{margin:0 0 4px;font-size:28px}}\n.meta{{color:var(--muted);margin-bottom:24px}}\n.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}}\n.card{{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px}}\n.label{{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}}\n.value{{font-size:22px;font-weight:650}}\nsection{{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px}}\nh2{{margin:0 0 8px;font-size:16px;color:var(--accent)}}\np{{margin:0;line-height:1.5}}\nul{{margin:0;padding-left:18px;line-height:1.6}}\n</style>\n</head>\n<body>\n<h1>{jugador}</h1>\n<div class=meta>Generado el {fecha}</div>\n<div class=grid>\n{tarjetas}\n</div>\n<section><h2>Mejor partido</h2><p>{mejor_rendimiento:.2} de rendimiento el {mejor_fecha}.</p></section>\n<section><h2>Racha</h2><p>{racha}</p></section>\n<section><h2>Favoritos</h2><ul><li>Camiseta: {camiseta}</li><li>Cancha: {cancha}</li><li>Rival: {rival}</li><li>Posición: {posicion}</li></ul></section>\n<section><h2>Último partido</h2><p>{ultimo_fecha} vs {ultimo_rival} · {ultimo_goles} G, {ultimo_asistencias} A · {ultimo_resultado}.</p></section>\n<section><h2>Perfil de juego</h2><ul><li>Clima: {clima}</li><li>Torneo: {torneo}</li><li>Lesiones: {lesiones}</li></ul></section>\n</body>\n</html>\n",
             jugador = jugador,
-            fecha = self.fecha_gen.format("%d/%m/%Y %H:%M"),
+            fecha = self.fecha_gen.strftime("%d/%m/%Y %H:%M"),
             tarjetas = tarjetas,
             mejor_rendimiento = self.mejor.rendimiento as f64,
-            mejor_fecha = self.mejor.fecha.format("%d/%m/%Y"),
+            mejor_fecha = self.mejor.fecha.strftime("%d/%m/%Y"),
             racha = escape_html(&self.racha.descripcion),
             camiseta = escape_html(&texto_o_guion(&self.favoritos.camiseta)),
             cancha = escape_html(&texto_o_guion(&self.favoritos.cancha)),
             rival = escape_html(&texto_o_guion(&self.favoritos.rival)),
             posicion = escape_html(&texto_o_guion(&self.favoritos.posicion)),
-            ultimo_fecha = self.ultimo.fecha.format("%d/%m/%Y"),
+            ultimo_fecha = self.ultimo.fecha.strftime("%d/%m/%Y"),
             ultimo_rival = escape_html(&texto_o_guion(&self.ultimo.rival)),
             ultimo_goles = self.ultimo.goles,
             ultimo_asistencias = self.ultimo.asistencias,
@@ -271,7 +271,7 @@ impl DatosResumen {
         out.push_str(&format!("RESUMEN DE CARRERA — {}\n", self.jugador));
         out.push_str(&format!(
             "Generado: {}\n\n",
-            self.fecha_gen.format("%Y-%m-%d %H:%M")
+            self.fecha_gen.strftime("%Y-%m-%d %H:%M")
         ));
         out.push_str(&format!("Partidos: {}\n", self.total_partidos));
         out.push_str(&format!("Goles: {}\n", self.total_goles));
@@ -289,7 +289,7 @@ impl DatosResumen {
         out.push_str(&format!(
             "\nMejor partido: {:.2} ({})\n",
             self.mejor.rendimiento as f64,
-            self.mejor.fecha.format("%d/%m/%Y")
+            self.mejor.fecha.strftime("%d/%m/%Y")
         ));
         out.push_str(&format!("Racha: {}\n", self.racha.descripcion));
         out.push_str(&format!(
@@ -313,7 +313,7 @@ impl DatosResumen {
         format!(
             "Resumen_{}_{}.{}",
             jugador.trim_matches('_'),
-            self.fecha_gen.format("%Y%m%d_%H%M%S"),
+            self.fecha_gen.strftime("%Y%m%d_%H%M%S"),
             formato.extension()
         )
     }
@@ -332,7 +332,6 @@ pub fn texto_o_guion(texto: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
 
     fn datos() -> DatosResumen {
         DatosResumen {
@@ -342,17 +341,15 @@ mod tests {
             total_asistencias: 3,
             promedio_goles: 0.7,
             promedio_asistencias: 0.3,
-            fecha_gen: NaiveDate::from_ymd_opt(2026, 5, 10)
+            fecha_gen: crate::domain::dates::fecha(2026, 5, 10)
                 .unwrap()
-                .and_hms_opt(20, 0, 0)
-                .unwrap(),
+                .at(20, 0, 0, 0),
             logros_total: 4,
             mejor: MejorPartido {
                 rendimiento: 10,
-                fecha: NaiveDate::from_ymd_opt(2026, 4, 1)
+                fecha: crate::domain::dates::fecha(2026, 4, 1)
                     .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap(),
+                    .at(0, 0, 0, 0),
             },
             racha: Racha {
                 tipo: RachaTipo::Positiva,
@@ -370,10 +367,9 @@ mod tests {
                 derrotas: 2,
             },
             ultimo: UltimoPartido {
-                fecha: NaiveDate::from_ymd_opt(2026, 5, 1)
+                fecha: crate::domain::dates::fecha(2026, 5, 1)
                     .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap(),
+                    .at(0, 0, 0, 0),
                 rival: "Rival".into(),
                 goles: 2,
                 asistencias: 1,

@@ -1,6 +1,6 @@
 //! Datos del panel "Hoy" (IMP-01).
 
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 
 use crate::domain::logros::LogroProgreso;
 use crate::domain::models::{RachaTipo, Resultado};
@@ -11,7 +11,7 @@ pub struct PartidoBreve {
     /// Identificador.
     pub id: i64,
     /// Fecha y hora.
-    pub fecha_hora: NaiveDateTime,
+    pub fecha_hora: DateTime,
     /// Rival.
     pub rival: String,
     /// Goles.

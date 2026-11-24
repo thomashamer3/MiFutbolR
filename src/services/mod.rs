@@ -18,6 +18,7 @@ pub mod clima_service;
 pub mod colecciones_service;
 pub mod comparador_service;
 pub mod entrenador_service;
+pub mod equipamiento_service;
 pub mod equipo_service;
 pub mod estadisticas_service;
 pub mod export_service;

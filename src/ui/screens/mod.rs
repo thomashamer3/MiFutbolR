@@ -15,6 +15,7 @@ pub mod carrera;
 pub mod colecciones;
 pub mod comparador;
 pub mod entrenador;
+pub mod equipamiento;
 pub mod equipos;
 pub mod estadisticas;
 pub mod financiamiento;

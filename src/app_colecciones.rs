@@ -82,6 +82,10 @@ impl App {
             self.colecciones_ver_colecciones = !self.colecciones_ver_colecciones;
             return Ok(true);
         }
+        if key.code == KeyCode::Char('H') {
+            self.open_equipamiento()?;
+            return Ok(true);
+        }
         if key.code == KeyCode::Char('r') {
             self.refresh_colecciones()?;
             self.status = "Colecciones actualizadas".to_string();

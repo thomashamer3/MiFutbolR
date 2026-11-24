@@ -4,11 +4,12 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use rusqlite::Connection;
 
-use crate::app::{App, ConfirmAction, Field, FieldKind, Form, Modal, Screen};
+use crate::app::{App, ConfirmAction, Eleccion, Field, FieldKind, Form, Modal, Screen};
 use crate::db::bienestar_repo;
 use crate::domain::bienestar::{Registro, Seccion, TipoDato};
 use crate::domain::dates;
 use crate::domain::models::FormMode;
+use crate::domain::reporte::Reporte;
 use crate::services::bienestar_service;
 
 impl App {
@@ -108,13 +109,36 @@ impl App {
                     if bienestar_service::es_imagen(&ruta) {
                         self.abrir_imagen(&ruta);
                     } else {
-                        // shortcut: los documentos no se abren con la app del sistema; se muestra la ruta.
                         self.status =
-                            format!("Archivo: {}", self.paths.data_dir.join(&ruta).display());
+                            match bienestar_service::comando_abrir(&self.paths.data_dir, &ruta) {
+                                Ok(_) if !self.abrir_con_sistema => format!(
+                                    "Archivo: {}",
+                                    self.paths.data_dir.join(&ruta).display()
+                                ),
+                                Ok(mut comando) => match comando.spawn() {
+                                    Ok(_) => format!("Abriendo {ruta} con la app del sistema"),
+                                    Err(error) => format!("No se pudo abrir {ruta}: {error}"),
+                                },
+                                Err(error) => error.to_string(),
+                            };
                     }
                 }
             }
             KeyCode::Char('a') => self.open_bienestar_asistente(),
+            KeyCode::Char('A') => match bienestar_service::analisis(self.db.conn()) {
+                Ok(reporte) => self.abrir_reporte(reporte),
+                Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+            },
+            KeyCode::Char('p') => {
+                let mes = Field::text(
+                    "mes",
+                    "Mes (MM/AAAA)",
+                    dates::today().strftime("%m/%Y").to_string(),
+                    7,
+                )
+                .required();
+                self.abrir_eleccion(Eleccion::InformeBienestar, vec![mes]);
+            }
             KeyCode::Char('r') => {
                 self.refresh_bienestar()?;
                 self.status = "Bienestar actualizado".to_string();
@@ -168,6 +192,20 @@ impl App {
             _ => return Ok(false),
         }
         Ok(true)
+    }
+
+    /// Genera el informe personal mensual en PDF (Exportaciones/).
+    pub(crate) fn informe_bienestar(&mut self, form: &Form) -> Result<Option<Reporte>, String> {
+        let usuario = self.usuario_actual.as_ref().map(|u| u.nombre.clone());
+        let ruta = crate::services::informe_service::exportar_bienestar_mes(
+            self.db.conn(),
+            form.value("mes").unwrap_or(""),
+            usuario.as_deref(),
+            &self.paths.export_dir,
+        )
+        .map_err(|error| error.0)?;
+        self.status = format!("Informe mensual: {}", ruta.display());
+        Ok(None)
     }
 
     /// Guarda el formulario.

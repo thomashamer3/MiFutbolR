@@ -419,7 +419,7 @@ impl App {
             posicion: Posicion::try_from(posicion_code)?,
             es_capitan: get("es_capitan") == "Sí",
             fecha_nacimiento: dates::parse_date(&get("fecha_nacimiento"))
-                .map(|d| d.format("%Y-%m-%d").to_string())
+                .map(|d| d.strftime("%Y-%m-%d").to_string())
                 .unwrap_or_default(),
         })
     }
