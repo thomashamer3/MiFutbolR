@@ -56,7 +56,7 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
 - [x] B5 Limpieza. Ruta: delegated (writer trigger: app_*.rs).
 - [x] B6 Sincronización PocketBase + MiFutbolMobile. Ruta: delegated (writer trigger). Commit `e9cd489`.
 - [x] B7 Exportar/Importar. Ruta: delegated (writer trigger). Commits `1242ee7`, `ed27f87`, `6b6c979`, `711d2c3`.
-- [ ] B8 Ajustes y arranque. Ruta: delegated (writer trigger).
+- [x] B8 Ajustes y arranque. Ruta: delegated (writer trigger). Commit `fdcb3ab`.
 - [ ] B9 Módulos faltantes. Ruta: delegated (writer trigger).
 - [ ] B10 Bienestar restante. Ruta: delegated (writer trigger).
 - [ ] B11 chrono → jiff. Ruta: delegated (writer trigger: todo el crate).
@@ -289,3 +289,54 @@ tras teclas, Análisis ausente, modo Simple/Avanzado sin efecto, sin restaurar b
     opción por formato (importa todos los archivos presentes); el XLSX de C por tabla quedó en
     un libro con varias hojas; `fecha_fin` de recordatorios no se guarda; Historial de
     Equipamiento queda para B9 (en C es un módulo propio, `equipamiento_historial.c`).
+- B8 (`fdcb3ab`; RDD unmanaged; 349 OK en `cargo test --all-targets --no-fail-fast` (336 + 13),
+  clippy `-D warnings` y `cargo fmt --check` limpios; 20 archivos, +1131/-25; supera la heurística de ~400 líneas por los tests y el servicio nuevo). Un solo commit:
+  las cinco partes comparten `app_ajustes.rs`, el bloque Ctrl de Ajustes y `tareas_de_inicio`.
+  - 8a Backup de inicio (`backup_al_iniciar` de `db.c`): `backup_service::backup_inicio` copia a
+    `Exportaciones/backup_<AAAAMMDD_HHMMSS>_inicio.db` (`_inicio_u<id>` por cuenta, para que la
+    retención de un perfil no borre la de otro) solo si la base tiene datos; el del mismo día se
+    reemplaza y quedan los últimos 7 días (C: copia fija + `Historial/<base>.1..7.db`). Lo ven
+    Ctrl+G y la oferta de restaurar de B2 (prefijo `backup_`, orden por nombre). No es
+    configurable en C (el "Auto-Backup" por intervalo de `backup.c` solo corre desde
+    recordatorios: no portado).
+  - Tareas de arranque: `App::tareas_de_inicio` (backup, actualizaciones, aviso retro) al
+    entrar al menú o iniciar sesión, una vez por base, solo si `tareas_inicio` (lo activa
+    `main.rs`; `App::new` no, así los tests no escriben backups ni usan la red). Se conserva al
+    cambiar de cuenta (`reemplazar_app`).
+  - 8b Ajustes → Ctrl+N: `Screen::MenusPersonalizados` con `[X]`/`[ ]` para las 27 opciones
+    (Ajustes no se lista: siempre visible); Enter/Espacio → `settings_repo::set_menu_visible`
+    (`INSERT OR REPLACE` en `custom_menus`, como `set_custom_menu_enabled`).
+  - 8c `actualizacion_service`: `releases/latest` de la API de GitHub (repo
+    `thomashamer3/MiFutbolR`; C usa `.../MiFutbolC`), `tag_name` o `name`, `comparar_versiones`
+    de C (prefijo v, mayor.menor.parche) contra `CARGO_PKG_VERSION`; una vez por día con
+    `update_check.stamp` en `data_dir` (se escribe antes de consultar, como C); hilo + mpsc
+    (`ActualizacionWorker`, `tick_actualizacion` en el bucle). La automática solo avisa si hay
+    versión nueva (modal o barra); Ctrl+U siempre informa. Campo "Buscar actualizaciones al
+    iniciar" (migración `017_ajustes.sql`). C descarga y ejecuta el instalador `.exe`: aquí
+    solo se muestra el enlace `html_url`.
+  - 8d Ctrl+F "Ver configuración actual" (modal: tema, idioma, modo, tamaño, visor, botín,
+    actualizaciones, menús ocultos, usuario, BD, versión; sin contraseñas ni token — test que lo
+    busca). Ctrl+Q restablece `AppSettings::default()` con confirmación y refresca el formulario.
+    Diferencia: C además borraba la tabla `usuario` (nombre); aquí no, las cuentas viven en
+    `cuentas.db`.
+  - 8e Idioma: C tiene tablas reales (`lang.c` + `langs/*.json`, `tr(clave)`). Port:
+    `crate::i18n::t(idioma, clave, español)` con la tabla inglesa de las claves de C para el
+    menú principal (`Module::etiqueta`, `menu_<key>`), "Salir", el título y las etiquetas de
+    Ajustes; el español queda como defecto en el código. Modo Retro en C no es una paleta: es
+    "Hoy en tu historia" de Carrera (ya portado); se portó el aviso de inicio
+    (`carrera_notificar_modo_retro_inicio`) como modal S/N que abre Carrera → Modo retro.
+  - Errores corregidos: `carrera_repo::retro` comparaba con `date('now')` en UTC (de noche,
+    hora local, no encontraba los recuerdos de hoy); `Database::restore_from` no migraba un
+    backup de una versión anterior (ahora llama a `migrate`). Errores de C: `en.json` no tiene
+    `menu_botines` (mostraba la clave) ni traduce Tiendas; `settings_save` usa
+    `INSERT OR REPLACE` con 4 columnas y borra `image_viewer`.
+  - Tests nuevos (13): `backup_inicio` (base vacía, 7 días, mismo día, no toca otros perfiles
+    ni manuales), `comparar_versiones`, marca diaria, consulta a servidor falso
+    (`127.0.0.1:0`; tag/name/404), hilo, `t()` + cobertura de claves, y `tests/arranque_ui.rs`
+    (backup de inicio + lista de backups, aviso retro, Ctrl+U y arranque contra servidor falso,
+    desactivar, editor de menús en Personalizado, ver/restablecer sin secretos, menú en inglés).
+  - No hecho: Auto-Backup por intervalo de `backup.c`; descargar/instalar releases; traducir
+    pantallas de módulos, barra de pestañas y textos de ayuda (C tampoco los traduce); hitos
+    del Modo Retro de C (primer partido/gol/rival/camiseta, mejor racha) — el aviso cuenta solo
+    partidos, como la pantalla retro de Rust; la oferta de restaurar de B2 sigue mirando todos
+    los `backup_*.db` de `Exportaciones/` (compartida entre perfiles).
