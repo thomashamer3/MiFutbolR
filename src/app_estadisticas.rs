@@ -4,7 +4,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
-use crate::app::{App, Modal, Screen, mover_seleccion};
+use crate::app::{App, Modal, mover_seleccion};
 use crate::domain::models::{EstadisticaKind, Estadisticas};
 use crate::services::estadisticas_service;
 
@@ -42,8 +42,7 @@ impl App {
                     .get(self.estadisticas_hub.selected().unwrap_or(0))
                     .copied()
                     .unwrap_or(EstadisticaKind::Generales);
-                self.estadisticas_scroll = 0;
-                self.push_screen(Screen::EstadisticasDetalle(kind));
+                self.abrir_estadistica(kind);
             }
             KeyCode::Char('r') => {
                 self.load_estadisticas()?;

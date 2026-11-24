@@ -37,6 +37,7 @@ pub mod progresion_service;
 pub mod quimica_service;
 pub mod recordatorios_service;
 pub mod records_service;
+pub mod reportes_service;
 pub mod resumen_service;
 pub mod simulacion_service;
 pub mod sync_service;

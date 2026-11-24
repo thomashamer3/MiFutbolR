@@ -50,6 +50,29 @@ impl Reporte {
         }
         salida
     }
+
+    /// HTML simple: secciones como `<h2>` y cada línea como párrafo.
+    #[must_use]
+    pub fn html(&self) -> String {
+        let escapar = |texto: &str| {
+            texto
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+        };
+        let mut salida = format!(
+            "<!doctype html><meta charset=\"utf-8\"><title>{0}</title><h1>{0}</h1>\n",
+            escapar(&self.titulo)
+        );
+        for linea in &self.lineas {
+            match linea.strip_prefix("== ") {
+                Some(seccion) => salida.push_str(&format!("<h2>{}</h2>\n", escapar(seccion))),
+                None if linea.is_empty() => {}
+                None => salida.push_str(&format!("<p>{}</p>\n", escapar(linea))),
+            }
+        }
+        salida
+    }
 }
 
 #[cfg(test)]

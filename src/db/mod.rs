@@ -30,6 +30,7 @@ pub mod progresion_repo;
 pub mod quimica_repo;
 pub mod recordatorio_repo;
 pub mod records_repo;
+pub mod reportes_repo;
 pub mod resumen_repo;
 pub mod settings_repo;
 pub mod sync_repo;
@@ -68,6 +69,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/015_fk_indexes.sql"),
     include_str!("../../migrations/016_sync.sql"),
     include_str!("../../migrations/017_ajustes.sql"),
+    include_str!("../../migrations/018_reportes.sql"),
 ];
 
 /// Versión de esquema que espera esta compilación.

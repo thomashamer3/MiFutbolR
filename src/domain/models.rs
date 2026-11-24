@@ -1538,6 +1538,14 @@ pub enum EstadisticaKind {
     Goles,
     /// Meta-análisis.
     Meta,
+    /// Opciones de contexto de C (ánimo, clima, momento, cansancio).
+    Contexto,
+    /// Tabla de posiciones global (`posiciones.c`).
+    Posiciones,
+    /// Filtros avanzados (`filtros.c`).
+    Filtros,
+    /// Reportes automáticos (`reportes.c`).
+    Reportes,
 }
 
 impl EstadisticaKind {
@@ -1550,6 +1558,10 @@ impl EstadisticaKind {
         Self::Canchas,
         Self::Goles,
         Self::Meta,
+        Self::Contexto,
+        Self::Posiciones,
+        Self::Filtros,
+        Self::Reportes,
     ];
 
     /// Etiqueta.
@@ -1563,6 +1575,10 @@ impl EstadisticaKind {
             Self::Canchas => "Canchas",
             Self::Goles => "Goles y asistencias",
             Self::Meta => "Meta-análisis",
+            Self::Contexto => "Ánimo, clima y cansancio",
+            Self::Posiciones => "Tabla de posiciones global",
+            Self::Filtros => "Filtros avanzados",
+            Self::Reportes => "Reportes automáticos",
         }
     }
 
@@ -1577,6 +1593,14 @@ impl EstadisticaKind {
             Self::Canchas => "Uso, goles y rendimiento por cancha, tipo y localidad.",
             Self::Goles => "Promedios, eficiencia, efectividad y partidos atípicos.",
             Self::Meta => "Consistencia, outliers, contexto, impacto y eficiencia.",
+            Self::Contexto => {
+                "Goles y asistencias por ánimo, clima y momento; mejor/peor clima y día; cansancio alto."
+            }
+            Self::Posiciones => "PJ, PG, PE, PP, GF, GC, DG y puntos, con desglose por año.",
+            Self::Filtros => "Partidos por fechas, resultado y cancha, con resumen.",
+            Self::Reportes => {
+                "Generar el reporte general (HTML) o de rendimiento (TXT) y ver los generados."
+            }
         }
     }
 }

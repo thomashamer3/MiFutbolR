@@ -81,3 +81,61 @@ fn lesiones_diferencias_y_actualizar_estado() {
     let texto = render_con(&mut app, 120, 30);
     assert!(texto.contains("10 días después"), "{texto}");
 }
+
+fn abrir_estadistica(app: &mut App, kind: mifutbol_rs::domain::models::EstadisticaKind) {
+    use mifutbol_rs::domain::models::EstadisticaKind;
+    abrir_opcion(app, Module::Estadisticas);
+    let indice = EstadisticaKind::ALL
+        .iter()
+        .position(|k| *k == kind)
+        .unwrap();
+    app.estadisticas_hub.select(Some(indice));
+    press(app, KeyCode::Enter);
+}
+
+#[test]
+fn estadisticas_posiciones_contexto_filtros_y_reportes() {
+    use mifutbol_rs::domain::models::EstadisticaKind;
+    let (mut app, _dir) = test_app();
+    preparar_partidos(&app);
+    for kind in [EstadisticaKind::Posiciones, EstadisticaKind::Contexto] {
+        abrir_estadistica(&mut app, kind);
+        assert_eq!(app.current_screen(), Screen::Reporte, "{kind:?}");
+        let texto = render_con(&mut app, 120, 40);
+        assert!(
+            texto.contains(kind.label()) || texto.contains("Contexto"),
+            "{texto}"
+        );
+        press(&mut app, KeyCode::Esc);
+        press(&mut app, KeyCode::Esc);
+    }
+
+    abrir_estadistica(&mut app, EstadisticaKind::Filtros);
+    assert_eq!(
+        app.current_screen(),
+        Screen::Eleccion(Eleccion::FiltrosPartidos)
+    );
+    type_text(&mut app, "08/03/2026");
+    press_ctrl(&mut app, 's');
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    assert!(
+        app.reporte
+            .lineas
+            .iter()
+            .any(|l| l.starts_with("Total 2 partidos")),
+        "{:?}",
+        app.reporte.lineas
+    );
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Esc);
+
+    abrir_estadistica(&mut app, EstadisticaKind::Reportes);
+    assert_eq!(
+        app.current_screen(),
+        Screen::Eleccion(Eleccion::GenerarReporte)
+    );
+    press_ctrl(&mut app, 's');
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    assert_eq!(count(&app, "SELECT COUNT(*) FROM reporte_generado"), 1);
+    assert!(app.status.contains("reporte_general_"), "{}", app.status);
+}

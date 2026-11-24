@@ -545,6 +545,10 @@ pub enum Screen {
 pub enum Eleccion {
     /// Partidos → simular con dos equipos guardados.
     SimularEquipos,
+    /// Estadísticas → filtros avanzados.
+    FiltrosPartidos,
+    /// Estadísticas → generar un reporte automático.
+    GenerarReporte,
 }
 
 /// Acción confirmable en un modal.
@@ -771,6 +775,19 @@ impl Field {
             kind: FieldKind::Select { options },
             required: false,
             help: None,
+        }
+    }
+
+    /// Crea un campo de fecha `DD/MM/AAAA` (opcional).
+    #[must_use]
+    pub fn date(key: &'static str, label: &str, value: impl Into<String>) -> Self {
+        Self {
+            key,
+            label: label.to_string(),
+            value: value.into(),
+            kind: FieldKind::Date,
+            required: false,
+            help: Some("DD/MM/AAAA".to_string()),
         }
     }
 

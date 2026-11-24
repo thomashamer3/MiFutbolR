@@ -127,7 +127,15 @@ Las capturas se generan desde la TUI real con
   estadísticas; no se guarda). En cualquier reporte de texto `x` lo exporta a
   `Exportaciones/reporte_<fecha>.txt`.
 - **Estadísticas**: generales, series, 20 métricas de rendimiento, canchas,
-  goles/asistencias, sparkline y `LineGauge`/`BarChart`.
+  goles/asistencias, sparkline y `LineGauge`/`BarChart`. Como `estadisticas.c`
+  suma *Ánimo, clima y cansancio* (goles y asistencias por estado de ánimo,
+  asistencias por clima, momento y cansancio, mejor/peor clima y día, ánimo
+  ideal, partidos con cansancio alto y caída por cansancio acumulado), *Tabla de
+  posiciones global* (PJ/PG/PE/PP/GF/GC/DG/Pts con desglose por año; usa el
+  marcador del equipo si está cargado), *Filtros avanzados* (fechas, resultado y
+  cancha, con resumen) y *Reportes automáticos* (genera
+  `Exportaciones/reporte_general_<fecha>.html` o `rendimiento_<fecha>.txt` y
+  lista los generados, tabla `reporte_generado`).
 - **Carrera**: identidad, hitos, rachas, badges, timeline, Hall of Fame,
   perfil dinámico, modo retro y logros.
 - **Resumen Compartible**: Markdown/HTML/texto con vista previa y exportación.

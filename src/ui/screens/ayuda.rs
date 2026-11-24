@@ -102,6 +102,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Avanzar el estado (activa, tratamiento, mejorando, recuperado) / días entre lesiones",
     ),
     (
+        "Estadísticas",
+        "Ánimo/clima/cansancio, tabla de posiciones global, filtros avanzados y reportes automáticos",
+    ),
+    (
         "x (cualquier reporte)",
         "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
     ),

@@ -4,9 +4,12 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::app::{App, Eleccion, Field, Form, Modal, Screen};
-use crate::domain::models::EquipoFilter;
+use crate::db::reportes_repo::FiltroPartidos;
+use crate::domain::dates;
+use crate::domain::models::{EquipoFilter, EstadisticaKind};
 use crate::domain::reporte::Reporte;
-use crate::services::{equipo_service, simulacion_service};
+use crate::services::reportes_service::{self, TipoReporte};
+use crate::services::{cancha_service, equipo_service, simulacion_service};
 
 impl Eleccion {
     /// Título de la pantalla.
@@ -14,6 +17,8 @@ impl Eleccion {
     pub const fn titulo(self) -> &'static str {
         match self {
             Self::SimularEquipos => "Partidos · simular con equipos guardados",
+            Self::FiltrosPartidos => "Estadísticas · filtros avanzados",
+            Self::GenerarReporte => "Estadísticas · reportes automáticos",
         }
     }
 }
@@ -76,6 +81,8 @@ impl App {
         }
         let resultado = match eleccion {
             Eleccion::SimularEquipos => self.simular_equipos(&form),
+            Eleccion::FiltrosPartidos => self.filtrar_partidos(&form),
+            Eleccion::GenerarReporte => self.generar_reporte(&form),
         };
         match resultado {
             Ok(Some(reporte)) => {
@@ -123,6 +130,92 @@ impl App {
             ),
         ];
         self.abrir_eleccion(Eleccion::SimularEquipos, campos);
+    }
+
+    /// Enter en el hub de Estadísticas: las categorías nuevas abren un reporte o
+    /// un formulario; el resto, su detalle de siempre.
+    pub(crate) fn abrir_estadistica(&mut self, kind: EstadisticaKind) {
+        let reporte = match kind {
+            EstadisticaKind::Contexto => reportes_service::contexto(self.db.conn()),
+            EstadisticaKind::Posiciones => reportes_service::tabla_posiciones(self.db.conn()),
+            EstadisticaKind::Filtros => {
+                let mut canchas = vec![(String::new(), "(todas)".to_string())];
+                canchas.extend(
+                    cancha_service::listar(self.db.conn(), &Default::default())
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|c| (c.id.to_string(), c.nombre)),
+                );
+                let resultados = ["", "1", "2", "3"]
+                    .iter()
+                    .zip(["(todos)", "Victoria", "Empate", "Derrota"])
+                    .map(|(v, e)| ((*v).to_string(), e.to_string()))
+                    .collect();
+                let campos = vec![
+                    Field::date("desde", "Fecha desde", ""),
+                    Field::date("hasta", "Fecha hasta", ""),
+                    Field::select("resultado", "Resultado", "", resultados),
+                    Field::select("cancha", "Cancha", "", canchas),
+                ];
+                self.abrir_eleccion(Eleccion::FiltrosPartidos, campos);
+                return;
+            }
+            EstadisticaKind::Reportes => {
+                let tipos = vec![
+                    (
+                        "html".to_string(),
+                        TipoReporte::GeneralHtml.nombre().to_string(),
+                    ),
+                    (
+                        "txt".to_string(),
+                        TipoReporte::RendimientoTxt.nombre().to_string(),
+                    ),
+                    ("ver".to_string(), "Ver reportes generados".to_string()),
+                ];
+                let campos = vec![Field::select("tipo", "Reporte", "html", tipos)];
+                self.abrir_eleccion(Eleccion::GenerarReporte, campos);
+                return;
+            }
+            _ => {
+                self.estadisticas_scroll = 0;
+                self.push_screen(Screen::EstadisticasDetalle(kind));
+                return;
+            }
+        };
+        match reporte {
+            Ok(reporte) => self.abrir_reporte(reporte),
+            Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+        }
+    }
+
+    fn filtrar_partidos(&self, form: &Form) -> Result<Option<Reporte>, String> {
+        let valor = |clave: &str| form.value(clave).unwrap_or("").trim().to_string();
+        let filtro = FiltroPartidos {
+            desde: dates::parse_date(&valor("desde")),
+            hasta: dates::parse_date(&valor("hasta")),
+            resultado: valor("resultado").parse().ok(),
+            cancha_id: valor("cancha").parse().ok(),
+            cansancio_alto: false,
+        };
+        reportes_service::filtrar(self.db.conn(), &filtro)
+            .map(Some)
+            .map_err(|e| e.to_string())
+    }
+
+    fn generar_reporte(&mut self, form: &Form) -> Result<Option<Reporte>, String> {
+        let tipo = match form.value("tipo") {
+            Some("html") => Some(TipoReporte::GeneralHtml),
+            Some("txt") => Some(TipoReporte::RendimientoTxt),
+            _ => None,
+        };
+        let dir = self.paths.export_dir.clone();
+        if let Some(tipo) = tipo {
+            let ruta = reportes_service::generar(self.db.conn(), &dir, tipo)?;
+            self.status = format!("Reporte generado: {}", ruta.display());
+        }
+        reportes_service::generados(self.db.conn(), &dir)
+            .map(Some)
+            .map_err(|e| e.to_string())
     }
 
     fn simular_equipos(&self, form: &Form) -> Result<Option<Reporte>, String> {

@@ -322,6 +322,11 @@ fn build_lines(
         EstadisticaKind::Canchas => canchas(estadisticas, colors),
         EstadisticaKind::Goles => goles(&estadisticas.goles, colors),
         EstadisticaKind::Meta => meta(estadisticas, colors),
+        // Se abren como reporte o formulario (`App::abrir_estadistica`).
+        EstadisticaKind::Contexto
+        | EstadisticaKind::Posiciones
+        | EstadisticaKind::Filtros
+        | EstadisticaKind::Reportes => Vec::new(),
     }
 }
 
