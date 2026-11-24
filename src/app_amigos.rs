@@ -72,6 +72,13 @@ impl App {
                     self.status = "El usuario local no se elimina".to_string();
                 }
             }
+            KeyCode::Char('c') => match self.amigo_seleccionado() {
+                Some(amigo) => match amigos_service::comparar(self.db.conn(), amigo.id) {
+                    Ok(reporte) => self.abrir_reporte(reporte),
+                    Err(error) => self.modal = Some(Modal::Error(error.to_string())),
+                },
+                None => self.status = "Elegí un amigo para comparar".to_string(),
+            },
             KeyCode::Char('r') => {
                 self.refresh_amigos()?;
                 self.status = "Ranking actualizado".to_string();

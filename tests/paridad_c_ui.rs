@@ -139,3 +139,25 @@ fn estadisticas_posiciones_contexto_filtros_y_reportes() {
     assert_eq!(count(&app, "SELECT COUNT(*) FROM reporte_generado"), 1);
     assert!(app.status.contains("reporte_general_"), "{}", app.status);
 }
+
+#[test]
+fn amigos_comparar_conmigo() {
+    let (mut app, _dir) = test_app();
+    app.db
+        .conn()
+        .execute(
+            "INSERT INTO amigo (nombre, posicion, goles, asistencias, partidos)
+             VALUES ('Zoe', 'Arquera', 0, 0, 0)",
+            [],
+        )
+        .unwrap();
+    abrir_opcion(&mut app, Module::Amigos);
+    assert_eq!(app.current_screen(), Screen::AmigosList);
+    let indice = app.amigos_ranking.iter().position(|f| !f.local).unwrap();
+    app.amigos_table.select(Some(indice));
+    press(&mut app, KeyCode::Char('c'));
+    assert_eq!(app.current_screen(), Screen::Reporte);
+    let texto = render_con(&mut app, 110, 30);
+    assert!(texto.contains("Comparar conmigo"), "{texto}");
+    assert!(texto.contains("Arquera"), "{texto}");
+}

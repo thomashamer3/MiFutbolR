@@ -106,6 +106,10 @@ const ATAJOS_MODULOS: &[(&str, &str)] = &[
         "Ánimo/clima/cansancio, tabla de posiciones global, filtros avanzados y reportes automáticos",
     ),
     (
+        "c (Ranking de amigos)",
+        "Comparar conmigo: mis totales contra los del amigo elegido",
+    ),
+    (
         "x (cualquier reporte)",
         "Exportar el reporte en pantalla a Exportaciones/reporte_<fecha>.txt",
     ),

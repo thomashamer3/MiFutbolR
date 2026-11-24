@@ -2155,7 +2155,9 @@ impl App {
             Screen::EntrenadorIa => {
                 "s: consejos seguidos  i: ignorados  v: nivel de intervención  r: refrescar  Esc: volver"
             }
-            Screen::AmigosList => "n: nuevo  e: editar  d: borrar  r: refrescar  Esc: volver",
+            Screen::AmigosList => {
+                "n: nuevo  e: editar  d: borrar  c: comparar conmigo  r: refrescar  Esc: volver"
+            }
             Screen::MediaList => {
                 "n: nueva  e: editar  d: borrar  f: tipo  r: refrescar  Esc: volver"
             }

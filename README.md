@@ -176,7 +176,9 @@ Las capturas se generan desde la TUI real con
   `Importaciones/recordatorios.json` uniendo o reemplazando (con backup previo),
   en el formato de `recordatorios.c` (`fecha_fin` no se guarda).
 - **Multimedia**: video, foto, artículo y audio asociados a partidos, con filtro por tipo.
-- **Tiendas y amigos**: catálogo de tiendas y ranking de amigos con el usuario local.
+- **Tiendas y amigos**: catálogo de tiendas y ranking de amigos con el usuario local;
+  `c` compara al amigo elegido conmigo (goles, asistencias, partidos, mejor
+  rendimiento, goles por partido y diferencias).
 - **Temporadas**: fases, torneos asociados, resumen del rango, fatiga y comparación.
 - **Comparador A/B**: camisetas y canchas lado a lado con 9 métricas y ganador por métrica.
 - **Estadísticas de canchas**: 10 reportes (más/menos usadas, rendimiento, goles/asistencias, tipo, superficie, techada, localidad y franja).
