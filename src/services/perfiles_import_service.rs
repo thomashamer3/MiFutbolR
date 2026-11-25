@@ -2,7 +2,7 @@
 //! más un `mifutbol_<usuario>.db` por perfil en el mismo directorio.
 //!
 //! Cada perfil se convierte en una cuenta de `cuentas.db` con su propia base en
-//! `usuarios/<id>/mifutbol.db`. Los archivos de MiFutbolC se abren en solo lectura.
+//! `mifutbolr_<usuario>.db`. Los archivos de MiFutbolC se abren en solo lectura.
 
 use std::path::{Path, PathBuf};
 
@@ -97,7 +97,7 @@ pub fn importar_perfiles(
         let datos = data_dir_c.join(format!("mifutbol_{nombre}.db"));
         let mut filas = 0;
         if datos.is_file() {
-            match importar_datos(&paths.db_usuario(cuenta.id), &datos) {
+            match importar_datos(&paths.db_usuario(&cuenta.nombre), &datos) {
                 Ok(importado) => {
                     filas = importado.total();
                     resumen.advertencias.extend(

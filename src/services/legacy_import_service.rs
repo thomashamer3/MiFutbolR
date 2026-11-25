@@ -391,6 +391,10 @@ fn mapear(tabla: &str, destino: &[String], origen: &[String]) -> (Vec<String>, V
             ("partido", "formato_partido") if tiene("formato_partido") => Some(
                 "replace(replace(\"formato_partido\", 'Fútbol ', 'F'), 'Futbol ', 'F')".to_string(),
             ),
+            // MiFutbolC guarda 0/NULL como "sin tarjeta"; aquí solo valen 1..=3.
+            ("partido", "tarjeta") if tiene("tarjeta") => Some(
+                "CASE WHEN \"tarjeta\" IN (2, 3) THEN \"tarjeta\" ELSE 1 END".to_string(),
+            ),
             ("cancha", "cantidad_canchas") if tiene("cantidad_canchas") => Some(
                 "CASE WHEN \"cantidad_canchas\" IS NULL OR \"cantidad_canchas\" < 1 THEN 1 ELSE \"cantidad_canchas\" END"
                     .to_string(),
@@ -437,7 +441,7 @@ mod tests {
                     id INTEGER PRIMARY KEY, cancha_id INTEGER, camiseta_id INTEGER, botin_id INTEGER,
                     fecha_hora TEXT, precio INTEGER, goles INTEGER, asistencias INTEGER,
                     resultado INTEGER, rendimiento_general INTEGER, clima INTEGER, dia INTEGER,
-                    tipo_partido INTEGER, formato_partido TEXT
+                    tipo_partido INTEGER, formato_partido TEXT, tarjeta INTEGER
                  );
                  CREATE TABLE lesion (
                     id INTEGER PRIMARY KEY, jugador TEXT, tipo TEXT, descripcion TEXT, fecha TEXT,
@@ -450,7 +454,7 @@ mod tests {
                  INSERT INTO camiseta VALUES (1, 'Titular', 1, 0);
                  INSERT INTO botin VALUES (1, 'Predator', 1, 0);
                  INSERT INTO cancha VALUES (1, 'Sur', 'Quilmes', 1);
-                 INSERT INTO partido VALUES (10, 1, 1, 1, '2026-03-01 20:00', 15000, 2, 1, 1, 8, 1, 2, 1, 'Futbol 7');
+                 INSERT INTO partido VALUES (10, 1, 1, 1, '2026-03-01 20:00', 15000, 2, 1, 1, 8, 1, 2, 1, 'Futbol 7', 0);
                  INSERT INTO lesion VALUES (5, 'Ana', 'Esguince', 'Tobillo', '15/03/2026 18:30', 1, 'ACTIVA', 10);
                  CREATE TABLE partido_meta (partido_id INTEGER PRIMARY KEY, favorito INTEGER DEFAULT 0);
                  CREATE TABLE partido_tag (id INTEGER PRIMARY KEY AUTOINCREMENT, partido_id INTEGER NOT NULL, tag TEXT NOT NULL);
@@ -570,6 +574,12 @@ mod tests {
             )
             .unwrap();
         assert_eq!(precio, 1_500_000);
+
+        let tarjeta: i64 = db
+            .conn()
+            .query_row("SELECT tarjeta FROM partido WHERE id = 10", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(tarjeta, 1, "tarjeta 0 de MiFutbolC es 'sin tarjeta'");
 
         let fecha: String = db
             .conn()

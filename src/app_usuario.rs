@@ -110,7 +110,7 @@ impl App {
 
     /// Reconstruye la app sobre la base de datos propia de la cuenta.
     pub(crate) fn entrar_como(&mut self, usuario: Usuario) {
-        let ruta = self.paths.db_usuario(usuario.id);
+        let ruta = self.paths.db_usuario(&usuario.nombre);
         let nueva = Database::open(&ruta)
             .map_err(anyhow::Error::from)
             .and_then(|db| App::new(db, self.paths.clone()));

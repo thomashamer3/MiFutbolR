@@ -110,10 +110,10 @@ impl App {
                         self.abrir_imagen(&ruta);
                     } else {
                         self.status =
-                            match bienestar_service::comando_abrir(&self.paths.data_dir, &ruta) {
+                            match bienestar_service::comando_abrir(self.paths.adjuntos_dir(), &ruta) {
                                 Ok(_) if !self.abrir_con_sistema => format!(
                                     "Archivo: {}",
-                                    self.paths.data_dir.join(&ruta).display()
+                                    self.paths.adjuntos_dir().join(&ruta).display()
                                 ),
                                 Ok(mut comando) => match comando.spawn() {
                                     Ok(_) => format!("Abriendo {ruta} con la app del sistema"),

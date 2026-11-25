@@ -1,6 +1,7 @@
 //! Genera capturas de la TUI real en JSON para el README.
 //!
-//! Uso: `cargo run --example capturar_tui` (requiere `datos/mifutbol_convertida.db`).
+//! Uso: `cargo run --example capturar_tui [base.db]` (por defecto
+//! `Documentos/MiFutbolR/Exportaciones/mifutbol_convertida.db`).
 //! Después `python scripts/render_capturas.py` convierte los JSON a PNG.
 
 use std::fs;
@@ -132,8 +133,14 @@ fn main() -> anyhow::Result<()> {
     for sufijo in ["-wal", "-shm"] {
         let _ = fs::remove_file(format!("target/capturas.db{sufijo}"));
     }
-    fs::copy("datos/mifutbol_convertida.db", "target/capturas.db")
-        .context("copiá datos/mifutbol_convertida.db")?;
+    let origen = match std::env::args_os().nth(1) {
+        Some(ruta) => PathBuf::from(ruta),
+        None => AppPaths::discover()?
+            .export_dir
+            .join("mifutbol_convertida.db"),
+    };
+    fs::copy(&origen, "target/capturas.db")
+        .with_context(|| format!("no se pudo copiar {}", origen.display()))?;
 
     // Preparar una ficha con imagen real para la captura.
     let ruta_imagen = fs::canonicalize("images/icon-512x512.png")?;

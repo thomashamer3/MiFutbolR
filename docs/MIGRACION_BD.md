@@ -33,7 +33,7 @@ Fecha: 2026-11-06 · Versión de la app: 0.1
 | torneo | 2 |
 | temporada | 1 |
 
-Además se conservó una camiseta creada en la app antes de migrar (`Hamer 10`), total **15 camisetas**. La base final quedó en `%LOCALAPPDATA%\mifutbol\mifutbol-rs\data\mifutbol.db`.
+Además se conservó una camiseta creada en la app antes de migrar (`Hamer 10`), total **15 camisetas**. La base final quedó en `%LOCALAPPDATA%\MiFutbolR\data\mifutbolr_Hamer.db`.
 
 ## Conversiones aplicadas
 
@@ -59,9 +59,12 @@ Quedan 7 tablas sin filas porque son opcionales o de módulos futuros: `carrera_
 
 ## Respaldos
 
-- `datos/mifutbol_legacy_original.db`: copia intacta del origen.
-- `datos/mifutbol_app_pre_import_*.db`: base que tenía la app antes de reemplazarla.
-- `datos/mifutbol_convertida.db`: copia de la base final migrada.
+Fuera del repo, en `Documentos/MiFutbolR`:
+
+- `Importaciones/mifutbol_legacy_original.db`: copia intacta del origen.
+- `Importaciones/mifutbol_Hamer.db`: perfil de MiFutbolC importado como `mifutbolr_Hamer.db`.
+- `Exportaciones/mifutbol_app_pre_import_*.db`: base que tenía la app antes de reemplazarla.
+- `Exportaciones/mifutbol_convertida.db`: copia de la base final migrada (la usa `cargo run --example capturar_tui`).
 
 ## Repetir la migración
 

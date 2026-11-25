@@ -79,8 +79,8 @@ fn imports_profiles_with_own_database_and_passwords() {
 
     // Ana tiene su propia base con el partido; Beto no tenía datos.
     let cuentas_lista = usuario_service::listar(cuentas.conn()).unwrap();
-    let id_ana = cuentas_lista.iter().find(|u| u.nombre == "Ana").unwrap().id;
-    let db_ana = Database::open(&paths.db_usuario(id_ana)).unwrap();
+    assert!(cuentas_lista.iter().any(|u| u.nombre == "Ana"));
+    let db_ana = Database::open(&paths.db_usuario("Ana")).unwrap();
     let partidos: i64 = db_ana
         .conn()
         .query_row("SELECT COUNT(*) FROM partido", [], |row| row.get(0))

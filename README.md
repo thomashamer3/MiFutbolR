@@ -224,9 +224,9 @@ El instalador está en `dist/MiFutbolR-Setup-0.1.exe` (Inno Setup):
 - Permite **iniciar el programa** al finalizar la instalación.
 - Incluye el **desinstalador** de Windows.
 
-La base de datos de usuario se guarda en
-`%LOCALAPPDATA%\mifutbol\mifutbol-rs\data\mifutbol.db` y no se elimina al
-desinstalar.
+Los datos se guardan en `%LOCALAPPDATA%\MiFutbolR\data` y no se eliminan al
+desinstalar: cada cuenta tiene su base `mifutbolr_<Usuario>.db` (la sesión de
+invitado usa `mifutbol.db`) y las cuentas viven en `cuentas.db`.
 
 Para migrar los **perfiles de MiFutbolC** (`users.db` + `mifutbol_<usuario>.db`), cada uno
 como cuenta con su propia base y la misma contraseña:
@@ -287,16 +287,19 @@ genera logs + reporte en `target/analisis/`:
 
 | SO | Ruta por defecto |
 |----|------------------|
-| Windows | `%LOCALAPPDATA%\mifutbol\mifutbol-rs\data\mifutbol.db` |
-| Linux | `~/.local/share/mifutbol-rs/mifutbol.db` |
-| macOS | `~/Library/Application Support/com.mifutbol.mifutbol-rs/mifutbol.db` |
+| Windows | `%LOCALAPPDATA%\MiFutbolR\data\` |
+| Linux | `~/.local/share/MiFutbolR/` |
+| macOS | `~/Library/Application Support/MiFutbolR/` |
 
-Esa es la BD de invitado. Las cuentas se registran en `cuentas.db` y cada una
-guarda sus datos en `usuarios/<id>/mifutbol.db`, dentro del mismo directorio.
-Eliminar una cuenta no borra su archivo de datos.
+En esa carpeta: `mifutbolr_<Usuario>.db` por cuenta, `mifutbol.db` para invitado
+y `cuentas.db` (registro de cuentas). Eliminar una cuenta no borra su archivo de datos.
 
-`MIFUTBOL_DB` permite apuntar a otro archivo (BD de invitado). Exportaciones,
-backups e imágenes viven junto a la BD.
+Las carpetas que se manejan a mano están en **Documentos**:
+`Documentos/MiFutbolR/Exportaciones` (exportaciones y backups),
+`Documentos/MiFutbolR/Importaciones` y `Documentos/MiFutbolR/Imagenes`.
+
+`MIFUTBOL_DB` permite apuntar a otro archivo (BD de invitado). Ningún `.db` ni
+log se versiona (`.gitignore`).
 
 ## Arquitectura
 

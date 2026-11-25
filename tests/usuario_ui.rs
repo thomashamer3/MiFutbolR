@@ -19,7 +19,7 @@ fn welcome_creates_account_and_opens_its_own_db() {
     assert_eq!(app.current_screen(), Screen::MainMenu);
     let ana = app.usuario_actual.clone().expect("sesión");
     assert_eq!(ana.nombre, "Ana");
-    assert_eq!(app.db.path(), Some(app.paths.db_usuario(ana.id).as_path()));
+    assert_eq!(app.db.path(), Some(app.paths.db_usuario(&ana.nombre).as_path()));
 }
 
 #[test]

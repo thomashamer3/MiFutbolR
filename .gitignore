@@ -1,10 +1,7 @@
 /target
 skills/
-mifutbol.db
 datos/
 target/capturas/
-*.db-wal
-*.db-shm
 docs/ANALISIS_MIFUTBOLC.md
 docs/MIGRACION_BD.md
 docs/TUI.md
@@ -12,3 +9,13 @@ docs/IMPLEMENTACION_32.md
 
 # Worktrees y estado local de agentes
 .claude/
+
+# Datos personales: bases SQLite, backups y logs viven fuera del repo
+# (%LOCALAPPDATA%\MiFutbolR\data y Documentos\MiFutbolR).
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.log

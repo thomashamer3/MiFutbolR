@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use directories::ProjectDirs;
+use directories::{ProjectDirs, UserDirs};
 
 /// Rutas de la aplicación.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,15 +29,20 @@ impl AppPaths {
     ///
     /// `MIFUTBOL_DB` permite apuntar a otra base de datos (tests, backup).
     pub fn discover() -> Result<Self> {
-        let dirs = ProjectDirs::from("com", "mifutbol", "mifutbol-rs")
+        // Windows: %LOCALAPPDATA%\MiFutbolR\data
+        let dirs = ProjectDirs::from_path(PathBuf::from("MiFutbolR"))
             .context("No se pudo resolver el directorio de datos")?;
         let data_dir = dirs.data_local_dir().to_path_buf();
         let db_file = std::env::var_os("MIFUTBOL_DB")
             .map_or_else(|| data_dir.join("mifutbol.db"), PathBuf::from);
+        // Carpetas que el usuario maneja a mano: Documentos\MiFutbolR\...
+        let documentos = UserDirs::new()
+            .and_then(|user| user.document_dir().map(|dir| dir.join("MiFutbolR")))
+            .unwrap_or_else(|| data_dir.clone());
         Ok(Self {
-            export_dir: data_dir.join("Exportaciones"),
-            import_dir: data_dir.join("Importaciones"),
-            images_dir: data_dir.join("Imagenes"),
+            export_dir: documentos.join("Exportaciones"),
+            import_dir: documentos.join("Importaciones"),
+            images_dir: documentos.join("Imagenes"),
             log_file: data_dir.join("mifutbol.log"),
             cuentas_file: data_dir.join("cuentas.db"),
             data_dir,
@@ -58,13 +63,25 @@ impl AppPaths {
         }
     }
 
-    /// Base de datos propia de una cuenta.
+    /// Base de los adjuntos `Imagenes/...` guardados en la BD (padre de `images_dir`).
     #[must_use]
-    pub fn db_usuario(&self, id: i64) -> PathBuf {
-        self.data_dir
-            .join("usuarios")
-            .join(id.to_string())
-            .join("mifutbol.db")
+    pub fn adjuntos_dir(&self) -> &std::path::Path {
+        self.images_dir.parent().unwrap_or(&self.data_dir)
+    }
+
+    /// Base de datos propia de una cuenta: `mifutbolr_<Usuario>.db`.
+    #[must_use]
+    pub fn db_usuario(&self, nombre: &str) -> PathBuf {
+        // Los nombres no se pueden renombrar, así que el archivo queda fijo.
+        let seguro: String = nombre
+            .chars()
+            .map(|c| match c {
+                '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '_',
+                c if c.is_control() => '_',
+                c => c,
+            })
+            .collect();
+        self.data_dir.join(format!("mifutbolr_{seguro}.db"))
     }
 
     /// Crea los directorios necesarios.
@@ -92,9 +109,8 @@ mod tests {
         assert_eq!(paths.db_file, root.join("mifutbol.db"));
         assert_eq!(paths.export_dir, root.join("Exportaciones"));
         assert_eq!(paths.cuentas_file, root.join("cuentas.db"));
-        assert_eq!(
-            paths.db_usuario(7),
-            root.join("usuarios").join("7").join("mifutbol.db")
-        );
+        assert_eq!(paths.adjuntos_dir(), root);
+        assert_eq!(paths.db_usuario("Hamer"), root.join("mifutbolr_Hamer.db"));
+        assert_eq!(paths.db_usuario("a/b:c"), root.join("mifutbolr_a_b_c.db"));
     }
 }
